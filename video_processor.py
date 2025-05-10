@@ -230,17 +230,34 @@ class VideoProcessor:
             "timestamps"
         ]
 
-        description = dedent(f"""# {Path(video_path).stem}
+        from string import Template
 
-                      {response.choices[0].message.content}
+        # Create link list
+        link_list = '\n'.join(f'- [{link["description"]}]({link["url"]})' for link in links)
+        
+        # Create timestamp list
+        timestamp_list = '\n'.join(f'{timestamp["start"]} - {timestamp["title"]}' for timestamp in timestamps)
+        
+        # Define template
+        template = Template(dedent("""
+            # $title
 
-                      ## Links
-                      {''.join(f'- [{link["description"]}]({link["url"]})' for link in links)}
-                      
-                      ## Timestamps
-                      {''.join(f'{timestamp["start"]} - {timestamp["title"]} \n' for timestamp in timestamps)}
-                      
-                      """)
+            $content
+
+            ## Links
+            $links
+            
+            ## Timestamps
+            $timestamps
+            """))
+        
+        # Substitute values
+        description = template.substitute(
+            title=Path(video_path).stem,
+            content=response.choices[0].message.content,
+            links=link_list,
+            timestamps=timestamp_list
+        )
 
         output_path = Path(video_path).parent / "description.md"
         with open(output_path, "w") as f:
