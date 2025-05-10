@@ -2,7 +2,7 @@ import os
 import subprocess
 from pathlib import Path
 from typing import List, Dict, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 from loguru import logger
 from openai import OpenAI
@@ -83,8 +83,8 @@ class VideoProcessor:
 
             timestamps.append(
                 {
-                    "start": str(datetime.timedelta(seconds=start_time)),
-                    "end": str(datetime.timedelta(seconds=end_time)),
+                    "start": str(timedelta(seconds=start_time)),
+                    "end": str(timedelta(seconds=end_time)),
                     "title": mp4_file.stem,
                 }
             )
@@ -134,8 +134,6 @@ class VideoProcessor:
 
         except Exception as e:
             logger.error(f"Error generating transcript: {e}")
-            if os.path.exists(audio_path):
-                os.remove(audio_path)
             raise
 
     def generate_description(
