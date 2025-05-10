@@ -113,18 +113,54 @@ class VideoProcessor:
         return video_info
 
     def generate_transcript(self, video_path: str) -> str:
-        """Generate VTT transcript using OpenAI's Whisper API."""
+        """Generate VTT transcript using OpenAI's Whisper API.
+        For audio files larger than 25MB, splits into chunks and processes separately.
+        """
+        from pydub import AudioSegment
+        
         audio_path = Path(video_path).with_suffix(".mp3")
         video = VideoFileClip(video_path)
         video.audio.write_audiofile(str(audio_path))
         video.close()
 
         try:
-            with open(audio_path, "rb") as audio_file:
-                transcript = self.client.audio.transcriptions.create(
-                    model="whisper-1", file=audio_file, response_format="vtt"
-                )
-
+            # Check file size
+            file_size_mb = os.path.getsize(audio_path) / (1024 * 1024)
+            
+            if file_size_mb <= 25:
+                # Process normally if file is under 25MB
+                with open(audio_path, "rb") as audio_file:
+                    transcript = self.client.audio.transcriptions.create(
+                        model="whisper-1", file=audio_file, response_format="vtt"
+                    )
+            else:
+                # Split and process audio in chunks
+                logger.info(f"Audio file size: {file_size_mb:.2f}MB. Splitting into chunks...")
+                audio = AudioSegment.from_mp3(str(audio_path))
+                chunk_length = 10 * 60 * 1000  # 10 minutes in milliseconds
+                chunks = []
+                
+                # Split audio into chunks
+                for i in range(0, len(audio), chunk_length):
+                    chunk = audio[i:i + chunk_length]
+                    chunk_path = audio_path.parent / f"chunk_{i//chunk_length}.mp3"
+                    chunk.export(str(chunk_path), format="mp3")
+                    chunks.append(chunk_path)
+                
+                # Process each chunk
+                transcripts = []
+                for i, chunk_path in enumerate(chunks):
+                    logger.info(f"Processing chunk {i+1}/{len(chunks)}")
+                    with open(chunk_path, "rb") as chunk_file:
+                        chunk_transcript = self.client.audio.transcriptions.create(
+                            model="whisper-1", file=chunk_file, response_format="vtt"
+                        )
+                        transcripts.append(self._clean_vtt_transcript(chunk_transcript))
+                    os.remove(chunk_path)
+                
+                # Combine transcripts
+                transcript = self._merge_vtt_transcripts(transcripts)
+            
             output_path = Path(video_path).parent / "transcript.vtt"
             with open(output_path, "w") as f:
                 f.write(transcript)
@@ -209,6 +245,82 @@ class VideoProcessor:
             f.write(description)
 
         return str(output_path)
+
+    def _clean_vtt_transcript(self, vtt_content: str) -> str:
+        """Remove VTT headers and clean up transcript content."""
+        # Skip the VTT header (first 2 lines)
+        lines = vtt_content.split('\n')[2:]
+        return '\n'.join(lines)
+
+    def _merge_vtt_transcripts(self, transcripts: List[str]) -> str:
+        """Merge multiple VTT transcripts into a single file with robust validation."""
+        merged = "WEBVTT\n\n"  # Add VTT header
+        time_offset = 0
+        
+        for transcript in transcripts:
+            if not transcript.strip():  # Skip empty transcripts
+                continue
+                
+            lines = transcript.split('\n')
+            i = 0
+            while i < len(lines):
+                # Find next timestamp line
+                while i < len(lines) and '-->' not in lines[i]:
+                    i += 1
+                
+                if i >= len(lines):
+                    break
+                    
+                # Process timestamp block
+                timestamp_line = lines[i]
+                try:
+                    times = timestamp_line.split(' --> ')
+                    if len(times) != 2:
+                        i += 1
+                        continue
+                        
+                    start = self._adjust_timestamp(times[0].strip(), time_offset)
+                    end = self._adjust_timestamp(times[1].strip(), time_offset)
+                    
+                    # Get subtitle text if available
+                    subtitle_text = lines[i + 1] if i + 1 < len(lines) else ''
+                    
+                    # Add to merged output
+                    merged += f"{start} --> {end}\n"
+                    merged += f"{subtitle_text}\n\n"
+                    
+                except (ValueError, IndexError):
+                    logger.warning(f"Skipping malformed timestamp block at line {i}")
+                    
+                i += 2  # Move to next potential block
+            
+            # Calculate time offset using last valid timestamp
+            try:
+                last_timestamp = next(
+                    (line.split(' --> ')[1].strip()
+                     for line in reversed(lines)
+                     if '-->' in line),
+                    "00:00:00.000"
+                )
+                time_offset += self._timestamp_to_seconds(last_timestamp)
+            except (ValueError, IndexError):
+                logger.warning("Could not determine time offset, using default")
+                time_offset += 0  # Keep existing offset
+        
+        return merged
+
+    def _adjust_timestamp(self, timestamp: str, offset: float) -> str:
+        """Adjust a VTT timestamp by adding an offset in seconds."""
+        seconds = self._timestamp_to_seconds(timestamp) + offset
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        seconds = seconds % 60
+        return f"{hours:02d}:{minutes:02d}:{seconds:06.3f}"
+
+    def _timestamp_to_seconds(self, timestamp: str) -> float:
+        """Convert a VTT timestamp to seconds."""
+        h, m, s = timestamp.split(':')
+        return float(h) * 3600 + float(m) * 60 + float(s)
 
     def generate_seo_keywords(self, description_path: str) -> str:
         """Generate SEO keywords based on video description."""
