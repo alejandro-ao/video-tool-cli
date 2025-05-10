@@ -1,6 +1,7 @@
 import os
 import subprocess
 from pathlib import Path
+from textwrap import dedent
 from typing import List, Dict, Optional
 from datetime import datetime, timedelta
 import json
@@ -178,10 +179,11 @@ class VideoProcessor:
         with open(transcript_path) as f:
             transcript = f.read()
 
-        prompt = f"""Based on this transcript, generate a comprehensive video description 
-        and timestamps in markdown format. Include relevant technical details and key points.
+        prompt = f"""
+        Based on this transcript, generate a comprehensive video description in markdown format. 
+        Include relevant technical details and key points.
         
-        The description should include:
+        The description should include only these two things:
         - A short paragraph explaining the video's purpose and content.
         - A list of topics that are covered in the video (good for SEO). For example:
             - How to create a FastAPI app
@@ -228,7 +230,7 @@ class VideoProcessor:
             "timestamps"
         ]
 
-        description = f"""# {Path(video_path).stem}
+        description = dedent(f"""# {Path(video_path).stem}
 
                       {response.choices[0].message.content}
 
@@ -236,8 +238,9 @@ class VideoProcessor:
                       {''.join(f'- [{link["description"]}]({link["url"]})' for link in links)}
                       
                       ## Timestamps
-                      {''.join(f'{timestamp["start"]} - {timestamp["title"]}' for timestamp in timestamps)}
-                      """
+                      {''.join(f'{timestamp["start"]} - {timestamp["title"]} \n' for timestamp in timestamps)}
+                      
+                      """)
 
         output_path = Path(video_path).parent / "description.md"
         with open(output_path, "w") as f:
