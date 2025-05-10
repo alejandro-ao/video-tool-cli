@@ -329,12 +329,12 @@ class VideoProcessor:
         with open(description_path) as f:
             description = f.read()
 
-        prompt = f"""Based on this video description, generate a list of relevant SEO keywords 
+        prompt = f"""Based on this video description, generate a comma-separated list of relevant SEO keywords 
         that would help with video discoverability. Focus on technical and specific terms.
         Description: {description}"""
 
         response = self.client.chat.completions.create(
-            model="gpt-4", messages=[{"role": "user", "content": prompt}]
+            model="gpt-4.1", messages=[{"role": "user", "content": prompt}]
         )
 
         output_path = Path(description_path).parent / "keywords.txt"
