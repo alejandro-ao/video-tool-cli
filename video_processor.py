@@ -296,7 +296,7 @@ class VideoProcessor:
         from string import Template
 
         # Create link list
-        link_list = '\n'.join(f'- [{link["description"]}]({link["url"]})' for link in links)
+        link_list = '\n'.join(f'- {link["description"]}: {link["url"]}' for link in links)
         
         # Create timestamp list
         timestamp_list = '\n'.join(f'{timestamp["start"]} - {timestamp["title"]}' for timestamp in timestamps)
