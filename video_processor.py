@@ -14,7 +14,6 @@ class VideoProcessor:
         self.input_dir = Path(input_dir)
         self.client = OpenAI()
         self.setup_logging()
-        self.github_repo_url = input("Enter the GitHub repository URL:")
 
     def setup_logging(self):
         logger.add(
@@ -165,7 +164,7 @@ class VideoProcessor:
             with open(output_path, "w") as f:
                 f.write(transcript)
 
-            os.remove(audio_path)  # Cleanup
+            # os.remove(audio_path)  # Cleanup
             return str(output_path)
 
         except Exception as e:
@@ -206,7 +205,7 @@ class VideoProcessor:
         )
 
         links = [
-            {"url": self.github_repo_url, "description": "Code from the video"},
+            {"url": repo_url, "description": "Code from the video"},
             {
                 "url": "aibootcamp.dev",
                 "description": "🚀 Complete AI Engineer Bootcamp",
