@@ -1,11 +1,12 @@
 import os
+import subprocess
 from pathlib import Path
 from typing import List, Dict, Optional
 from datetime import datetime
 import json
 from loguru import logger
 from openai import OpenAI
-from moviepy.editor import VideoFileClip, concatenate_videoclips
+from moviepy.video.io.VideoFileClip import VideoFileClip
 
 
 class VideoProcessor:
@@ -25,25 +26,44 @@ class VideoProcessor:
         return sorted(self.input_dir.glob("*.mp4"))
 
     def concatenate_videos(self, output_filename: Optional[str] = None) -> str:
-        """Concatenate multiple MP4 videos in alphabetical order."""
+        """Concatenate multiple MP4 videos in alphabetical order using ffmpeg."""
         mp4_files = self.get_mp4_files()
         if not mp4_files:
             raise ValueError("No MP4 files found in the input directory")
 
         logger.info(f"Found {len(mp4_files)} MP4 files to concatenate")
-        clips = [VideoFileClip(str(mp4)) for mp4 in mp4_files]
 
         if not output_filename:
             output_filename = f"{datetime.now().strftime('%Y-%m-%d')}_concatenated.mp4"
 
         output_path = self.input_dir / output_filename
-        final_clip = concatenate_videoclips(clips)
-        final_clip.write_videofile(str(output_path))
+        
+        # Create a temporary file listing all videos to concatenate
+        concat_list = self.input_dir / "concat_list.txt"
+        with open(concat_list, "w") as f:
+            for mp4_file in mp4_files:
+                f.write(f"file '{mp4_file.name}'\n")
 
-        for clip in clips:
-            clip.close()
+        try:
+            # Use ffmpeg to concatenate videos
+            subprocess.run([
+                'ffmpeg',
+                '-f', 'concat',
+                '-safe', '0',
+                '-i', str(concat_list),
+                '-c', 'copy',  # Copy streams without re-encoding
+                str(output_path)
+            ], check=True)
 
-        return str(output_path)
+            # Clean up the temporary file
+            os.remove(concat_list)
+            return str(output_path)
+
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Error concatenating videos: {e}")
+            if os.path.exists(concat_list):
+                os.remove(concat_list)
+            raise
 
     def generate_timestamps(self, video_path: str) -> Dict:
         """Generate timestamp information for the video with chapters based on input videos."""
@@ -79,7 +99,7 @@ class VideoProcessor:
             "video_title": Path(video_path).name,
             "timestamps": timestamps,
             "metadata": {
-                "resolution": f"{final_video.size[0]}x{final_video.size[1]}",
+                "resolution": f"{final_video.w}x{final_video.h}",
                 "file_size": f"{os.path.getsize(video_path) // (1024*1024)}MB",
                 "creation_date": datetime.now().isoformat(),
             },
