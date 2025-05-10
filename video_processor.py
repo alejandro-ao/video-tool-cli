@@ -28,6 +28,7 @@ class VideoProcessor:
     def concatenate_videos(self, output_filename: Optional[str] = None) -> str:
         """Concatenate multiple MP4 videos in alphabetical order using ffmpeg.
         First standardizes all videos to match the encoding parameters of the first video.
+        Utilizes hardware acceleration when available.
         """
         mp4_files = self.get_mp4_files()
         if not mp4_files:
@@ -76,14 +77,21 @@ class VideoProcessor:
                 fps = stream_info['r_frame_rate'].split('/')
                 fps = float(int(fps[0]) / int(fps[1]))
                 
-                # Build ffmpeg command for standardization
+                # Build ffmpeg command for standardization with hardware acceleration
                 cmd = [
                     'ffmpeg',
-                    '-i', str(mp4_file),
-                    '-c:v', stream_info['codec_name'],
-                    '-s', f"{stream_info['width']}x{stream_info['height']}",
-                    '-r', str(fps)
+                    '-hwaccel', 'auto',  # Automatically select best hardware acceleration
+                    '-i', str(mp4_file)
                 ]
+                
+                # Video encoding parameters
+                cmd.extend([
+                    '-c:v', 'h264_videotoolbox' if stream_info['codec_name'] == 'h264' else stream_info['codec_name'],
+                    '-s', f"{stream_info['width']}x{stream_info['height']}",
+                    '-r', str(fps),
+                    '-preset', 'fast',  # Use fast encoding preset
+                    '-profile:v', 'high',  # High quality profile
+                ])
                 
                 # Add audio parameters if present
                 if audio_stream:
@@ -95,7 +103,7 @@ class VideoProcessor:
                 
                 cmd.extend(['-y', str(output_file)])
                 
-                logger.info(f"Standardizing video: {mp4_file.name}")
+                logger.info(f"Standardizing video with hardware acceleration: {mp4_file.name}")
                 subprocess.run(cmd, check=True)
                 processed_files.append(output_file)
 
