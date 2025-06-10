@@ -23,7 +23,28 @@ class VideoProcessor:
 
     def get_mp4_files(self) -> List[Path]:
         """Get all MP4 files in the input directory."""
-        return sorted(self.input_dir.glob("*.mp4"))
+        try:
+            # Convert the input path to an absolute, normalized path
+            input_path = Path(str(self.input_dir)).expanduser().resolve()
+            logger.debug(f"Searching for MP4 files in: {input_path}")
+            
+            # Ensure directory exists
+            if not input_path.exists():
+                raise ValueError(f"Input directory does not exist: {input_path}")
+            if not input_path.is_dir():
+                raise ValueError(f"Path is not a directory: {input_path}")
+            
+            # Find all MP4 files using pathlib which handles spaces correctly
+            mp4_files = [f for f in input_path.iterdir() if f.is_file() and f.suffix.lower() == '.mp4']
+            logger.debug(f"Found {len(mp4_files)} MP4 files: {[f.name for f in mp4_files]}")
+            
+            if not mp4_files:
+                logger.error(f"No MP4 files found in directory: {input_path}")
+            
+            return sorted(mp4_files)
+        except Exception as e:
+            logger.error(f"Error accessing input directory {self.input_dir}: {e}")
+            raise
 
     def concatenate_videos(self, output_filename: Optional[str] = None) -> str:
         """Concatenate multiple MP4 videos in alphabetical order using ffmpeg.
@@ -32,7 +53,7 @@ class VideoProcessor:
         """
         mp4_files = self.get_mp4_files()
         if not mp4_files:
-            raise ValueError("No MP4 files found in the input directory")
+            raise ValueError(f"No MP4 files found in the input directory: {self.input_dir}")
 
         logger.info(f"Found {len(mp4_files)} MP4 files to concatenate")
 
