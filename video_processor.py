@@ -157,7 +157,7 @@ class VideoProcessor:
                     temp_file.unlink()
                 temp_dir.rmdir()
 
-    def generate_timestamps(self, video_path: str) -> Dict:
+    def generate_timestamps(self) -> Dict:
         """Generate timestamp information for the video with chapters based on input videos."""
         mp4_files = self.get_mp4_files()
         if not mp4_files:
@@ -185,20 +185,14 @@ class VideoProcessor:
             video.close()
 
         # Get metadata from the final concatenated video
-        final_video = VideoFileClip(video_path)
         video_info = {
-            "video_duration": str(int(final_video.duration)),
-            "video_title": Path(video_path).name,
             "timestamps": timestamps,
             "metadata": {
-                "resolution": f"{final_video.w}x{final_video.h}",
-                "file_size": f"{os.path.getsize(video_path) // (1024*1024)}MB",
                 "creation_date": datetime.now().isoformat(),
             },
         }
-        final_video.close()
 
-        output_path = Path(video_path).parent / "timestamps.json"
+        output_path = Path(self.input_dir) / "timestamps.json"
         with open(output_path, "w") as f:
             json.dump([video_info], f, indent=2)
 

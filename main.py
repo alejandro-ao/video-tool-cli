@@ -59,19 +59,21 @@ def main():
             return
 
         processor = VideoProcessor(str(input_dir))
-        output_video = None
 
+        # Generate timestamps for individual videos first
+        if not params['skip_timestamps']:
+            logger.info('Generating timestamps for individual videos...')
+            processor.generate_timestamps()
+            logger.info('Timestamps generated successfully for all videos')
+
+        # Then proceed with concatenation
+        output_video = None
         if not params['skip_concat']:
             logger.info('Starting video concatenation...')
             output_video = processor.concatenate_videos()
             logger.info(f'Videos concatenated successfully: {output_video}')
 
         video_path = output_video or next(input_dir.glob('*.mp4'))
-
-        if not params['skip_timestamps']:
-            logger.info('Generating timestamps...')
-            processor.generate_timestamps(str(video_path))
-            logger.info('Timestamps generated successfully')
 
         if not params['skip_transcript']:
             logger.info('Generating transcript...')
