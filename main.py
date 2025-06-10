@@ -5,23 +5,37 @@ from dotenv import load_dotenv
 from loguru import logger
 from video_processor import VideoProcessor
 
-def setup_argparse():
-    parser = argparse.ArgumentParser(description='Video Processing Tool')
-    parser.add_argument('--input-dir', type=str, required=True,
-                        help='Directory containing input MP4 files')
-    parser.add_argument('--repo-url', type=str,
-                        help='GitHub repository URL for video description')
-    parser.add_argument('--skip-concat', action='store_true',
-                        help='Skip video concatenation')
-    parser.add_argument('--skip-timestamps', action='store_true',
-                        help='Skip timestamp generation')
-    parser.add_argument('--skip-transcript', action='store_true',
-                        help='Skip transcript generation')
-    parser.add_argument('--skip-description', action='store_true',
-                        help='Skip description generation')
-    parser.add_argument('--skip-seo', action='store_true',
-                        help='Skip SEO keywords generation')
-    return parser
+def get_user_input():
+    """Get parameters from user input."""
+    print("\nVideo Processing Tool\n")
+    
+    # Get input directory
+    while True:
+        input_dir = input("Enter the input directory path: ").strip().strip("'\"")
+        if input_dir:
+            break
+        print("Input directory is required!")
+    
+    # Get optional parameters
+    repo_url = input("Enter GitHub repository URL (optional): ").strip()
+    
+    # Get processing options
+    print("\nProcessing options (Enter 'y' to skip, any other key to process):")
+    skip_concat = input("Skip video concatenation? ").lower().strip() == 'y'
+    skip_timestamps = input("Skip timestamp generation? ").lower().strip() == 'y'
+    skip_transcript = input("Skip transcript generation? ").lower().strip() == 'y'
+    skip_description = input("Skip description generation? ").lower().strip() == 'y'
+    skip_seo = input("Skip SEO keywords generation? ").lower().strip() == 'y'
+    
+    return {
+        'input_dir': input_dir,
+        'repo_url': repo_url if repo_url else None,
+        'skip_concat': skip_concat,
+        'skip_timestamps': skip_timestamps,
+        'skip_transcript': skip_transcript,
+        'skip_description': skip_description,
+        'skip_seo': skip_seo
+    }
 
 def main():
     load_dotenv()
@@ -29,40 +43,51 @@ def main():
         logger.error('OPENAI_API_KEY environment variable not set')
         return
 
-    parser = setup_argparse()
-    args = parser.parse_args()
-
-    processor = VideoProcessor(args.input_dir)
-    output_video = None
-
     try:
-        if not args.skip_concat:
+        # Get parameters from user input
+        params = get_user_input()
+        
+        # Convert to absolute path and handle spaces correctly
+        input_dir = Path(params['input_dir']).expanduser().resolve()
+        logger.info(f'Input directory path: {input_dir}')
+        
+        if not input_dir.exists():
+            logger.error(f'Input directory does not exist: {input_dir}')
+            return
+        if not input_dir.is_dir():
+            logger.error(f'Path is not a directory: {input_dir}')
+            return
+
+        processor = VideoProcessor(str(input_dir))
+        output_video = None
+
+        if not params['skip_concat']:
             logger.info('Starting video concatenation...')
             output_video = processor.concatenate_videos()
             logger.info(f'Videos concatenated successfully: {output_video}')
 
-        video_path = output_video or next(Path(args.input_dir).glob('*.mp4'))
+        video_path = output_video or next(input_dir.glob('*.mp4'))
 
-        if not args.skip_timestamps:
+        if not params['skip_timestamps']:
             logger.info('Generating timestamps...')
             processor.generate_timestamps(str(video_path))
             logger.info('Timestamps generated successfully')
 
-        if not args.skip_transcript:
+        if not params['skip_transcript']:
             logger.info('Generating transcript...')
             transcript_path = processor.generate_transcript(str(video_path))
             logger.info(f'Transcript generated successfully: {transcript_path}')
 
-        if not args.skip_description and args.repo_url:
+        if not params['skip_description'] and params['repo_url']:
             logger.info('Generating description...')
             description_path = processor.generate_description(
                 str(video_path),
-                args.repo_url,
-                str(Path(args.input_dir) / 'transcript.vtt')
+                params['repo_url'],
+                str(input_dir / 'transcript.vtt')
             )
             logger.info(f'Description generated successfully: {description_path}')
 
-            if not args.skip_seo:
+            if not params['skip_seo']:
                 logger.info('Generating SEO keywords...')
                 keywords_path = processor.generate_seo_keywords(description_path)
                 logger.info(f'SEO keywords generated successfully: {keywords_path}')
