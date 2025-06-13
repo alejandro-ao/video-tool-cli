@@ -7,7 +7,9 @@ from datetime import datetime, timedelta
 import json
 from loguru import logger
 from openai import OpenAI
-from moviepy.video.io.VideoFileClip import VideoFileClip
+from moviepy.video.io.VideoFileClip import VideoFileClip, concatenate_videoclips
+from pydub import AudioSegment
+from pydub.silence import detect_nonsilent
 
 
 class VideoProcessor:
@@ -21,39 +23,68 @@ class VideoProcessor:
             "video_processor.log", rotation="1 day", retention="1 week", level="INFO"
         )
 
-    def get_mp4_files(self) -> List[Path]:
-        """Get all MP4 files in the input directory."""
+    def get_mp4_files(self, directory: Optional[str] = None) -> List[Path]:
+        """Get all MP4 files in the specified directory."""
         try:
-            # Convert the input path to an absolute, normalized path
-            input_path = Path(str(self.input_dir)).expanduser().resolve()
+            search_dir = Path(directory) if directory else self.input_dir
+            input_path = search_dir.expanduser().resolve()
             logger.debug(f"Searching for MP4 files in: {input_path}")
-            
-            # Ensure directory exists
-            if not input_path.exists():
-                raise ValueError(f"Input directory does not exist: {input_path}")
-            if not input_path.is_dir():
-                raise ValueError(f"Path is not a directory: {input_path}")
-            
-            # Find all MP4 files using pathlib which handles spaces correctly
-            mp4_files = [f for f in input_path.iterdir() if f.is_file() and f.suffix.lower() == '.mp4']
+
+            if not input_path.exists() or not input_path.is_dir():
+                raise ValueError(f"Directory does not exist or is not a directory: {input_path}")
+
+            mp4_files = sorted([f for f in input_path.iterdir() if f.is_file() and f.suffix.lower() == '.mp4'])
             logger.debug(f"Found {len(mp4_files)} MP4 files: {[f.name for f in mp4_files]}")
-            
+
             if not mp4_files:
-                logger.error(f"No MP4 files found in directory: {input_path}")
-            
-            return sorted(mp4_files)
+                logger.warning(f"No MP4 files found in directory: {input_path}")
+
+            return mp4_files
         except Exception as e:
-            logger.error(f"Error accessing input directory {self.input_dir}: {e}")
+            logger.error(f"Error accessing directory {search_dir}: {e}")
             raise
+
+    def remove_silences(self) -> str:
+        """
+        Detects and removes silences from all videos in the input directory,
+        saving the processed videos to a 'processed' subdirectory.
+        """
+        processed_dir = self.input_dir / "processed"
+        processed_dir.mkdir(exist_ok=True)
+
+        for mp4_file in self.get_mp4_files():
+            logger.info(f"Processing video: {mp4_file.name}")
+            video = VideoFileClip(str(mp4_file))
+            audio = AudioSegment.from_file(str(mp4_file), format="mp4")
+
+            nonsilent_chunks = detect_nonsilent(
+                audio, min_silence_len=3000, silence_thresh=-40
+            )
+
+            if not nonsilent_chunks:
+                logger.warning(f"No non-silent chunks found in {mp4_file.name}, skipping.")
+                continue
+
+            subclips = [video.subclip(start/1000, end/1000) for start, end in nonsilent_chunks]
+            final_clip = concatenate_videoclips(subclips)
+            
+            output_path = processed_dir / mp4_file.name
+            final_clip.write_videofile(str(output_path), codec="libx264", audio_codec="aac")
+            
+            video.close()
+            final_clip.close()
+
+        return str(processed_dir)
 
     def concatenate_videos(self, output_filename: Optional[str] = None) -> str:
         """Concatenate multiple MP4 videos in alphabetical order using ffmpeg.
         First standardizes all videos to match the encoding parameters of the first video.
         Utilizes hardware acceleration when available.
         """
-        mp4_files = self.get_mp4_files()
+        processed_dir = self.input_dir / "processed"
+        mp4_files = self.get_mp4_files(str(processed_dir))
         if not mp4_files:
-            raise ValueError(f"No MP4 files found in the input directory: {self.input_dir}")
+            raise ValueError(f"No MP4 files found in the processed directory: {processed_dir}")
 
         logger.info(f"Found {len(mp4_files)} MP4 files to concatenate")
 
@@ -159,9 +190,10 @@ class VideoProcessor:
 
     def generate_timestamps(self) -> Dict:
         """Generate timestamp information for the video with chapters based on input videos."""
-        mp4_files = self.get_mp4_files()
+        processed_dir = self.input_dir / "processed"
+        mp4_files = self.get_mp4_files(str(processed_dir))
         if not mp4_files:
-            raise ValueError("No MP4 files found in the input directory")
+            raise ValueError("No MP4 files found in the processed directory")
 
         timestamps = []
         current_time = 0

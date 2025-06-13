@@ -21,6 +21,7 @@ def get_user_input():
     
     # Get processing options
     print("\nProcessing options (Enter 'y' to skip, any other key to process):")
+    skip_silence_removal = input("Skip silence removal? ").lower().strip() == 'y'
     skip_concat = input("Skip video concatenation? ").lower().strip() == 'y'
     skip_timestamps = input("Skip timestamp generation? ").lower().strip() == 'y'
     skip_transcript = input("Skip transcript generation? ").lower().strip() == 'y'
@@ -30,6 +31,7 @@ def get_user_input():
     return {
         'input_dir': input_dir,
         'repo_url': repo_url if repo_url else None,
+        'skip_silence_removal': skip_silence_removal,
         'skip_concat': skip_concat,
         'skip_timestamps': skip_timestamps,
         'skip_transcript': skip_transcript,
@@ -59,6 +61,12 @@ def main():
             return
 
         processor = VideoProcessor(str(input_dir))
+
+        # Remove silences
+        if not params['skip_silence_removal']:
+            logger.info('Removing silences from videos...')
+            processed_dir = processor.remove_silences()
+            logger.info(f'Silences removed successfully. Processed videos are in: {processed_dir}')
 
         # Generate timestamps for individual videos first
         if not params['skip_timestamps']:
