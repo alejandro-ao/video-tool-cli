@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 import json
 from loguru import logger
 from openai import OpenAI
-from moviepy.video.io.VideoFileClip import VideoFileClip, concatenate_videoclips
+from moviepy.video.io.VideoFileClip import VideoFileClip
 from pydub import AudioSegment
 from pydub.silence import detect_nonsilent
 
@@ -54,25 +54,62 @@ class VideoProcessor:
 
         for mp4_file in self.get_mp4_files():
             logger.info(f"Processing video: {mp4_file.name}")
-            video = VideoFileClip(str(mp4_file))
             audio = AudioSegment.from_file(str(mp4_file), format="mp4")
 
             nonsilent_chunks = detect_nonsilent(
-                audio, min_silence_len=3000, silence_thresh=-40
+                audio, min_silence_len=1000, silence_thresh=-40
             )
 
             if not nonsilent_chunks:
                 logger.warning(f"No non-silent chunks found in {mp4_file.name}, skipping.")
                 continue
 
-            subclips = [video.subclip(start/1000, end/1000) for start, end in nonsilent_chunks]
-            final_clip = concatenate_videoclips(subclips)
+            # Calculate number of silences (gaps between non-silent chunks)
+            num_silences = len(nonsilent_chunks) - 1
+            total_duration = audio.duration_seconds
+            total_nonsilent_duration = sum((end - start) / 1000 for start, end in nonsilent_chunks)
+            silence_duration = total_duration - total_nonsilent_duration
             
+            logger.info(f"Found {num_silences} silences in {mp4_file.name}. "
+                       f"Total silence duration: {silence_duration:.2f} seconds "
+                       f"({(silence_duration/total_duration)*100:.1f}% of video)")
+
+            chunk_files = []
+            for i, (start, end) in enumerate(nonsilent_chunks):
+                chunk_file = processed_dir / f"{mp4_file.stem}_chunk_{i}.mp4"
+                cmd = [
+                    "ffmpeg",
+                    "-i", str(mp4_file),
+                    "-ss", str(start / 1000),
+                    "-to", str(end / 1000),
+                    "-c", "copy",
+                    str(chunk_file)
+                ]
+                subprocess.run(cmd, check=True)
+                chunk_files.append(chunk_file)
+
+            # Create a temporary file listing all chunk files to concatenate
+            concat_list = processed_dir / f"{mp4_file.stem}_concat_list.txt"
+            with open(concat_list, "w") as f:
+                for chunk_file in chunk_files:
+                    f.write(f"file '{chunk_file}'\n")
+
+            # Concatenate the chunks using ffmpeg
             output_path = processed_dir / mp4_file.name
-            final_clip.write_videofile(str(output_path), codec="libx264", audio_codec="aac")
-            
-            video.close()
-            final_clip.close()
+            cmd = [
+                "ffmpeg",
+                "-f", "concat",
+                "-safe", "0",
+                "-i", str(concat_list),
+                "-c", "copy",
+                str(output_path)
+            ]
+            subprocess.run(cmd, check=True)
+
+            # Clean up chunk files and list
+            for chunk_file in chunk_files:
+                chunk_file.unlink()
+            concat_list.unlink()
 
         return str(processed_dir)
 
