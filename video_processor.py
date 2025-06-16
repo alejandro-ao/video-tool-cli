@@ -56,13 +56,12 @@ class VideoProcessor:
             audio = AudioSegment.from_file(str(mp4_file), format="mp4")
 
             nonsilent_chunks = detect_nonsilent(
-                audio, min_silence_len=1250, silence_thresh=-40
+                audio, min_silence_len=1000, silence_thresh=-40
             )
 
             if not nonsilent_chunks:
                 logger.warning(f"No non-silent chunks found in {mp4_file.name}, skipping.")
                 continue
-
             # Extend the last chunk to the end of the video to avoid cutting it off
             if nonsilent_chunks:
                 last_chunk_end = nonsilent_chunks[-1][1]
@@ -81,6 +80,17 @@ class VideoProcessor:
             logger.info(f"Found {num_silences} silences in {mp4_file.name}. "
                        f"Total silence duration: {silence_duration:.2f} seconds "
                        f"({(silence_duration/total_duration)*100:.1f}% of video)")
+
+            # Log each silence period
+            if len(nonsilent_chunks) > 1:
+                for i in range(len(nonsilent_chunks) - 1):
+                    silence_start = nonsilent_chunks[i][1] / 1000  # Convert to seconds
+                    silence_end = nonsilent_chunks[i + 1][0] / 1000  # Convert to seconds
+                    silence_length = silence_end - silence_start
+                    logger.info(f"Silence {i + 1}/{num_silences} in {mp4_file.name}: "
+                               f"from {timedelta(seconds=int(silence_start))} "
+                               f"to {timedelta(seconds=int(silence_end))} "
+                               f"(duration: {silence_length:.2f}s)")
 
             self._process_video_with_concat_filter(mp4_file, nonsilent_chunks, processed_dir)
 
