@@ -55,21 +55,40 @@ class VideoProcessor:
             logger.info(f"Processing video: {mp4_file.name}")
             audio = AudioSegment.from_file(str(mp4_file), format="mp4")
 
+            # Detect non-silent chunks with more conservative parameters
             nonsilent_chunks = detect_nonsilent(
-                audio, min_silence_len=1000, silence_thresh=-40
+                audio,
+                min_silence_len=1000,  # Keep 1 second minimum silence length
+                silence_thresh=-45,    # More permissive threshold (-45dB instead of -40dB)
+                seek_step=1           # Fine-grained analysis
             )
 
+            # Convert tuples to list for modification
+            nonsilent_chunks = [(start, end) for start, end in nonsilent_chunks]
+            
+            # Add buffer around speech segments to preserve transitions
+            buffer_ms = 250  # 0.25 seconds buffer
+            for i in range(len(nonsilent_chunks)):
+                # Extend start time (but not before 0)
+                nonsilent_chunks[i] = (
+                    max(0, nonsilent_chunks[i][0] - buffer_ms),
+                    min(len(audio), nonsilent_chunks[i][1] + buffer_ms)
+                )
+
+            # If no nonsilent chunks are found, skip this video
             if not nonsilent_chunks:
                 logger.warning(f"No non-silent chunks found in {mp4_file.name}, skipping.")
                 continue
             # Extend the last chunk to the end of the video to avoid cutting it off
             if nonsilent_chunks:
-                last_chunk_end = nonsilent_chunks[-1][1]
+                last_chunk = list(nonsilent_chunks[-1])
+                last_chunk_end = last_chunk[1]
                 audio_duration_ms = len(audio)
                 # If the last chunk ends before the video truly ends, extend it
                 if last_chunk_end < audio_duration_ms:
                     logger.info(f"Extending last chunk to the end of the video by {((audio_duration_ms - last_chunk_end) / 1000):.2f}s.")
-                    nonsilent_chunks[-1][1] = audio_duration_ms
+                    last_chunk[1] = audio_duration_ms
+                    nonsilent_chunks[-1] = tuple(last_chunk)
 
             # Calculate number of silences (gaps between non-silent chunks)
             num_silences = len(nonsilent_chunks) - 1
