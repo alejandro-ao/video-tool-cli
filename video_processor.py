@@ -38,7 +38,6 @@ class VideoProcessor:
 
             if not mp4_files:
                 logger.warning(f"No MP4 files found in directory: {input_path}")
-
             return mp4_files
         except Exception as e:
             logger.error(f"Error accessing directory {search_dir}: {e}")
@@ -57,12 +56,21 @@ class VideoProcessor:
             audio = AudioSegment.from_file(str(mp4_file), format="mp4")
 
             nonsilent_chunks = detect_nonsilent(
-                audio, min_silence_len=1000, silence_thresh=-40
+                audio, min_silence_len=1250, silence_thresh=-40
             )
 
             if not nonsilent_chunks:
                 logger.warning(f"No non-silent chunks found in {mp4_file.name}, skipping.")
                 continue
+
+            # Extend the last chunk to the end of the video to avoid cutting it off
+            if nonsilent_chunks:
+                last_chunk_end = nonsilent_chunks[-1][1]
+                audio_duration_ms = len(audio)
+                # If the last chunk ends before the video truly ends, extend it
+                if last_chunk_end < audio_duration_ms:
+                    logger.info(f"Extending last chunk to the end of the video by {((audio_duration_ms - last_chunk_end) / 1000):.2f}s.")
+                    nonsilent_chunks[-1][1] = audio_duration_ms
 
             # Calculate number of silences (gaps between non-silent chunks)
             num_silences = len(nonsilent_chunks) - 1
@@ -74,42 +82,7 @@ class VideoProcessor:
                        f"Total silence duration: {silence_duration:.2f} seconds "
                        f"({(silence_duration/total_duration)*100:.1f}% of video)")
 
-            chunk_files = []
-            for i, (start, end) in enumerate(nonsilent_chunks):
-                chunk_file = processed_dir / f"{mp4_file.stem}_chunk_{i}.mp4"
-                cmd = [
-                    "ffmpeg",
-                    "-i", str(mp4_file),
-                    "-ss", str(start / 1000),
-                    "-to", str(end / 1000),
-                    "-c", "copy",
-                    str(chunk_file)
-                ]
-                subprocess.run(cmd, check=True)
-                chunk_files.append(chunk_file)
-
-            # Create a temporary file listing all chunk files to concatenate
-            concat_list = processed_dir / f"{mp4_file.stem}_concat_list.txt"
-            with open(concat_list, "w") as f:
-                for chunk_file in chunk_files:
-                    f.write(f"file '{chunk_file}'\n")
-
-            # Concatenate the chunks using ffmpeg
-            output_path = processed_dir / mp4_file.name
-            cmd = [
-                "ffmpeg",
-                "-f", "concat",
-                "-safe", "0",
-                "-i", str(concat_list),
-                "-c", "copy",
-                str(output_path)
-            ]
-            subprocess.run(cmd, check=True)
-
-            # Clean up chunk files and list
-            for chunk_file in chunk_files:
-                chunk_file.unlink()
-            concat_list.unlink()
+            self._process_video_with_concat_filter(mp4_file, nonsilent_chunks, processed_dir)
 
         return str(processed_dir)
 
@@ -419,6 +392,51 @@ class VideoProcessor:
             f.write(description)
 
         return str(output_path)
+
+    def _process_video_with_concat_filter(self, mp4_file: Path, nonsilent_chunks: list, processed_dir: Path):
+        """
+        Processes a video file by concatenating non-silent chunks using ffmpeg's concat filter.
+        """
+        output_path = processed_dir / mp4_file.name
+        
+        # If there are no non-silent chunks, we can't process the video.
+        if not nonsilent_chunks:
+            logger.warning(f"No content to process for {mp4_file.name}.")
+            return
+
+        # Prepare the filter complex string for ffmpeg
+        filter_complex = []
+        for i, (start, end) in enumerate(nonsilent_chunks):
+            # Trim each non-silent segment
+            filter_complex.append(f"[0:v]trim=start={start/1000}:end={end/1000},setpts=PTS-STARTPTS[v{i}];"
+                                  f"[0:a]atrim=start={start/1000}:end={end/1000},asetpts=PTS-STARTPTS[a{i}]")
+
+        # Prepare the concatenation part of the filter
+        concat_video_streams = "".join([f"[v{i}]" for i in range(len(nonsilent_chunks))])
+        concat_audio_streams = "".join([f"[a{i}]" for i in range(len(nonsilent_chunks))])
+        filter_complex.append(f"{concat_video_streams}concat=n={len(nonsilent_chunks)}:v=1:a=0[outv]")
+        filter_complex.append(f"{concat_audio_streams}concat=n={len(nonsilent_chunks)}:v=0:a=1[outa]")
+
+        # Construct the full ffmpeg command
+        cmd = [
+            "ffmpeg",
+            "-y",
+            "-i", str(mp4_file),
+            "-filter_complex", ";".join(filter_complex),
+            "-map", "[outv]",
+            "-map", "[outa]",
+            str(output_path)
+        ]
+
+        logger.info(f"Running ffmpeg with concat filter for {mp4_file.name}")
+        try:
+            subprocess.run(cmd, check=True, capture_output=True, text=True)
+            logger.info(f"Successfully processed {mp4_file.name} to {output_path}")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to process {mp4_file.name} with ffmpeg.")
+            logger.error(f"FFmpeg command: {' '.join(cmd)}")
+            logger.error(f"FFmpeg stderr: {e.stderr}")
+            raise
 
     def _clean_vtt_transcript(self, vtt_content: str) -> str:
         """Remove VTT headers and clean up transcript content."""
