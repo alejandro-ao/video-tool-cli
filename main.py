@@ -23,6 +23,13 @@ def get_user_input():
     print("\nProcessing options (Enter 'y' to skip, any other key to process):")
     skip_silence_removal = input("Skip silence removal? ").lower().strip() == 'y'
     skip_concat = input("Skip video concatenation? ").lower().strip() == 'y'
+    
+    # Only ask about reprocessing if concatenation is not being skipped
+    skip_reprocessing = False
+    if not skip_concat:
+        print("\nConcatenation options:")
+        skip_reprocessing = input("Skip video reprocessing for faster concatenation (assumes same format)? ").lower().strip() == 'y'
+    
     skip_timestamps = input("Skip timestamp generation? ").lower().strip() == 'y'
     skip_transcript = input("Skip transcript generation? ").lower().strip() == 'y'
     skip_description = input("Skip description generation? ").lower().strip() == 'y'
@@ -33,6 +40,7 @@ def get_user_input():
         'repo_url': repo_url if repo_url else None,
         'skip_silence_removal': skip_silence_removal,
         'skip_concat': skip_concat,
+        'skip_reprocessing': skip_reprocessing,
         'skip_timestamps': skip_timestamps,
         'skip_transcript': skip_transcript,
         'skip_description': skip_description,
@@ -78,7 +86,7 @@ def main():
         output_video = None
         if not params['skip_concat']:
             logger.info('Starting video concatenation...')
-            output_video = processor.concatenate_videos()
+            output_video = processor.concatenate_videos(skip_reprocessing=params['skip_reprocessing'])
             logger.info(f'Videos concatenated successfully: {output_video}')
 
         video_path = output_video or next(input_dir.glob('*.mp4'))

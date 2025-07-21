@@ -115,15 +115,35 @@ class VideoProcessor:
 
         return str(processed_dir)
 
-    def concatenate_videos(self, output_filename: Optional[str] = None) -> str:
+    def concatenate_videos(self, output_filename: Optional[str] = None, skip_reprocessing: bool = False) -> str:
         """Concatenate multiple MP4 videos in alphabetical order using ffmpeg.
-        First standardizes all videos to match the encoding parameters of the first video.
+        
+        Args:
+            output_filename: Optional custom filename for the output video
+            skip_reprocessing: If True, skips video standardization and assumes all videos have the same format.
+                             This provides much faster concatenation when videos are already compatible.
+        
+        First standardizes all videos to match the encoding parameters of the first video (unless skip_reprocessing=True).
         Utilizes hardware acceleration when available.
         """
+        # Try to get files from processed directory first, fall back to input directory
         processed_dir = self.input_dir / "processed"
-        mp4_files = self.get_mp4_files(str(processed_dir))
+        mp4_files = []
+        
+        if processed_dir.exists():
+            try:
+                mp4_files = self.get_mp4_files(str(processed_dir))
+                logger.info(f"Using videos from processed directory: {processed_dir}")
+            except ValueError:
+                pass  # Fall through to use input directory
+        
         if not mp4_files:
-            raise ValueError(f"No MP4 files found in the processed directory: {processed_dir}")
+            # No processed directory or no files in it, use original input directory
+            mp4_files = self.get_mp4_files()
+            logger.info(f"Using videos from input directory: {self.input_dir}")
+            
+        if not mp4_files:
+            raise ValueError(f"No MP4 files found in either the processed directory ({processed_dir}) or input directory ({self.input_dir})")
 
         logger.info(f"Found {len(mp4_files)} MP4 files to concatenate")
 
@@ -135,85 +155,109 @@ class VideoProcessor:
         temp_dir.mkdir(exist_ok=True)
         
         try:
-            # Get encoding parameters from the first video
-            probe_cmd = [
-                'ffprobe',
-                '-v', 'error',
-                '-select_streams', 'v:0',
-                '-show_entries', 'stream=width,height,r_frame_rate,codec_name',
-                '-of', 'json',
-                str(mp4_files[0])
-            ]
-            probe_result = subprocess.run(probe_cmd, capture_output=True, text=True, check=True)
-            video_info = json.loads(probe_result.stdout)
-            stream_info = video_info['streams'][0]
-            
-            # Get audio parameters
-            audio_probe_cmd = [
-                'ffprobe',
-                '-v', 'error',
-                '-select_streams', 'a:0',
-                '-show_entries', 'stream=codec_name,sample_rate,channels',
-                '-of', 'json',
-                str(mp4_files[0])
-            ]
-            audio_result = subprocess.run(audio_probe_cmd, capture_output=True, text=True, check=True)
-            audio_info = json.loads(audio_result.stdout)
-            audio_stream = audio_info['streams'][0] if audio_info['streams'] else None
-
-            # Process each video to match parameters
-            processed_files = []
-            for mp4_file in mp4_files:
-                output_file = temp_dir / f"processed_{mp4_file.name}"
-                fps = stream_info['r_frame_rate'].split('/')
-                fps = float(int(fps[0]) / int(fps[1]))
+            if skip_reprocessing:
+                # Fast concatenation without reprocessing - assume all videos have the same format
+                logger.info("Fast concatenation mode: skipping video reprocessing")
                 
-                # Build ffmpeg command for standardization with hardware acceleration
-                cmd = [
+                # Create a temporary file listing all videos to concatenate directly
+                concat_list = temp_dir / "concat_list.txt"
+                with open(concat_list, "w") as f:
+                    for mp4_file in mp4_files:
+                        f.write(f"file '{mp4_file.resolve()}'\n")
+
+                # Concatenate the videos directly without reprocessing
+                logger.info("Concatenating videos without reprocessing")
+                subprocess.run([
                     'ffmpeg',
-                    '-hwaccel', 'auto',  # Automatically select best hardware acceleration
-                    '-i', str(mp4_file)
+                    '-f', 'concat',
+                    '-safe', '0',
+                    '-i', str(concat_list),
+                    '-c', 'copy',
+                    str(output_path)
+                ], check=True)
+            else:
+                # Original behavior: standardize all videos first
+                logger.info("Standard concatenation mode: reprocessing videos for compatibility")
+                
+                # Get encoding parameters from the first video
+                probe_cmd = [
+                    'ffprobe',
+                    '-v', 'error',
+                    '-select_streams', 'v:0',
+                    '-show_entries', 'stream=width,height,r_frame_rate,codec_name',
+                    '-of', 'json',
+                    str(mp4_files[0])
                 ]
+                probe_result = subprocess.run(probe_cmd, capture_output=True, text=True, check=True)
+                video_info = json.loads(probe_result.stdout)
+                stream_info = video_info['streams'][0]
                 
-                # Video encoding parameters
-                cmd.extend([
-                    '-c:v', 'h264_videotoolbox' if stream_info['codec_name'] == 'h264' else stream_info['codec_name'],
-                    '-s', f"{stream_info['width']}x{stream_info['height']}",
-                    '-r', str(fps),
-                    '-preset', 'fast',  # Use fast encoding preset
-                    '-profile:v', 'high',  # High quality profile
-                ])
-                
-                # Add audio parameters if present
-                if audio_stream:
+                # Get audio parameters
+                audio_probe_cmd = [
+                    'ffprobe',
+                    '-v', 'error',
+                    '-select_streams', 'a:0',
+                    '-show_entries', 'stream=codec_name,sample_rate,channels',
+                    '-of', 'json',
+                    str(mp4_files[0])
+                ]
+                audio_result = subprocess.run(audio_probe_cmd, capture_output=True, text=True, check=True)
+                audio_info = json.loads(audio_result.stdout)
+                audio_stream = audio_info['streams'][0] if audio_info['streams'] else None
+
+                # Process each video to match parameters
+                processed_files = []
+                for mp4_file in mp4_files:
+                    output_file = temp_dir / f"processed_{mp4_file.name}"
+                    fps = stream_info['r_frame_rate'].split('/')
+                    fps = float(int(fps[0]) / int(fps[1]))
+                    
+                    # Build ffmpeg command for standardization with hardware acceleration
+                    cmd = [
+                        'ffmpeg',
+                        '-hwaccel', 'auto',  # Automatically select best hardware acceleration
+                        '-i', str(mp4_file)
+                    ]
+                    
+                    # Video encoding parameters
                     cmd.extend([
-                        '-c:a', audio_stream['codec_name'],
-                        '-ar', audio_stream['sample_rate'],
-                        '-ac', str(audio_stream['channels'])
+                        '-c:v', 'h264_videotoolbox' if stream_info['codec_name'] == 'h264' else stream_info['codec_name'],
+                        '-s', f"{stream_info['width']}x{stream_info['height']}",
+                        '-r', str(fps),
+                        '-preset', 'fast',  # Use fast encoding preset
+                        '-profile:v', 'high',  # High quality profile
                     ])
-                
-                cmd.extend(['-y', str(output_file)])
-                
-                logger.info(f"Standardizing video with hardware acceleration: {mp4_file.name}")
-                subprocess.run(cmd, check=True)
-                processed_files.append(output_file)
+                    
+                    # Add audio parameters if present
+                    if audio_stream:
+                        cmd.extend([
+                            '-c:a', audio_stream['codec_name'],
+                            '-ar', audio_stream['sample_rate'],
+                            '-ac', str(audio_stream['channels'])
+                        ])
+                    
+                    cmd.extend(['-y', str(output_file)])
+                    
+                    logger.info(f"Standardizing video with hardware acceleration: {mp4_file.name}")
+                    subprocess.run(cmd, check=True)
+                    processed_files.append(output_file)
 
-            # Create a temporary file listing all processed videos to concatenate
-            concat_list = temp_dir / "concat_list.txt"
-            with open(concat_list, "w") as f:
-                for proc_file in processed_files:
-                    f.write(f"file '{proc_file.name}'\n")
+                # Create a temporary file listing all processed videos to concatenate
+                concat_list = temp_dir / "concat_list.txt"
+                with open(concat_list, "w") as f:
+                    for proc_file in processed_files:
+                        f.write(f"file '{proc_file.name}'\n")
 
-            # Concatenate the processed videos
-            logger.info("Concatenating standardized videos")
-            subprocess.run([
-                'ffmpeg',
-                '-f', 'concat',
-                '-safe', '0',
-                '-i', str(concat_list),
-                '-c', 'copy',
-                str(output_path)
-            ], check=True)
+                # Concatenate the processed videos
+                logger.info("Concatenating standardized videos")
+                subprocess.run([
+                    'ffmpeg',
+                    '-f', 'concat',
+                    '-safe', '0',
+                    '-i', str(concat_list),
+                    '-c', 'copy',
+                    str(output_path)
+                ], check=True)
 
             return str(output_path)
 
@@ -229,10 +273,24 @@ class VideoProcessor:
 
     def generate_timestamps(self) -> Dict:
         """Generate timestamp information for the video with chapters based on input videos."""
+        # Try to get files from processed directory first, fall back to input directory
         processed_dir = self.input_dir / "processed"
-        mp4_files = self.get_mp4_files(str(processed_dir))
+        mp4_files = []
+        
+        if processed_dir.exists():
+            try:
+                mp4_files = self.get_mp4_files(str(processed_dir))
+                logger.info(f"Generating timestamps from processed directory: {processed_dir}")
+            except ValueError:
+                pass  # Fall through to use input directory
+        
         if not mp4_files:
-            raise ValueError("No MP4 files found in the processed directory")
+            # No processed directory or no files in it, use original input directory
+            mp4_files = self.get_mp4_files()
+            logger.info(f"Generating timestamps from input directory: {self.input_dir}")
+            
+        if not mp4_files:
+            raise ValueError(f"No MP4 files found in either the processed directory ({processed_dir}) or input directory ({self.input_dir})")
 
         timestamps = []
         current_time = 0
