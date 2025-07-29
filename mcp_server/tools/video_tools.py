@@ -1,4 +1,4 @@
-from mcp import tool
+from mcp.server.fastmcp import FastMCP
 from pathlib import Path
 import sys
 import os
@@ -8,7 +8,10 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.
 
 from video_processor import VideoProcessor
 
-@tool(
+mcp = FastMCP("video_editor")
+
+
+@mcp.tool(
     name="remove_silences",
     description="Removes silent sections from MP4 videos in a specified directory.",
     args_schema={
@@ -34,7 +37,7 @@ def remove_silences(input_dir: str) -> str:
     return processed_dir
 
 
-@tool(
+@mcp.tool(
     name="concatenate_videos",
     description="Concatenates multiple MP4 videos in alphabetical order.",
     args_schema={
@@ -72,7 +75,7 @@ def concatenate_videos(input_dir: str, output_filename: str = None, skip_reproce
     return concatenated_video_path
 
 
-@tool(
+@mcp.tool(
     name="generate_timestamps",
     description="Generates timestamp information for the video with chapters based on input videos.",
     args_schema={
@@ -98,7 +101,7 @@ def generate_timestamps(input_dir: str) -> dict:
     return timestamps
 
 
-@tool(
+@mcp.tool(
     name="generate_transcript",
     description="Generates VTT transcript using OpenAI's Whisper API.",
     args_schema={
@@ -126,7 +129,7 @@ def generate_transcript(video_path: str) -> str:
     return transcript_path
 
 
-@tool(
+@mcp.tool(
     name="generate_description",
     description="Generates video description using LLM.",
     args_schema={
@@ -165,7 +168,7 @@ def generate_description(video_path: str, repo_url: str, transcript_path: str) -
     return description_path
 
 
-@tool(
+@mcp.tool(
     name="generate_seo_keywords",
     description="Generates SEO keywords based on video description.",
     args_schema={
