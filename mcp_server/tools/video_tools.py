@@ -2,27 +2,48 @@ from mcp.server.fastmcp import FastMCP
 from pathlib import Path
 import sys
 import os
+from pydantic import BaseModel, Field
 
 # Add the parent directory to the Python path to allow imports from the root of the project.
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
 from video_processor import VideoProcessor
 
-mcp = FastMCP("video_editor")
+mcp = FastMCP("video_editor", log_level="ERROR")
 
 
-@mcp.tool(
-    name="remove_silences",
-    description="Removes silent sections from MP4 videos in a specified directory.",
-    args_schema={
-        "input_dir": {
-            "type": "string",
-            "description": "The absolute path to the directory containing the MP4 files.",
-            "required": True
-        }
-    }
-)
-def remove_silences(input_dir: str) -> str:
+class DirectoryPath(BaseModel):
+    """A model to represent a directory path."""
+    path: str = Field(..., description="The absolute path to the directory.")
+
+
+class ConcatenatedVideo(BaseModel):
+    """A model to represent a concatenated video."""
+    path: str = Field(..., description="The absolute path to the concatenated video.")
+
+
+class TimestampInfo(BaseModel):
+    """A model to represent timestamp information."""
+    timestamps: dict = Field(..., description="A dictionary containing the timestamp information.")
+
+
+class Transcript(BaseModel):
+    """A model to represent a transcript file."""
+    path: str = Field(..., description="The absolute path to the transcript file.")
+
+
+class Description(BaseModel):
+    """A model to represent a description file."""
+    path: str = Field(..., description="The absolute path to the description file.")
+
+
+class SeoKeywords(BaseModel):
+    """A model to represent a keywords file."""
+    path: str = Field(..., description="The absolute path to the keywords file.")
+
+
+@mcp.tool()
+def remove_silences(input_dir: str) -> DirectoryPath:
     """
     Removes silent sections from MP4 videos.
 
@@ -34,31 +55,11 @@ def remove_silences(input_dir: str) -> str:
     """
     processor = VideoProcessor(input_dir)
     processed_dir = processor.remove_silences()
-    return processed_dir
+    return DirectoryPath(path=processed_dir)
 
 
-@mcp.tool(
-    name="concatenate_videos",
-    description="Concatenates multiple MP4 videos in alphabetical order.",
-    args_schema={
-        "input_dir": {
-            "type": "string",
-            "description": "The absolute path to the directory containing the MP4 files.",
-            "required": True
-        },
-        "output_filename": {
-            "type": "string",
-            "description": "Optional custom filename for the output video.",
-            "required": False
-        },
-        "skip_reprocessing": {
-            "type": "boolean",
-            "description": "If True, skips video standardization.",
-            "required": False
-        }
-    }
-)
-def concatenate_videos(input_dir: str, output_filename: str = None, skip_reprocessing: bool = False) -> str:
+@mcp.tool()
+def concatenate_videos(input_dir: str, output_filename: str = None, skip_reprocessing: bool = False) -> ConcatenatedVideo:
     """
     Concatenates multiple MP4 videos.
 
@@ -72,21 +73,11 @@ def concatenate_videos(input_dir: str, output_filename: str = None, skip_reproce
     """
     processor = VideoProcessor(input_dir)
     concatenated_video_path = processor.concatenate_videos(output_filename, skip_reprocessing)
-    return concatenated_video_path
+    return ConcatenatedVideo(path=concatenated_video_path)
 
 
-@mcp.tool(
-    name="generate_timestamps",
-    description="Generates timestamp information for the video with chapters based on input videos.",
-    args_schema={
-        "input_dir": {
-            "type": "string",
-            "description": "The absolute path to the directory containing the MP4 files.",
-            "required": True
-        }
-    }
-)
-def generate_timestamps(input_dir: str) -> dict:
+@mcp.tool()
+def generate_timestamps(input_dir: str) -> TimestampInfo:
     """
     Generates timestamp information for the video.
 
@@ -98,21 +89,11 @@ def generate_timestamps(input_dir: str) -> dict:
     """
     processor = VideoProcessor(input_dir)
     timestamps = processor.generate_timestamps()
-    return timestamps
+    return TimestampInfo(timestamps=timestamps)
 
 
-@mcp.tool(
-    name="generate_transcript",
-    description="Generates VTT transcript using OpenAI's Whisper API.",
-    args_schema={
-        "video_path": {
-            "type": "string",
-            "description": "The absolute path to the video file.",
-            "required": True
-        }
-    }
-)
-def generate_transcript(video_path: str) -> str:
+@mcp.tool()
+def generate_transcript(video_path: str) -> Transcript:
     """
     Generates VTT transcript for a video file.
 
@@ -126,31 +107,11 @@ def generate_transcript(video_path: str) -> str:
     input_dir = str(Path(video_path).parent)
     processor = VideoProcessor(input_dir)
     transcript_path = processor.generate_transcript(video_path)
-    return transcript_path
+    return Transcript(path=transcript_path)
 
 
-@mcp.tool(
-    name="generate_description",
-    description="Generates video description using LLM.",
-    args_schema={
-        "video_path": {
-            "type": "string",
-            "description": "The absolute path to the video file.",
-            "required": True
-        },
-        "repo_url": {
-            "type": "string",
-            "description": "The URL of the repository.",
-            "required": True
-        },
-        "transcript_path": {
-            "type": "string",
-            "description": "The absolute path to the transcript file.",
-            "required": True
-        }
-    }
-)
-def generate_description(video_path: str, repo_url: str, transcript_path: str) -> str:
+@mcp.tool()
+def generate_description(video_path: str, repo_url: str, transcript_path: str) -> Description:
     """
     Generates video description.
 
@@ -165,21 +126,11 @@ def generate_description(video_path: str, repo_url: str, transcript_path: str) -
     input_dir = str(Path(video_path).parent)
     processor = VideoProcessor(input_dir)
     description_path = processor.generate_description(video_path, repo_url, transcript_path)
-    return description_path
+    return Description(path=description_path)
 
 
-@mcp.tool(
-    name="generate_seo_keywords",
-    description="Generates SEO keywords based on video description.",
-    args_schema={
-        "description_path": {
-            "type": "string",
-            "description": "The absolute path to the description file.",
-            "required": True
-        }
-    }
-)
-def generate_seo_keywords(description_path: str) -> str:
+@mcp.tool()
+def generate_seo_keywords(description_path: str) -> SeoKeywords:
     """
     Generates SEO keywords.
 
@@ -192,4 +143,4 @@ def generate_seo_keywords(description_path: str) -> str:
     input_dir = str(Path(description_path).parent)
     processor = VideoProcessor(input_dir)
     keywords_path = processor.generate_seo_keywords(description_path)
-    return keywords_path
+    return SeoKeywords(path=keywords_path)
