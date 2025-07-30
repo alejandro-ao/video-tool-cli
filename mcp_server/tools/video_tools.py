@@ -41,6 +41,10 @@ class SeoKeywords(BaseModel):
     """A model to represent a keywords file."""
     path: str = Field(..., description="The absolute path to the keywords file.")
 
+class CsvFile(BaseModel):
+    """A model to represent a CSV file."""
+    file_path: str = Field(..., description="Path to the generated CSV file")
+
 
 @mcp.tool()
 def remove_silences(input_dir: str) -> DirectoryPath:
@@ -127,6 +131,24 @@ def generate_description(video_path: str, repo_url: str, transcript_path: str) -
     processor = VideoProcessor(input_dir)
     description_path = processor.generate_description(video_path, repo_url, transcript_path)
     return Description(path=description_path)
+
+
+@mcp.tool()
+def extract_duration_csv(input_dir: str) -> CsvFile:
+    """
+    Process all MP4 files in a directory and its subdirectories, extract their creation date,
+    video title, and duration in minutes, then export this information to a CSV file.
+    Directories ending with .screenstudio are excluded from processing.
+
+    Args:
+        input_dir: The directory containing the video files.
+
+    Returns:
+        The path to the generated CSV file.
+    """
+    processor = VideoProcessor(input_dir)
+    csv_path = processor.extract_duration_csv()
+    return CsvFile(file_path=csv_path)
 
 
 @mcp.tool()

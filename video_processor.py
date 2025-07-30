@@ -7,9 +7,10 @@ from datetime import datetime, timedelta
 import json
 from loguru import logger
 from openai import OpenAI
-from moviepy.video.io.VideoFileClip import VideoFileClip
+from moviepy.editor import VideoFileClip
 from pydub import AudioSegment
 from pydub.silence import detect_nonsilent
+import csv
 
 
 class VideoProcessor:
@@ -22,6 +23,48 @@ class VideoProcessor:
         logger.add(
             "video_processor.log", rotation="1 day", retention="1 week", level="INFO"
         )
+
+    def extract_duration_csv(self) -> str:
+        """Processes all mp4 files in a directory and its subdirectories, and writes metadata to a CSV."""
+        output_csv = self.input_dir / "video_metadata.csv"
+        with open(output_csv, 'w', newline='', encoding='utf-8') as csvfile:
+            csv_writer = csv.writer(csvfile)
+            # Write header
+            csv_writer.writerow(['creation_date', 'video_title', 'duration_minutes'])
+
+            for root, dirs, files in os.walk(self.input_dir):
+                # Exclude directories ending with .screenstudio
+                dirs[:] = [d for d in dirs if not d.endswith('.screenstudio')]
+                for filename in files:
+                    if filename.lower().endswith('.mp4'):
+                        file_path = os.path.join(root, filename)
+                        creation_date, video_title, duration_minutes = self._get_video_metadata(file_path)
+                        if creation_date:
+                            csv_writer.writerow([creation_date, video_title, duration_minutes])
+                            logger.info(f"Processed: {video_title}")
+
+        logger.info(f"Metadata exported to {output_csv}")
+        return str(output_csv)
+
+    def _get_video_metadata(self, file_path):
+        """Extracts metadata from a video file."""
+        try:
+            # Get creation time
+            creation_timestamp = os.path.getctime(file_path)
+            creation_date = datetime.fromtimestamp(creation_timestamp).strftime('%Y-%m-%d %H:%M:%S')
+
+            # Get video title from filename (without extension)
+            video_title = os.path.splitext(os.path.basename(file_path))[0]
+
+            # Get video duration
+            with VideoFileClip(file_path) as clip:
+                duration_seconds = clip.duration
+                duration_minutes = round(duration_seconds / 60, 2)
+
+            return creation_date, video_title, duration_minutes
+        except Exception as e:
+            logger.error(f"Error processing file {file_path}: {e}")
+            return None, None, None
 
     def get_mp4_files(self, directory: Optional[str] = None) -> List[Path]:
         """Get all MP4 files in the specified directory."""
