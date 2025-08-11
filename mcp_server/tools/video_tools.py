@@ -45,6 +45,10 @@ class CsvFile(BaseModel):
     """A model to represent a CSV file."""
     file_path: str = Field(..., description="Path to the generated CSV file")
 
+class ReencodedVideo(BaseModel):
+    """A model to represent a re-encoded video."""
+    path: str = Field(..., description="The absolute path to the re-encoded video.")
+
 
 @mcp.tool()
 def remove_silences(input_dir: str) -> DirectoryPath:
@@ -166,3 +170,22 @@ def generate_seo_keywords(description_path: str) -> SeoKeywords:
     processor = VideoProcessor(input_dir)
     keywords_path = processor.generate_seo_keywords(description_path)
     return SeoKeywords(path=keywords_path)
+
+
+@mcp.tool()
+def reencode_to_match(source_video_path: str, reference_video_path: str, output_filename: str | None = None) -> ReencodedVideo:
+    """
+    Re-encode source video A to match the encoding of reference video B.
+
+    Args:
+        source_video_path: Path to the source video (A).
+        reference_video_path: Path to the reference video (B).
+        output_filename: Optional output filename for the re-encoded video.
+
+    Returns:
+        The path to the re-encoded MP4 file.
+    """
+    input_dir = str(Path(source_video_path).parent)
+    processor = VideoProcessor(input_dir)
+    output_path = processor.match_video_encoding(source_video_path, reference_video_path, output_filename)
+    return ReencodedVideo(path=output_path)

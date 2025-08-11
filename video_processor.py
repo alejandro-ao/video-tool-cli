@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 import json
 from loguru import logger
 from openai import OpenAI
-from moviepy.editor import VideoFileClip
+from moviepy import VideoFileClip
 from pydub import AudioSegment
 from pydub.silence import detect_nonsilent
 import csv
@@ -522,6 +522,136 @@ class VideoProcessor:
             f.write(description)
 
         return str(output_path)
+
+    def match_video_encoding(self, source_video_path: str, reference_video_path: str, output_filename: Optional[str] = None) -> str:
+        """
+        Re-encode source video to match the encoding parameters of the reference video.
+        
+        Args:
+            source_video_path: Path to the video that needs to be re-encoded (video A)
+            reference_video_path: Path to the reference video whose encoding to match (video B)
+            output_filename: Optional custom filename for the output video
+            
+        Returns:
+            Path to the re-encoded video file
+        """
+        source_path = Path(source_video_path)
+        reference_path = Path(reference_video_path)
+        
+        # Validate input files
+        if not source_path.exists():
+            raise ValueError(f"Source video does not exist: {source_path}")
+        if not reference_path.exists():
+            raise ValueError(f"Reference video does not exist: {reference_path}")
+            
+        logger.info(f"Re-encoding {source_path.name} to match encoding of {reference_path.name}")
+        
+        # Get video encoding parameters from reference video
+        video_probe_cmd = [
+            'ffprobe',
+            '-v', 'error',
+            '-select_streams', 'v:0',
+            '-show_entries', 'stream=width,height,r_frame_rate,codec_name,bit_rate,pix_fmt,profile,level',
+            '-of', 'json',
+            str(reference_path)
+        ]
+        video_result = subprocess.run(video_probe_cmd, capture_output=True, text=True, check=True)
+        video_info = json.loads(video_result.stdout)
+        video_stream = video_info['streams'][0]
+        
+        # Get audio encoding parameters from reference video
+        audio_probe_cmd = [
+            'ffprobe',
+            '-v', 'error',
+            '-select_streams', 'a:0',
+            '-show_entries', 'stream=codec_name,sample_rate,channels,bit_rate',
+            '-of', 'json',
+            str(reference_path)
+        ]
+        audio_result = subprocess.run(audio_probe_cmd, capture_output=True, text=True, check=True)
+        audio_info = json.loads(audio_result.stdout)
+        audio_stream = audio_info['streams'][0] if audio_info['streams'] else None
+        
+        # Calculate frame rate
+        fps_fraction = video_stream['r_frame_rate'].split('/')
+        fps = float(int(fps_fraction[0]) / int(fps_fraction[1]))
+        
+        # Prepare output filename
+        if not output_filename:
+            source_stem = source_path.stem
+            reference_stem = reference_path.stem
+            output_filename = f"{source_stem}_reencoded_to_match_{reference_stem}.mp4"
+            
+        output_path = source_path.parent / output_filename
+        
+        # Build ffmpeg command for re-encoding with hardware acceleration
+        cmd = [
+            'ffmpeg',
+            '-hwaccel', 'auto',  # Automatically select best hardware acceleration
+            '-i', str(source_path),
+            '-y'  # Overwrite output file if it exists
+        ]
+        
+        # Video encoding parameters to match reference
+        video_codec = video_stream['codec_name']
+        
+        # Use hardware accelerated encoder when possible
+        if video_codec == 'h264':
+            cmd.extend(['-c:v', 'h264_videotoolbox'])
+        elif video_codec == 'hevc':
+            cmd.extend(['-c:v', 'hevc_videotoolbox'])
+        else:
+            cmd.extend(['-c:v', video_codec])
+            
+        # Set video parameters
+        cmd.extend([
+            '-s', f"{video_stream['width']}x{video_stream['height']}",
+            '-r', str(fps)
+        ])
+        
+        # Add pixel format if available
+        # if 'pix_fmt' in video_stream:
+        #     cmd.extend(['-pix_fmt', video_stream['pix_fmt']])
+            
+        # Add video bitrate if available (but use a more conservative approach)
+        if 'bit_rate' in video_stream and video_stream['bit_rate'] != 'N/A':
+            bitrate_kbps = int(int(video_stream['bit_rate']) / 1000)
+            # Use target bitrate instead of strict bitrate for more flexibility
+            cmd.extend(['-b:v', f'{bitrate_kbps}k', '-maxrate', f'{int(bitrate_kbps * 1.5)}k', '-bufsize', f'{int(bitrate_kbps * 2)}k'])
+            
+        # For h264_videotoolbox, let it choose profile and level automatically
+        # The encoder will pick appropriate settings based on resolution and framerate
+        
+        # Audio encoding parameters to match reference
+        if audio_stream:
+            cmd.extend([
+                '-c:a', audio_stream['codec_name'],
+                '-ar', audio_stream['sample_rate'],
+                '-ac', str(audio_stream['channels'])
+            ])
+            
+            # Add audio bitrate if available
+            if 'bit_rate' in audio_stream and audio_stream['bit_rate'] != 'N/A':
+                audio_bitrate_kbps = int(int(audio_stream['bit_rate']) / 1000)
+                cmd.extend(['-b:a', f'{audio_bitrate_kbps}k'])
+        else:
+            # If reference has no audio, remove audio from source
+            cmd.extend(['-an'])
+            
+        cmd.append(str(output_path))
+        
+        logger.info(f"Re-encoding {source_path.name} with parameters from {reference_path.name}")
+        logger.debug(f"FFmpeg command: {' '.join(cmd)}")
+        
+        try:
+            subprocess.run(cmd, check=True, capture_output=True, text=True)
+            logger.info(f"Successfully re-encoded video to {output_path}")
+            return str(output_path)
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to re-encode {source_path.name}")
+            logger.error(f"FFmpeg command: {' '.join(cmd)}")
+            logger.error(f"FFmpeg stderr: {e.stderr}")
+            raise
 
     def _process_video_with_concat_filter(self, mp4_file: Path, nonsilent_chunks: list, processed_dir: Path):
         """
