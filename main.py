@@ -52,6 +52,9 @@ def main():
     if not os.getenv('OPENAI_API_KEY'):
         logger.error('OPENAI_API_KEY environment variable not set')
         return
+    if not os.getenv('GROQ_API_KEY'):
+        logger.error('GROQ_API_KEY environment variable not set')
+        return
 
     try:
         # Get parameters from user input

@@ -11,12 +11,14 @@ from moviepy import VideoFileClip
 from pydub import AudioSegment
 from pydub.silence import detect_nonsilent
 import csv
+from groq import Groq
 
 
 class VideoProcessor:
     def __init__(self, input_dir: str):
         self.input_dir = Path(input_dir)
         self.client = OpenAI()
+        self.groq = Groq()
         self.setup_logging()
 
     def setup_logging(self):
@@ -371,7 +373,7 @@ class VideoProcessor:
         return video_info
 
     def generate_transcript(self, video_path: str) -> str:
-        """Generate VTT transcript using OpenAI's Whisper API.
+        """Generate VTT transcript using Groq Whisper Large V3 Turbo.
         For audio files larger than 25MB, splits into chunks and processes separately.
         """
         from pydub import AudioSegment
@@ -388,9 +390,13 @@ class VideoProcessor:
             if file_size_mb <= 25:
                 # Process normally if file is under 25MB
                 with open(audio_path, "rb") as audio_file:
-                    transcript = self.client.audio.transcriptions.create(
-                        model="whisper-1", file=audio_file, response_format="vtt"
+                    response = self.groq.audio.transcriptions.create(
+                        model="whisper-large-v3-turbo",
+                        file=audio_file,
+                        response_format="verbose_json",
+                        timestamp_granularities=["segment"],
                     )
+                transcript = self._groq_verbose_json_to_vtt(response)
             else:
                 # Split and process audio in chunks
                 logger.info(f"Audio file size: {file_size_mb:.2f}MB. Splitting into chunks...")
@@ -410,10 +416,14 @@ class VideoProcessor:
                 for i, chunk_path in enumerate(chunks):
                     logger.info(f"Processing chunk {i+1}/{len(chunks)}")
                     with open(chunk_path, "rb") as chunk_file:
-                        chunk_transcript = self.client.audio.transcriptions.create(
-                            model="whisper-1", file=chunk_file, response_format="vtt"
+                        response = self.groq.audio.transcriptions.create(
+                            model="whisper-large-v3-turbo",
+                            file=chunk_file,
+                            response_format="verbose_json",
+                            timestamp_granularities=["segment"],
                         )
-                        transcripts.append(self._clean_vtt_transcript(chunk_transcript))
+                        chunk_vtt = self._groq_verbose_json_to_vtt(response)
+                        transcripts.append(self._clean_vtt_transcript(chunk_vtt))
                     os.remove(chunk_path)
                 
                 # Combine transcripts
@@ -773,6 +783,62 @@ class VideoProcessor:
         """Convert a VTT timestamp to seconds."""
         h, m, s = timestamp.split(':')
         return float(h) * 3600 + float(m) * 60 + float(s)
+
+    def _format_seconds_to_vtt(self, seconds: float) -> str:
+        """Format seconds (float) into VTT timestamp HH:MM:SS.mmm"""
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        secs = seconds % 60
+        return f"{hours:02d}:{minutes:02d}:{secs:06.3f}"
+
+    def _groq_verbose_json_to_vtt(self, response) -> str:
+        """Convert Groq verbose_json transcription response to VTT string."""
+        # Try to extract segments robustly from possible response shapes
+        segments = None
+        try:
+            # If response is a pydantic-like object with .segments
+            if hasattr(response, 'segments') and response.segments is not None:
+                segments = response.segments
+            else:
+                # Try dict-like
+                if isinstance(response, dict):
+                    segments = response.get('segments')
+                else:
+                    # Try to serialize to dict if possible
+                    if hasattr(response, 'model_dump'):
+                        data = response.model_dump()
+                        segments = data.get('segments')
+                    elif hasattr(response, 'to_dict'):
+                        data = response.to_dict()
+                        segments = data.get('segments')
+        except Exception as e:
+            logger.warning(f"Could not directly parse Groq response segments: {e}")
+
+        if not segments:
+            # Fallback to simple text if available
+            try:
+                text = getattr(response, 'text', None)
+                if text:
+                    return "WEBVTT\n\n00:00:00.000 --> 99:00:00.000\n" + text + "\n"
+            except Exception:
+                pass
+            logger.error("Groq transcription response did not include segments; cannot build VTT")
+            raise ValueError("Invalid Groq transcription response: missing segments")
+
+        vtt_lines = ["WEBVTT", ""]
+        for seg in segments:
+            # seg may be object or dict
+            start = getattr(seg, 'start', None) if not isinstance(seg, dict) else seg.get('start')
+            end = getattr(seg, 'end', None) if not isinstance(seg, dict) else seg.get('end')
+            text = getattr(seg, 'text', None) if not isinstance(seg, dict) else seg.get('text')
+            if start is None or end is None or text is None:
+                continue
+            start_ts = self._format_seconds_to_vtt(float(start))
+            end_ts = self._format_seconds_to_vtt(float(end))
+            vtt_lines.append(f"{start_ts} --> {end_ts}")
+            vtt_lines.append(text.strip())
+            vtt_lines.append("")
+        return "\n".join(vtt_lines)
 
     def generate_seo_keywords(self, description_path: str) -> str:
         """Generate SEO keywords based on video description."""

@@ -3,3 +3,4 @@ openai>=1.0.0
 moviepy>=1.0.3
 python-ffmpeg>=2.0.0
 loguru>=0.7.0
+groq>=0.8.0
