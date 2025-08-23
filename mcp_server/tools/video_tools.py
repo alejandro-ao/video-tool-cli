@@ -4,12 +4,12 @@ import sys
 import os
 from pydantic import BaseModel, Field
 
+# Remove manual sys.path modification and use proper package imports
 # Add the parent directory to the Python path to allow imports from the root of the project.
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+# sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+from video_tool import VideoProcessor
 
-from video_processor import VideoProcessor
-
-mcp = FastMCP("video_editor", log_level="ERROR")
+mcp = FastMCP("video_editor", log_level="ERROR", host="0.0.0.0", port=8000)
 
 
 class DirectoryPath(BaseModel):
@@ -48,6 +48,10 @@ class CsvFile(BaseModel):
 class ReencodedVideo(BaseModel):
     """A model to represent a re-encoded video."""
     path: str = Field(..., description="The absolute path to the re-encoded video.")
+
+class CompressedVideo(BaseModel):
+    """A model to represent a compressed video."""
+    path: str = Field(..., description="The absolute path to the compressed video.")
 
 
 @mcp.tool()
@@ -189,3 +193,24 @@ def reencode_to_match(source_video_path: str, reference_video_path: str, output_
     processor = VideoProcessor(input_dir)
     output_path = processor.match_video_encoding(source_video_path, reference_video_path, output_filename)
     return ReencodedVideo(path=output_path)
+
+
+@mcp.tool()
+def compress_video(video_path: str, output_filename: str | None = None, codec: str = "auto", crf: int = 23, preset: str = "medium") -> CompressedVideo:
+    """
+    Compress an MP4 video to reduce file size while maintaining quality.
+
+    Args:
+        video_path: Path to the input video file.
+        output_filename: Optional output filename for the compressed video.
+        codec: Video codec to use ('h264', 'h265', or 'auto' for best available).
+        crf: Constant Rate Factor (18-28, lower = higher quality, 23 is default).
+        preset: Encoding preset ('ultrafast', 'fast', 'medium', 'slow', 'veryslow').
+
+    Returns:
+        The path to the compressed MP4 file.
+    """
+    input_dir = str(Path(video_path).parent)
+    processor = VideoProcessor(input_dir)
+    output_path = processor.compress_video(video_path, output_filename, codec, crf, preset)
+    return CompressedVideo(path=output_path)
