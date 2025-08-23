@@ -663,6 +663,161 @@ class VideoProcessor:
             logger.error(f"FFmpeg stderr: {e.stderr}")
             raise
 
+    def compress_video(self, input_path: str, output_filename: Optional[str] = None, 
+                      codec: str = "h265", crf: int = 23, preset: str = "medium") -> str:
+        """
+        Compress an MP4 video to reduce file size while maintaining quality.
+        
+        Args:
+            input_path: Path to the input video file
+            output_filename: Optional custom filename for compressed video
+            codec: Video codec to use ('h264', 'h265', or 'auto' for best available)
+            crf: Constant Rate Factor (18-28, lower = higher quality, 23 is default)
+            preset: Encoding preset ('ultrafast', 'fast', 'medium', 'slow', 'veryslow')
+            
+        Returns:
+            Path to the compressed video file
+            
+        Quality guidelines:
+        - CRF 18-20: Visually lossless quality
+        - CRF 21-23: High quality (recommended)
+        - CRF 24-28: Good quality, smaller files
+        """
+        input_file = Path(input_path)
+        
+        # Validate input file
+        if not input_file.exists():
+            raise ValueError(f"Input video does not exist: {input_file}")
+            
+        logger.info(f"Compressing video: {input_file.name}")
+        
+        # Get original video metadata for comparison
+        original_size_mb = input_file.stat().st_size / (1024 * 1024)
+        logger.info(f"Original file size: {original_size_mb:.2f} MB")
+        
+        # Determine output filename
+        if not output_filename:
+            stem = input_file.stem
+            suffix = input_file.suffix
+            output_filename = f"{stem}_compressed{suffix}"
+            
+        output_path = input_file.parent / output_filename
+        
+        # Determine best codec and encoder
+        if codec == "auto":
+            # Try H.265 first (better compression), fallback to H.264
+            try:
+                # Test if HEVC hardware encoding is available
+                test_cmd = ['ffmpeg', '-f', 'lavfi', '-i', 'testsrc=duration=1:size=320x240:rate=1', 
+                           '-c:v', 'hevc_videotoolbox', '-t', '1', '-f', 'null', '-']
+                subprocess.run(test_cmd, capture_output=True, check=True)
+                codec = "h265"
+                logger.info("Using H.265 (HEVC) codec for optimal compression")
+            except subprocess.CalledProcessError:
+                codec = "h264"
+                logger.info("H.265 not available, using H.264 codec")
+        
+        # Select appropriate encoder based on codec
+        if codec == "h265":
+            video_encoder = "hevc_videotoolbox"  # Hardware acceleration on macOS
+            fallback_encoder = "libx265"         # Software fallback
+        else:  # h264
+            video_encoder = "h264_videotoolbox"  # Hardware acceleration on macOS
+            fallback_encoder = "libx264"         # Software fallback
+            
+        # Build ffmpeg command
+        cmd = [
+            'ffmpeg',
+            '-i', str(input_file),
+            '-y'  # Overwrite output file
+        ]
+        
+        # Try hardware encoder first, fallback to software if needed
+        try:
+            # Test hardware encoder availability
+            test_cmd = ['ffmpeg', '-f', 'lavfi', '-i', 'testsrc=duration=1:size=320x240:rate=1', 
+                       '-c:v', video_encoder, '-t', '1', '-f', 'null', '-']
+            subprocess.run(test_cmd, capture_output=True, check=True)
+            
+            # Hardware encoder available
+            cmd.extend(['-c:v', video_encoder])
+            
+            # Hardware encoder settings
+            if codec == "h265":
+                cmd.extend([
+                    '-q:v', str(crf),  # Quality setting for videotoolbox
+                    '-profile:v', 'main',
+                    '-tag:v', 'hvc1'   # Ensure compatibility
+                ])
+            else:  # h264
+                cmd.extend([
+                    '-q:v', str(crf),  # Quality setting for videotoolbox
+                    '-profile:v', 'high'
+                ])
+                
+            logger.info(f"Using hardware encoder: {video_encoder}")
+            
+        except subprocess.CalledProcessError:
+            # Hardware encoder not available, use software encoder
+            cmd.extend(['-c:v', fallback_encoder])
+            
+            # Software encoder settings
+            cmd.extend([
+                '-crf', str(crf),
+                '-preset', preset
+            ])
+            
+            if codec == "h265":
+                cmd.extend([
+                    '-profile:v', 'main',
+                    '-tag:v', 'hvc1'
+                ])
+            else:  # h264
+                cmd.extend(['-profile:v', 'high'])
+                
+            logger.info(f"Using software encoder: {fallback_encoder}")
+        
+        # Audio settings - copy audio without re-encoding to save time
+        cmd.extend([
+            '-c:a', 'copy',  # Copy audio stream without re-encoding
+            '-avoid_negative_ts', 'make_zero',  # Fix timestamp issues
+            '-movflags', '+faststart'  # Optimize for web streaming
+        ])
+        
+        # Remove metadata to reduce file size
+        cmd.extend(['-map_metadata', '-1'])
+        
+        cmd.append(str(output_path))
+        
+        logger.info(f"Compressing with codec: {codec}, CRF: {crf}, preset: {preset}")
+        logger.debug(f"FFmpeg command: {' '.join(cmd)}")
+        
+        try:
+            # Run compression
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            
+            # Calculate compression results
+            compressed_size_mb = output_path.stat().st_size / (1024 * 1024)
+            compression_ratio = (1 - compressed_size_mb / original_size_mb) * 100
+            
+            logger.info(f"Compression completed successfully!")
+            logger.info(f"Original size: {original_size_mb:.2f} MB")
+            logger.info(f"Compressed size: {compressed_size_mb:.2f} MB")
+            logger.info(f"Size reduction: {compression_ratio:.1f}%")
+            
+            return str(output_path)
+            
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to compress video: {input_file.name}")
+            logger.error(f"FFmpeg command: {' '.join(cmd)}")
+            logger.error(f"FFmpeg stderr: {e.stderr}")
+            
+            # Clean up failed output file
+            if output_path.exists():
+                output_path.unlink()
+                
+            raise
+
     def _process_video_with_concat_filter(self, mp4_file: Path, nonsilent_chunks: list, processed_dir: Path):
         """
         Processes a video file by concatenating non-silent chunks using ffmpeg's concat filter.

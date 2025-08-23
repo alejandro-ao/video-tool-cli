@@ -3,7 +3,7 @@ import argparse
 from pathlib import Path
 from dotenv import load_dotenv
 from loguru import logger
-from video_processor import VideoProcessor
+from video_tool import VideoProcessor
 
 def get_user_input():
     """Get parameters from user input."""

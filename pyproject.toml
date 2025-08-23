@@ -1,7 +1,11 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "video-tool"
 version = "0.1.0"
-description = "Add your description here"
+description = "A professional video processing tool with MCP server capabilities"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -15,3 +19,7 @@ dependencies = [
     "uvicorn>=0.35.0",
     "groq>=0.8.0",
 ]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["video_tool*", "mcp_server*"]
