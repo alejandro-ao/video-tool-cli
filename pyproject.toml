@@ -23,3 +23,6 @@ dependencies = [
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["video_tool*", "mcp_server*"]
+
+[tool.uv.workspace]
+members = ["mcp_server"]
