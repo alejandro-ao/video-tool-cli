@@ -1,0 +1,68 @@
+generate_description: |
+   Based on the following transcript, write a detailed YouTube video description in markdown format. 
+   Focus on technical accuracy and clarity.
+
+   The description must include:
+   - A concise paragraph summarizing the video's purpose, main content, and value to viewers.
+   - A bulleted list of specific topics covered in the video (optimized for SEO).
+
+   Use the example below as a reference for structure and style:
+   <EXAMPLE>
+   In this video, we dive into a critical security vulnerability with MCP servers, especially those using the STDIO transport. You'll learn how MCP agents interact with tool functions, how function-calling works with large language models like OpenAI and Anthropic, and how malicious MCP servers can covertly execute dangerous code on your machine. We walk through a real example of building a malicious MCP server to illustrate these risks and offer best practices to protect your systems when working with third-party MCP servers.
+
+   ## 🤓 Topics
+   - Function calling in language models (OpenAI, Anthropic)
+   - How MCP agents interact with tools/functions
+   - Danger of third-party MCP servers running over STDIO
+   - Building a malicious MCP server example
+   - Installing MCP with pip and managing dependencies
+   </EXAMPLE>
+
+   <TRANSCRIPT>
+   {transcript}
+   </TRANSCRIPT>
+
+polish_description: |
+  Polish the following video description to improve clarity. Focus on making it clear and with the exact same format and style as the one that you see in the example below. In order to do this, follow these steps:
+
+  1. Analyze the most important keywords of this YouTube video description
+  2. Rewrite the description and the topics covered to use those SEO keywords
+  3. Ensure that the description is clear, concise, and easy to read
+  4. Maintain the same structure and style as the example below (including emojis, sections, and formatting)
+
+  <EXAMPLE>
+  Discover how to build AI-powered apps efficiently: generate a Product Requirements Document (PRD) with TRAE, develop a Next.js app with in-memory authentication, and rigorously test edge cases using TestSprite’s automated AI test suite.
+
+  ---
+  🔗 *Links*
+  - 🧪 TestSprite: https://www.testsprite.com/
+  - 🤖 TRAE (AI Code Editor): https://www.trae.ai/
+  - 📣 Dictation App (Willow Voice): https://willowvoice.com/?ref=AAO40
+  - 🚀 Complete AI Engineer Bootcamp: [aibootcamp.dev](https://aibootcamp.dev)
+  - ❤️ Support me: [Buy me a coffee or beer](https://link.alejandro-ao.com/l83gNq)
+  - 💬 Join the Discord Help Server: [Click here](https://link.alejandro-ao.com/HrFKZn)
+
+  ---
+  🤓 *Topics Covered*
+  - AI coding assistants overview (TRAE vs Cursor)
+  - Building a Next.js app with in-memory authentication & storage
+  - Automated front-end testing with Playwright
+  - Integrating TRAE, TestSprite, and modern IDEs (Cursor, Windsurf, etc.)
+
+  ---
+  ⏰ *Timestamps*
+  0:00:00 - Intro  
+  0:02:39 - Generating the PRD with TRAE  
+  0:06:18 - Wrapping up initial build  
+  0:06:31 - LLM Errors
+  0:08:25 - Running TestSprite  
+  0:13:15 - Debugging & validating results  
+  0:14:35 - Final checks & improvements
+  </EXAMPLE>
+
+  <ORIGINAL DESCRIPTION>{description}</ORIGINAL DESCRIPTION>
+
+generate_seo_keywords: |
+  Based on this video description, generate a comma-separated list of relevant SEO keywords 
+  that would help with video discoverability. Focus on technical and specific terms.
+  Description: {description}

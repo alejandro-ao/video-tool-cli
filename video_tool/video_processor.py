@@ -5,6 +5,7 @@ from textwrap import dedent
 from typing import List, Dict, Optional
 from datetime import datetime, timedelta
 import json
+import yaml
 from loguru import logger
 from openai import OpenAI
 from moviepy import VideoFileClip
@@ -19,7 +20,14 @@ class VideoProcessor:
         self.input_dir = Path(input_dir)
         self.client = OpenAI()
         self.groq = Groq()
+        self.prompts = self._load_prompts()
         self.setup_logging()
+
+    def _load_prompts(self):
+        """Load prompts from the YAML file."""
+        prompts_path = Path(__file__).parent / "prompts.yaml"
+        with open(prompts_path) as f:
+            return yaml.safe_load(f)
 
     def setup_logging(self):
         logger.add(
@@ -447,37 +455,16 @@ class VideoProcessor:
         with open(transcript_path) as f:
             transcript = f.read()
 
-        prompt = f"""
-        Based on this transcript, generate a comprehensive video description in markdown format. 
-        Include relevant technical details and key points.
-        
-        The description should include only these two things:
-        - A short paragraph explaining the video's purpose and content.
-        - A list of topics that are covered in the video (good for SEO). For example:
-            - How to create a FastAPI app
-            - How to use Docker
-            - Creating a Docker image
-            - etc.
-        
-        Here is an example of what the description should look like:
-        
-        # Video Title
-        Short paragraph explaining the video's purpose and content.
-        ## Topics
-        - Topic 1
-        - Topic 2
-        - Topic 3
-        
-        Transcript: {transcript}"""
+        prompt = self.prompts["generate_description"].format(transcript=transcript)
 
         response = self.client.chat.completions.create(
-            model="gpt-4.1", messages=[{"role": "user", "content": prompt}]
+            model="gpt-5", messages=[{"role": "user", "content": prompt}]
         )
 
         links = [
             {"url": repo_url, "description": "Code from the video"},
             {
-                "url": "aibootcamp.dev",
+                "url": "https://aibootcamp.dev",
                 "description": "🚀 Complete AI Engineer Bootcamp",
             },
             {
@@ -526,10 +513,18 @@ class VideoProcessor:
             links=link_list,
             timestamps=timestamp_list
         )
+        
+        polish_description_prompt = self.prompts["polish_description"].format(description=description)
+        
+        polished_description_response = self.client.chat.completions.create(
+            model="gpt-5", messages=[{"role": "user", "content": polish_description_prompt}]
+        ) 
+        
+        polished_description = polished_description_response.choices[0].message.content
 
         output_path = Path(video_path).parent / "description.md"
         with open(output_path, "w") as f:
-            f.write(description)
+            f.write(polished_description)
 
         return str(output_path)
 
@@ -1000,12 +995,10 @@ class VideoProcessor:
         with open(description_path) as f:
             description = f.read()
 
-        prompt = f"""Based on this video description, generate a comma-separated list of relevant SEO keywords 
-        that would help with video discoverability. Focus on technical and specific terms.
-        Description: {description}"""
+        prompt = self.prompts["generate_seo_keywords"].format(description=description)
 
         response = self.client.chat.completions.create(
-            model="gpt-4.1", messages=[{"role": "user", "content": prompt}]
+            model="gpt-5", messages=[{"role": "user", "content": prompt}]
         )
 
         output_path = Path(description_path).parent / "keywords.txt"
