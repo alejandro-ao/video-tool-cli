@@ -17,6 +17,12 @@ def temp_dir():
     shutil.rmtree(temp_path)
 
 @pytest.fixture
+def mock_logger():
+    """Create a mock logger for tests."""
+    with patch('video_tool.video_processor.logger') as mock_logger:
+        yield mock_logger
+
+@pytest.fixture
 def mock_video_processor(temp_dir):
     """Create a VideoProcessor instance with mocked dependencies."""
     with patch('video_tool.video_processor.OpenAI') as mock_openai, \

@@ -345,14 +345,14 @@ class TestGenerateDescription:
             repo_url = "https://github.com/test/repo"
             transcript_path = str(temp_dir / "transcript.vtt")
             
-            # Create a dummy transcript file
-            with open(transcript_path, 'w') as f:
-                f.write("Test transcript content")
+            # DO NOT create the transcript file - this is what we're testing
             
             result = mock_video_processor.generate_description(video_path, repo_url, transcript_path)
             
             # Should log error about missing transcript
             mock_logger.error.assert_called()
+            # Should return empty string when transcript is missing
+            assert result == ""
     
     def test_generate_description_openai_error(self, temp_dir, mock_video_processor):
         """Test description generation when OpenAI API fails."""
@@ -470,7 +470,7 @@ class TestGenerateSEOKeywords:
             # Should log error about missing description
             mock_logger.error.assert_called()
     
-    def test_generate_seo_keywords_openai_error(self, temp_dir, mock_video_processor):
+    def test_generate_seo_keywords_openai_error(self, temp_dir, mock_video_processor, mock_logger):
         """Test SEO keywords generation when OpenAI API fails."""
         description_file = temp_dir / "description.md"
         MockDescriptionGenerator.create_description_md(description_file)
@@ -480,11 +480,12 @@ class TestGenerateSEOKeywords:
         with patch.object(mock_video_processor.client.chat.completions, 'create') as mock_create:
             mock_create.side_effect = Exception("OpenAI API Error")
             
-            # Expect the exception to be raised since there's no error handling
-            with pytest.raises(Exception, match="OpenAI API Error"):
-                result = mock_video_processor.generate_seo_keywords(str(description_file))
+            # Should return empty string and log error instead of raising exception
+            result = mock_video_processor.generate_seo_keywords(str(description_file))
+            assert result == ""
+            mock_logger.error.assert_called()
     
-    def test_generate_seo_keywords_rate_limit_handling(self, temp_dir, mock_video_processor):
+    def test_generate_seo_keywords_rate_limit_handling(self, temp_dir, mock_video_processor, mock_logger):
         """Test SEO keywords generation with rate limit handling."""
         description_file = temp_dir / "description.md"
         MockDescriptionGenerator.create_description_md(description_file)
@@ -494,9 +495,10 @@ class TestGenerateSEOKeywords:
         with patch.object(mock_video_processor.client.chat.completions, 'create') as mock_create:
             mock_create.side_effect = Exception("Rate limit exceeded")
             
-            # Expect the exception to be raised since there's no retry logic
-            with pytest.raises(Exception, match="Rate limit exceeded"):
-                result = mock_video_processor.generate_seo_keywords(str(description_file))
+            # Should return empty string and log error instead of raising exception
+            result = mock_video_processor.generate_seo_keywords(str(description_file))
+            assert result == ""
+            mock_logger.error.assert_called()
 
 
 class TestContentGenerationIntegration:
@@ -533,15 +535,23 @@ class TestContentGenerationIntegration:
             mock_groq_response.segments = SAMPLE_GROQ_RESPONSE['segments']
             mock_groq.return_value = mock_groq_response
             
-            mock_openai.side_effect = [
-                Mock(choices=[Mock(message=Mock(content=SAMPLE_OPENAI_DESCRIPTION_RESPONSE['choices'][0]['message']['content']))]),
-                Mock(choices=[Mock(message=Mock(content=SAMPLE_OPENAI_KEYWORDS_RESPONSE['choices'][0]['message']['content']))])
-            ]
+            # Set up mock responses for multiple OpenAI calls (2 for description, 1 for keywords)
+            description_response = Mock(choices=[Mock(message=Mock(content=SAMPLE_OPENAI_DESCRIPTION_RESPONSE['choices'][0]['message']['content']))])
+            polished_description_response = Mock(choices=[Mock(message=Mock(content="Polished: " + SAMPLE_OPENAI_DESCRIPTION_RESPONSE['choices'][0]['message']['content']))])
+            keywords_response = Mock(choices=[Mock(message=Mock(content=SAMPLE_OPENAI_KEYWORDS_RESPONSE['choices'][0]['message']['content']))])
+            mock_openai.side_effect = [description_response, polished_description_response, keywords_response]
             
             # Run complete workflow
             timestamps_result = mock_video_processor.generate_timestamps()
             transcript_result = mock_video_processor.generate_transcript()
+            
+            # Ensure transcript file exists for description generation
+            transcript_file = temp_dir / "transcript.vtt"
+            if not transcript_file.exists():
+                MockTranscriptGenerator.create_vtt_file(transcript_file)
+            
             description_result = mock_video_processor.generate_description()
+            
             # Create a dummy description file for the test
             description_file = temp_dir / "description.md"
             MockDescriptionGenerator.create_description_md(description_file)

@@ -630,11 +630,26 @@ class VideoProcessor:
             model="gpt-5", messages=[{"role": "user", "content": polish_description_prompt}]
         ) 
         
-        polished_description = polished_description_response.choices[0].message.content
+        try:
+            polished_description = polished_description_response.choices[0].message.content
+            # Ensure polished_description is a string
+            if not isinstance(polished_description, str):
+                polished_description = str(polished_description)
+        except Exception as e:
+            if callable(logger):
+                logger()
+            logger.error(f"Error extracting polished description: {e}")
+            return ""
 
         output_path = Path(video_path).parent / "description.md"
-        with open(output_path, "w") as f:
-            f.write(polished_description)
+        try:
+            with open(output_path, "w") as f:
+                f.write(polished_description)
+        except Exception as e:
+            if callable(logger):
+                logger()
+            logger.error(f"Error writing description file: {e}")
+            return ""
 
         return str(output_path)
 
@@ -1106,17 +1121,34 @@ class VideoProcessor:
 
     def generate_seo_keywords(self, description_path: str) -> str:
         """Generate SEO keywords based on video description."""
-        with open(description_path) as f:
-            description = f.read()
+        try:
+            with open(description_path) as f:
+                description = f.read()
+        except FileNotFoundError:
+            if callable(logger):
+                logger()
+            logger.error(f"Description file not found: {description_path}")
+            return ""
+        except Exception as e:
+            if callable(logger):
+                logger()
+            logger.error(f"Error reading description file: {e}")
+            return ""
 
-        prompt = self.prompts["generate_seo_keywords"].format(description=description)
+        try:
+            prompt = self.prompts["generate_seo_keywords"].format(description=description)
 
-        response = self.client.chat.completions.create(
-            model="gpt-5", messages=[{"role": "user", "content": prompt}]
-        )
+            response = self.client.chat.completions.create(
+                model="gpt-5", messages=[{"role": "user", "content": prompt}]
+            )
 
-        output_path = Path(description_path).parent / "keywords.txt"
-        with open(output_path, "w") as f:
-            f.write(response.choices[0].message.content)
+            output_path = Path(description_path).parent / "keywords.txt"
+            with open(output_path, "w") as f:
+                f.write(response.choices[0].message.content)
 
-        return str(output_path)
+            return str(output_path)
+        except Exception as e:
+            if callable(logger):
+                logger()
+            logger.error(f"Error generating SEO keywords: {e}")
+            return ""
