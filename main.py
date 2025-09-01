@@ -92,14 +92,24 @@ def main():
             output_video = processor.concatenate_videos(skip_reprocessing=params['skip_reprocessing'])
             logger.info(f'Videos concatenated successfully: {output_video}')
 
-        video_path = output_video or next(input_dir.glob('*.mp4'))
+        # Find a video file for transcript/description generation
+        video_path = output_video
+        if not video_path:
+            mp4_files = list(input_dir.glob('*.mp4'))
+            if mp4_files:
+                video_path = mp4_files[0]
+            else:
+                logger.warning('No video files found for transcript/description generation')
+                video_path = None
 
-        if not params['skip_transcript']:
+        if not params['skip_transcript'] and video_path:
             logger.info('Generating transcript...')
             transcript_path = processor.generate_transcript(str(video_path))
             logger.info(f'Transcript generated successfully: {transcript_path}')
+        elif not params['skip_transcript']:
+            logger.warning('Skipping transcript generation: no video file available')
 
-        if not params['skip_description'] and params['repo_url']:
+        if not params['skip_description'] and params['repo_url'] and video_path:
             logger.info('Generating description...')
             description_path = processor.generate_description(
                 str(video_path),
@@ -112,6 +122,10 @@ def main():
                 logger.info('Generating SEO keywords...')
                 keywords_path = processor.generate_seo_keywords(description_path)
                 logger.info(f'SEO keywords generated successfully: {keywords_path}')
+        elif not params['skip_description'] and params['repo_url']:
+            logger.warning('Skipping description generation: no video file available')
+        elif not params['skip_description']:
+            logger.info('Skipping description generation: no repository URL provided')
 
     except Exception as e:
         logger.error(f'Error during processing: {e}')

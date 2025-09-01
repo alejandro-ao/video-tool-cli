@@ -27,3 +27,16 @@ include = ["video_tool*", "mcp_server*"]
 
 [tool.uv.workspace]
 members = ["mcp_server"]
+
+[dependency-groups]
+dev = [
+    "factory-boy>=3.3.3",
+    "moviepy>=2.1.2",
+    "numpy>=2.2.5",
+    "pillow>=10.4.0",
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.1.0",
+    "pytest-cov>=6.2.1",
+    "pytest-mock>=3.14.1",
+    "responses>=0.25.8",
+]
