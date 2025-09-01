@@ -458,13 +458,13 @@ class VideoProcessor:
         prompt = self.prompts["generate_description"].format(transcript=transcript)
 
         response = self.client.chat.completions.create(
-            model="gpt-4.1", messages=[{"role": "user", "content": prompt}]
+            model="gpt-5", messages=[{"role": "user", "content": prompt}]
         )
 
         links = [
             {"url": repo_url, "description": "Code from the video"},
             {
-                "url": "aibootcamp.dev",
+                "url": "https://aibootcamp.dev",
                 "description": "🚀 Complete AI Engineer Bootcamp",
             },
             {
@@ -513,10 +513,18 @@ class VideoProcessor:
             links=link_list,
             timestamps=timestamp_list
         )
+        
+        polish_description_prompt = self.prompts["polish_description"].format(description=description)
+        
+        polished_description_response = self.client.chat.completions.create(
+            model="gpt-5", messages=[{"role": "user", "content": polish_description_prompt}]
+        ) 
+        
+        polished_description = polished_description_response.choices[0].message.content
 
         output_path = Path(video_path).parent / "description.md"
         with open(output_path, "w") as f:
-            f.write(description)
+            f.write(polished_description)
 
         return str(output_path)
 
@@ -990,7 +998,7 @@ class VideoProcessor:
         prompt = self.prompts["generate_seo_keywords"].format(description=description)
 
         response = self.client.chat.completions.create(
-            model="gpt-4.1", messages=[{"role": "user", "content": prompt}]
+            model="gpt-5", messages=[{"role": "user", "content": prompt}]
         )
 
         output_path = Path(description_path).parent / "keywords.txt"
