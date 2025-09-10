@@ -34,7 +34,9 @@ class TestGetUserInput:
             'n',  # skip_timestamps
             'n',  # skip_transcript
             'n',  # skip_description
-            'n'   # skip_seo
+            'n',  # skip_seo
+            'n',  # skip_linkedin
+            'n'   # skip_twitter
         ]
         
         result = get_user_input()
@@ -48,7 +50,9 @@ class TestGetUserInput:
             'skip_timestamps': False,
             'skip_transcript': False,
             'skip_description': False,
-            'skip_seo': False
+            'skip_seo': False,
+            'skip_linkedin': False,
+            'skip_twitter': False
         }
         
         assert result == expected
@@ -64,7 +68,9 @@ class TestGetUserInput:
             'y',  # skip_timestamps
             'y',  # skip_transcript
             'y',  # skip_description
-            'y'   # skip_seo
+            'y',  # skip_seo
+            'y',  # skip_linkedin
+            'y'   # skip_twitter
         ]
         
         result = get_user_input()
@@ -78,7 +84,9 @@ class TestGetUserInput:
             'skip_timestamps': True,
             'skip_transcript': True,
             'skip_description': True,
-            'skip_seo': True
+            'skip_seo': True,
+            'skip_linkedin': True,
+            'skip_twitter': True
         }
         
         assert result == expected
@@ -96,7 +104,9 @@ class TestGetUserInput:
             'n',  # skip_timestamps
             'n',  # skip_transcript
             'n',  # skip_description
-            'n'   # skip_seo
+            'n',  # skip_seo
+            'n',  # skip_linkedin
+            'n'   # skip_twitter
         ]
         
         result = get_user_input()
@@ -116,7 +126,9 @@ class TestGetUserInput:
             'n',  # skip_timestamps
             'n',  # skip_transcript
             'n',  # skip_description
-            'n'   # skip_seo
+            'n',  # skip_seo
+            'n',  # skip_linkedin
+            'n'   # skip_twitter
         ]
         
         result = get_user_input()
@@ -147,7 +159,9 @@ class TestMainWorkflow:
             'skip_timestamps': False,
             'skip_transcript': False,
             'skip_description': False,
-            'skip_seo': False
+            'skip_seo': False,
+            'skip_linkedin': True,
+            'skip_twitter': True
         }
         
         # Mock VideoProcessor
@@ -171,6 +185,58 @@ class TestMainWorkflow:
         mock_processor.generate_transcript.assert_called_once()
         mock_processor.generate_description.assert_called_once()
         mock_processor.generate_seo_keywords.assert_called_once()
+        
+    @patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key', 'GROQ_API_KEY': 'test-key'})
+    @patch('main.get_user_input')
+    @patch('main.VideoProcessor')
+    def test_main_complete_workflow_with_social_posts(self, mock_processor_class, mock_get_input, temp_dir):
+        """Test main function with complete workflow including social media posts."""
+        mock_get_input.return_value = {
+            'input_dir': str(temp_dir),
+            'repo_url': 'https://github.com/user/repo',
+            'skip_silence_removal': False,
+            'skip_concat': False,
+            'skip_reprocessing': False,
+            'skip_timestamps': False,
+            'skip_transcript': False,
+            'skip_description': False,
+            'skip_seo': False,
+            'skip_linkedin': False,
+            'skip_twitter': False
+        }
+        
+        # Create test video file
+        test_video = temp_dir / "test.mp4"
+        test_video.write_text("fake video content")
+        
+        # Create transcript file for social media post generation
+        transcript_file = temp_dir / "transcript.vtt"
+        transcript_file.write_text("WEBVTT\n\n00:00:00.000 --> 00:00:05.000\nTest transcript content")
+        
+        # Mock processor methods
+        mock_processor = Mock()
+        mock_processor.remove_silences.return_value = str(temp_dir / "processed")
+        mock_processor.generate_timestamps.return_value = {"timestamps": []}
+        mock_processor.concatenate_videos.return_value = str(temp_dir / "concatenated.mp4")
+        mock_processor.generate_transcript.return_value = str(temp_dir / "transcript.vtt")
+        mock_processor.generate_description.return_value = str(temp_dir / "description.md")
+        mock_processor.generate_seo_keywords.return_value = str(temp_dir / "keywords.txt")
+        mock_processor.generate_linkedin_post.return_value = str(temp_dir / "linkedin_post.md")
+        mock_processor.generate_twitter_post.return_value = str(temp_dir / "twitter_post.md")
+        mock_processor_class.return_value = mock_processor
+        
+        # Run main function
+        main()
+        
+        # Verify all methods were called
+        mock_processor.remove_silences.assert_called_once()
+        mock_processor.generate_timestamps.assert_called_once()
+        mock_processor.concatenate_videos.assert_called_once()
+        mock_processor.generate_transcript.assert_called_once()
+        mock_processor.generate_description.assert_called_once()
+        mock_processor.generate_seo_keywords.assert_called_once()
+        mock_processor.generate_linkedin_post.assert_called_once()
+        mock_processor.generate_twitter_post.assert_called_once()
     
     @patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key', 'GROQ_API_KEY': 'test-key'})
     @patch('main.get_user_input')
@@ -187,7 +253,9 @@ class TestMainWorkflow:
             'skip_timestamps': True,
             'skip_transcript': True,
             'skip_description': True,
-            'skip_seo': True
+            'skip_seo': True,
+            'skip_linkedin': True,
+            'skip_twitter': True
         }
         
         mock_processor = Mock()
@@ -222,7 +290,9 @@ class TestMainWorkflow:
             'skip_timestamps': False,     # Process
             'skip_transcript': False,     # Process
             'skip_description': False,    # Process
-            'skip_seo': False            # Process
+            'skip_seo': False,            # Process
+            'skip_linkedin': True,
+            'skip_twitter': True
         }
         
         mock_processor = Mock()
@@ -258,6 +328,9 @@ class TestMainWorkflow:
             'skip_transcript': True,
             'skip_description': False,  # Enable description to trigger API key validation
             'skip_keywords': True,
+            'skip_seo': True,
+            'skip_linkedin': True,
+            'skip_twitter': True,
             'repo_url': None
         }
         
@@ -283,7 +356,7 @@ class TestMainWorkflow:
     def test_main_invalid_directory(self, mock_get_input):
         """Test main function with invalid input directory."""
         mock_get_input.return_value = {
-            'input_dir': '/nonexistent/directory',
+            'input_dir': '/nonexistent/path',
             'repo_url': None,
             'skip_silence_removal': True,
             'skip_concat': True,
@@ -291,7 +364,9 @@ class TestMainWorkflow:
             'skip_timestamps': True,
             'skip_transcript': True,
             'skip_description': True,
-            'skip_seo': True
+            'skip_seo': True,
+            'skip_linkedin': True,
+            'skip_twitter': True
         }
         
         with patch('loguru.logger.error') as mock_logger:
@@ -316,7 +391,9 @@ class TestMainWorkflow:
             'skip_timestamps': True,
             'skip_transcript': True,
             'skip_description': True,
-            'skip_seo': True
+            'skip_seo': True,
+            'skip_linkedin': True,
+            'skip_twitter': True
         }
         
         mock_processor = Mock()
@@ -339,14 +416,16 @@ class TestMainWorkflow:
         """Test main function skips description when no repo URL provided."""
         mock_get_input.return_value = {
             'input_dir': str(temp_dir),
-            'repo_url': None,  # No repo URL
+            'repo_url': None,  # No repo URL provided
             'skip_silence_removal': True,
             'skip_concat': True,
             'skip_reprocessing': True,
             'skip_timestamps': True,
             'skip_transcript': True,
-            'skip_description': False,  # Want description but no repo URL
-            'skip_seo': False
+            'skip_description': False,  # Enable description
+            'skip_seo': False,
+            'skip_linkedin': True,
+            'skip_twitter': True
         }
         
         mock_processor = Mock()
@@ -380,7 +459,9 @@ class TestWorkflowIntegration:
             'skip_timestamps': False,
             'skip_transcript': True,  # Skip API calls
             'skip_description': True,
-            'skip_seo': True
+            'skip_seo': True,
+            'skip_linkedin': True,
+            'skip_twitter': True
         }
         
         # Mock VideoProcessor
@@ -410,7 +491,9 @@ class TestWorkflowIntegration:
             'skip_timestamps': True,
             'skip_transcript': False,  # This will fail without concatenated video
             'skip_description': False,  # This will fail without transcript
-            'skip_seo': False  # This will fail without description
+            'skip_seo': False,  # This will fail without description
+            'skip_linkedin': True,
+            'skip_twitter': True
         }
         
         # Mock VideoProcessor
@@ -450,7 +533,9 @@ class TestWorkflowIntegration:
             'skip_timestamps': False,  # Should overwrite existing
             'skip_transcript': True,
             'skip_description': False,  # Should use existing transcript
-            'skip_seo': False
+            'skip_seo': False,
+            'skip_linkedin': True,
+            'skip_twitter': True
         }
         
         # Mock VideoProcessor

@@ -66,3 +66,71 @@ generate_seo_keywords: |
   Based on this video description, generate a comma-separated list of relevant SEO keywords 
   that would help with video discoverability. Focus on technical and specific terms.
   Description: {description}
+
+generate_linkedin_post: |
+  Based on the following video transcript, create an engaging LinkedIn post that promotes the video content.
+  The post should be professional, informative, and encourage engagement. Do not overuse adverbs. Be concise and to the point.
+  
+  Follow this structure and style from the example below:
+  
+  <EXAMPLE>
+  🚀 Just published a video tutorial on building AI-powered applications!
+  
+  In this deep dive, I cover:
+  ✅ Generating Product Requirements Documents with TRAE
+  ✅ Building Next.js apps with in-memory authentication
+  ✅ Automated testing with TestSprite's AI test suite
+  ✅ Integrating modern AI coding assistants
+  ✅ Best practices for AI-driven development
+  
+  Perfect for developers looking to leverage AI tools in their workflow and build more efficient applications.
+  
+  What's your experience with AI coding assistants? Which tools have you found most helpful? Drop a comment below! 👇
+  
+  #AI #MachineLearning #WebDevelopment #NextJS #TestAutomation #ProductDevelopment #TechTutorial #Programming #Automation #SoftwareDevelopment
+  </EXAMPLE>
+  
+  Requirements:
+  - Start with an engaging emoji and hook
+  - Include 3-5 key topics covered (use checkmarks ✅)
+  - Add a value proposition for the target audience
+  - End with an engaging question to encourage comments
+  - Include 8-12 relevant hashtags
+  - Keep the tone professional but approachable
+  - Maximum 1300 characters (LinkedIn limit)
+  
+  <TRANSCRIPT>
+  {transcript}
+  </TRANSCRIPT>
+
+generate_twitter_post: |
+  Based on the following video transcript, create an engaging Twitter/X post that promotes the video content.
+  The post should be concise, engaging. Do not include hashtags as they are no longer useful for Twitter/X.
+  
+  Follow this structure and style from the example below:
+  
+  <EXAMPLE>
+  🎥 New tutorial: Building AI-powered apps with TRAE + TestSprite! 
+  
+  Covered:
+  ✅ AI-generated PRDs
+  ✅ Next.js development
+  ✅ Automated testing
+  ✅ Modern AI tools integration
+  
+  Perfect for devs wanting to level up their AI workflow 🚀
+
+  </EXAMPLE>
+  
+  Requirements:
+  - Start with an engaging emoji and brief hook
+  - Include 3-4 key topics with checkmarks ✅
+  - Add a brief value proposition
+  - End with a relevant emoji
+  - Include 4-6 relevant hashtags
+  - Keep under 280 characters (Twitter limit)
+  - Use concise, punchy language
+  
+  <TRANSCRIPT>
+  {transcript}
+  </TRANSCRIPT>

@@ -1152,3 +1152,67 @@ class VideoProcessor:
                 logger()
             logger.error(f"Error generating SEO keywords: {e}")
             return ""
+
+    def generate_linkedin_post(self, transcript_path: str) -> str:
+        """Generate LinkedIn post based on video transcript."""
+        try:
+            with open(transcript_path) as f:
+                transcript = f.read()
+        except FileNotFoundError:
+            logger.error(f"Transcript file not found: {transcript_path}")
+            raise
+        except Exception as e:
+            logger.error(f"Error reading transcript file: {e}")
+            raise
+
+        try:
+            prompt = self.prompts["generate_linkedin_post"].format(transcript=transcript)
+
+            response = self.client.chat.completions.create(
+                model="gpt-4o",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=1500,
+                temperature=0.7
+            )
+
+            output_path = self.input_dir / "linkedin_post.md"
+            with open(output_path, "w") as f:
+                f.write(response.choices[0].message.content)
+
+            logger.info(f"LinkedIn post generated successfully: {output_path}")
+            return str(output_path)
+        except Exception as e:
+            logger.error(f"Error generating LinkedIn post: {e}")
+            raise
+
+    def generate_twitter_post(self, transcript_path: str) -> str:
+        """Generate Twitter post based on video transcript."""
+        try:
+            with open(transcript_path) as f:
+                transcript = f.read()
+        except FileNotFoundError:
+            logger.error(f"Transcript file not found: {transcript_path}")
+            raise
+        except Exception as e:
+            logger.error(f"Error reading transcript file: {e}")
+            raise
+
+        try:
+            prompt = self.prompts["generate_twitter_post"].format(transcript=transcript)
+
+            response = self.client.chat.completions.create(
+                model="gpt-4o",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=500,
+                temperature=0.7
+            )
+
+            output_path = self.input_dir / "twitter_post.md"
+            with open(output_path, "w") as f:
+                f.write(response.choices[0].message.content)
+
+            logger.info(f"Twitter post generated successfully: {output_path}")
+            return str(output_path)
+        except Exception as e:
+            logger.error(f"Error generating Twitter post: {e}")
+            raise

@@ -251,6 +251,35 @@ SAMPLE_ERROR_RESPONSES = {
     "file_not_found": "No such file or directory"
 }
 
+# Sample LinkedIn post content
+SAMPLE_LINKEDIN_POST = """🚀 Just published a comprehensive video tutorial on advanced video processing techniques!
+
+In this deep dive, I cover:
+✅ Video encoding and compression
+✅ Automated transcript generation using AI
+✅ SEO optimization strategies
+✅ Batch processing workflows
+✅ Quality control and testing
+
+Perfect for developers working with media files and looking to streamline their video processing pipelines.
+
+What's your biggest challenge when working with video content? Drop a comment below! 👇
+
+#VideoProcessing #Python #AI #MachineLearning #ContentCreation #TechTutorial #Programming #Automation"""
+
+# Sample Twitter post content
+SAMPLE_TWITTER_POST = """🎥 New tutorial: Advanced video processing with Python! 
+
+Covered:
+✅ AI transcription
+✅ SEO optimization 
+✅ Batch processing
+✅ Quality testing
+
+Perfect for devs working with media files 🚀
+
+#Python #VideoProcessing #AI #TechTutorial"""
+
 # Configuration for different test scenarios
 TEST_SCENARIOS = {
     "small_dataset": {

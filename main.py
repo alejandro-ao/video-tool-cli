@@ -34,6 +34,8 @@ def get_user_input():
     skip_transcript = input("Skip transcript generation? ").lower().strip() == 'y'
     skip_description = input("Skip description generation? ").lower().strip() == 'y'
     skip_seo = input("Skip SEO keywords generation? ").lower().strip() == 'y'
+    skip_linkedin = input("Skip LinkedIn post generation? ").lower().strip() == 'y'
+    skip_twitter = input("Skip Twitter post generation? ").lower().strip() == 'y'
     
     return {
         'input_dir': input_dir,
@@ -44,7 +46,9 @@ def get_user_input():
         'skip_timestamps': skip_timestamps,
         'skip_transcript': skip_transcript,
         'skip_description': skip_description,
-        'skip_seo': skip_seo
+        'skip_seo': skip_seo,
+        'skip_linkedin': skip_linkedin,
+        'skip_twitter': skip_twitter
     }
 
 def main():
@@ -126,6 +130,25 @@ def main():
             logger.warning('Skipping description generation: no video file available')
         elif not params['skip_description']:
             logger.info('Skipping description generation: no repository URL provided')
+
+        # Generate social media posts
+        if not params['skip_linkedin'] and video_path and transcript_path and Path(transcript_path).exists():
+            logger.info('Generating LinkedIn post...')
+            linkedin_path = processor.generate_linkedin_post(transcript_path)
+            logger.info(f'LinkedIn post generated successfully: {linkedin_path}')
+        elif not params['skip_linkedin'] and video_path:
+            logger.warning('Skipping LinkedIn post generation: no transcript file available')
+        elif not params['skip_linkedin']:
+            logger.warning('Skipping LinkedIn post generation: no video file available')
+
+        if not params['skip_twitter'] and video_path and transcript_path and Path(transcript_path).exists():
+            logger.info('Generating Twitter post...')
+            twitter_path = processor.generate_twitter_post(transcript_path)
+            logger.info(f'Twitter post generated successfully: {twitter_path}')
+        elif not params['skip_twitter'] and video_path:
+            logger.warning('Skipping Twitter post generation: no transcript file available')
+        elif not params['skip_twitter']:
+            logger.warning('Skipping Twitter post generation: no video file available')
 
     except Exception as e:
         logger.error(f'Error during processing: {e}')

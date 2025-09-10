@@ -23,7 +23,9 @@ from tests.test_data.sample_data import (
     SAMPLE_VTT_CONTENT,
     SAMPLE_DESCRIPTION_MD,
     SAMPLE_KEYWORDS,
-    SAMPLE_ERROR_RESPONSES
+    SAMPLE_ERROR_RESPONSES,
+    SAMPLE_LINKEDIN_POST,
+    SAMPLE_TWITTER_POST
 )
 
 
@@ -622,3 +624,103 @@ class TestContentGenerationIntegration:
             video_path = str(temp_dir / "nonexistent_video.mp4")
             transcript_result = mock_video_processor.generate_transcript(video_path)
             mock_logger.error.assert_called()  # Should error about missing video
+
+
+class TestGenerateLinkedInPost:
+    """Test generate_linkedin_post method."""
+    
+    def test_generate_linkedin_post_success(self, temp_dir, mock_video_processor):
+        """Test successful LinkedIn post generation."""
+        # Create transcript file
+        transcript_file = temp_dir / "transcript.vtt"
+        transcript_file.write_text(SAMPLE_VTT_CONTENT)
+        
+        mock_video_processor.input_dir = temp_dir
+        
+        # Mock OpenAI response
+        mock_response = Mock()
+        mock_response.choices = [Mock()]
+        mock_response.choices[0].message = Mock()
+        mock_response.choices[0].message.content = SAMPLE_LINKEDIN_POST
+        
+        with patch.object(mock_video_processor.client.chat.completions, 'create', return_value=mock_response):
+            result = mock_video_processor.generate_linkedin_post(str(transcript_file))
+            
+            # Verify file was created
+            linkedin_file = temp_dir / "linkedin_post.md"
+            assert linkedin_file.exists()
+            assert result == str(linkedin_file)
+            
+            # Verify content
+            content = linkedin_file.read_text()
+            assert "🚀" in content  # Should contain emojis
+            assert "#" in content   # Should contain hashtags
+    
+    def test_generate_linkedin_post_no_transcript(self, temp_dir, mock_video_processor):
+        """Test LinkedIn post generation with missing transcript file."""
+        mock_video_processor.input_dir = temp_dir
+        
+        with pytest.raises(FileNotFoundError):
+            mock_video_processor.generate_linkedin_post(str(temp_dir / "nonexistent.vtt"))
+    
+    def test_generate_linkedin_post_openai_error(self, temp_dir, mock_video_processor, mock_logger):
+        """Test LinkedIn post generation with OpenAI API error."""
+        transcript_file = temp_dir / "transcript.vtt"
+        transcript_file.write_text(SAMPLE_VTT_CONTENT)
+        
+        mock_video_processor.input_dir = temp_dir
+        
+        # Mock OpenAI error
+        with patch.object(mock_video_processor.client.chat.completions, 'create', side_effect=Exception("API Error")):
+            with pytest.raises(Exception, match="API Error"):
+                mock_video_processor.generate_linkedin_post(str(transcript_file))
+
+
+class TestGenerateTwitterPost:
+    """Test generate_twitter_post method."""
+    
+    def test_generate_twitter_post_success(self, temp_dir, mock_video_processor):
+        """Test successful Twitter post generation."""
+        # Create transcript file
+        transcript_file = temp_dir / "transcript.vtt"
+        transcript_file.write_text(SAMPLE_VTT_CONTENT)
+        
+        mock_video_processor.input_dir = temp_dir
+        
+        # Mock OpenAI response
+        mock_response = Mock()
+        mock_response.choices = [Mock()]
+        mock_response.choices[0].message = Mock()
+        mock_response.choices[0].message.content = SAMPLE_TWITTER_POST
+        
+        with patch.object(mock_video_processor.client.chat.completions, 'create', return_value=mock_response):
+            result = mock_video_processor.generate_twitter_post(str(transcript_file))
+            
+            # Verify file was created
+            twitter_file = temp_dir / "twitter_post.md"
+            assert twitter_file.exists()
+            assert result == str(twitter_file)
+            
+            # Verify content
+            content = twitter_file.read_text()
+            assert len(content) <= 280  # Twitter character limit
+            assert "#" in content       # Should contain hashtags
+    
+    def test_generate_twitter_post_no_transcript(self, temp_dir, mock_video_processor):
+        """Test Twitter post generation with missing transcript file."""
+        mock_video_processor.input_dir = temp_dir
+        
+        with pytest.raises(FileNotFoundError):
+            mock_video_processor.generate_twitter_post(str(temp_dir / "nonexistent.vtt"))
+    
+    def test_generate_twitter_post_openai_error(self, temp_dir, mock_video_processor, mock_logger):
+        """Test Twitter post generation with OpenAI API error."""
+        transcript_file = temp_dir / "transcript.vtt"
+        transcript_file.write_text(SAMPLE_VTT_CONTENT)
+        
+        mock_video_processor.input_dir = temp_dir
+        
+        # Mock OpenAI error
+        with patch.object(mock_video_processor.client.chat.completions, 'create', side_effect=Exception("API Error")):
+            with pytest.raises(Exception, match="API Error"):
+                mock_video_processor.generate_twitter_post(str(transcript_file))
