@@ -11,7 +11,16 @@ def get_user_input():
     
     # Get input directory
     while True:
-        input_dir = input("Enter the input directory path: ").strip().strip("'\"")
+        input_dir = input("Enter the input directory path: ").strip()
+        # Remove surrounding quotes if present
+        if input_dir.startswith('"') and input_dir.endswith('"'):
+            input_dir = input_dir[1:-1]
+        elif input_dir.startswith("'") and input_dir.endswith("'"):
+            input_dir = input_dir[1:-1]
+        else:
+            # Handle escaped spaces by replacing \  with just space
+            input_dir = input_dir.replace('\\ ', ' ')
+        
         if input_dir:
             break
         print("Input directory is required!")
