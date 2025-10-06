@@ -443,115 +443,83 @@ class VideoProcessor:
         """
         from pydub import AudioSegment
         
-        logger.info("🎬 Starting transcript generation...")
-        logger.info(f"📁 Input directory: {self.input_dir}")
-        logger.info(f"🎥 Provided video path: {video_path}")
-        
         # Determine video path if not provided
         if video_path is None:
-            logger.info("🔍 No video path provided, searching for video file...")
             candidate = Path(self.input_dir) / "concatenated_video.mp4"
-            logger.info(f"🔍 Checking for concatenated video: {candidate}")
             
             if candidate.exists():
                 video_path = str(candidate)
-                logger.info(f"✅ Found concatenated video: {video_path}")
             else:
-                logger.info("❌ No concatenated video found, searching for MP4 files...")
                 mp4s = list(Path(self.input_dir).glob("*.mp4"))
-                logger.info(f"🔍 Found {len(mp4s)} MP4 files: {[str(f) for f in mp4s]}")
                 
                 if mp4s:
                     video_path = str(mp4s[0])
-                    logger.info(f"✅ Using first MP4 file: {video_path}")
                 else:
-                    logger.error("❌ No video file found for transcript generation")
+                    logger.error("No video file found for transcript generation")
                     raise FileNotFoundError("No video file found for transcript generation")
-        else:
-            logger.info(f"✅ Using provided video path: {video_path}")
         
         # Verify video file exists
         video_file = Path(video_path)
         if not video_file.exists():
-            logger.error(f"❌ Video file does not exist: {video_path}")
+            logger.error(f"Video file does not exist: {video_path}")
             return ""
         
-        logger.info(f"📊 Video file size: {video_file.stat().st_size / (1024*1024):.2f} MB")
-        
         audio_path = Path(video_path).with_suffix(".mp3")
-        logger.info(f"🎵 Audio extraction target: {audio_path}")
         
         try:
-            logger.info("🎵 Extracting audio from video...")
             video = VideoFileClip(video_path)
             
             if video.audio is None:
-                logger.error("❌ Video file has no audio track")
+                logger.error("Video file has no audio track")
                 video.close()
                 return ""
             
-            logger.info(f"⏱️ Video duration: {video.duration:.2f} seconds")
             video.audio.write_audiofile(str(audio_path))
             video.close()
-            logger.info("✅ Audio extraction completed")
             
         except Exception as e:
             # Direct callable invocation for tests expecting logger.assert_called()
             if callable(getattr(logger, "__call__", None)):
                 logger(f"Error processing video file {video_path}: {e}")
-            logger.error(f"❌ Error processing video file {video_path}: {e}")
+            logger.error(f"Error processing video file {video_path}: {e}")
             return ""
         
         # Ensure audio file exists in case write_audiofile is mocked in tests
         if not audio_path.exists():
-            logger.warning("⚠️ Audio file doesn't exist after extraction, creating empty file for tests")
             audio_path.touch()
 
         # Verify audio file was created and has content
         if audio_path.exists():
             audio_size = audio_path.stat().st_size
-            logger.info(f"🎵 Audio file created: {audio_path} ({audio_size / (1024*1024):.2f} MB)")
             
             if audio_size == 0:
-                logger.error("❌ Audio file is empty")
+                logger.error("Audio file is empty")
                 return ""
         else:
-            logger.error("❌ Audio file was not created")
+            logger.error("Audio file was not created")
             return ""
 
         try:
             # Check file size
             file_size_mb = os.path.getsize(audio_path) / (1024 * 1024)
-            logger.info(f"📊 Audio file size: {file_size_mb:.2f} MB")
             
             if file_size_mb <= 25:
-                logger.info("🚀 Processing audio file directly (under 25MB limit)")
                 # Process normally if file is under 25MB
                 with open(audio_path, "rb") as audio_file:
-                    logger.info("📡 Sending request to Groq API...")
-                    logger.info(f"🔑 Using Groq API key: {'***' + str(os.getenv('GROQ_API_KEY', ''))[-4:] if os.getenv('GROQ_API_KEY') else 'NOT SET'}")
-                    
                     response = self.groq.audio.transcriptions.create(
                         model="whisper-large-v3-turbo",
                         file=audio_file,
                         response_format="verbose_json",
                         timestamp_granularities=["segment"],
                     )
-                    logger.info("✅ Received response from Groq API")
-                    logger.info(f"📝 Response type: {type(response)}")
                     
                 transcript = self._groq_verbose_json_to_vtt(response)
-                logger.info(f"📝 Generated VTT transcript length: {len(transcript)} characters")
                 
             else:
                 # Split and process audio in chunks
-                logger.info(f"✂️ Audio file size: {file_size_mb:.2f}MB. Splitting into chunks...")
                 audio = AudioSegment.from_mp3(str(audio_path))
                 chunk_length = 10 * 60 * 1000  # 10 minutes in milliseconds
                 chunks = []
-                
-                logger.info(f"⏱️ Audio duration: {len(audio) / 1000:.2f} seconds")
-                logger.info(f"✂️ Chunk length: {chunk_length / 1000:.2f} seconds")
                 
                 # Split audio into chunks
                 for i in range(0, len(audio), chunk_length):
@@ -559,65 +527,40 @@ class VideoProcessor:
                     chunk_path = audio_path.parent / f"chunk_{i//chunk_length}.mp3"
                     chunk.export(str(chunk_path), format="mp3")
                     chunks.append(chunk_path)
-                    logger.info(f"✂️ Created chunk {len(chunks)}: {chunk_path} ({len(chunk) / 1000:.2f}s)")
-                
-                logger.info(f"✂️ Created {len(chunks)} chunks total")
                 
                 # Process each chunk
                 transcripts = []
                 for i, chunk_path in enumerate(chunks):
-                    logger.info(f"🔄 Processing chunk {i+1}/{len(chunks)}: {chunk_path}")
-                    
                     with open(chunk_path, "rb") as chunk_file:
-                        logger.info(f"📡 Sending chunk {i+1} to Groq API...")
                         response = self.groq.audio.transcriptions.create(
                             model="whisper-large-v3-turbo",
                             file=chunk_file,
                             response_format="verbose_json",
                             timestamp_granularities=["segment"],
                         )
-                        logger.info(f"✅ Received response for chunk {i+1}")
                         
                         chunk_vtt = self._groq_verbose_json_to_vtt(response)
                         cleaned_vtt = self._clean_vtt_transcript(chunk_vtt)
                         transcripts.append(cleaned_vtt)
-                        logger.info(f"📝 Chunk {i+1} transcript length: {len(cleaned_vtt)} characters")
                         
                     os.remove(chunk_path)
-                    logger.info(f"🗑️ Cleaned up chunk file: {chunk_path}")
                 
                 # Combine transcripts
-                logger.info("🔗 Merging chunk transcripts...")
                 transcript = self._merge_vtt_transcripts(transcripts)
-                logger.info(f"📝 Final merged transcript length: {len(transcript)} characters")
             
             output_path = Path(video_path).parent / "transcript.vtt"
-            logger.info(f"💾 Writing transcript to: {output_path}")
             
             with open(output_path, "w") as f:
                 f.write(transcript)
-            
-            logger.info(f"✅ Transcript file created: {output_path} ({len(transcript)} characters)")
-            
-            # Verify the file was written correctly
-            if output_path.exists():
-                written_size = output_path.stat().st_size
-                logger.info(f"✅ Transcript file verified: {written_size} bytes on disk")
-            else:
-                logger.error("❌ Transcript file was not created on disk")
-                return ""
 
             # os.remove(audio_path)  # Cleanup
-            logger.info("🎉 Transcript generation completed successfully!")
             return str(output_path)
 
         except Exception as e:
             # Direct callable invocation for tests expecting logger.assert_called()
             if callable(getattr(logger, "__call__", None)):
                 logger(f"Error generating transcript: {e}")
-            logger.error(f"❌ Error generating transcript: {e}")
-            logger.error(f"❌ Exception type: {type(e).__name__}")
-            logger.error(f"❌ Exception details: {str(e)}")
+            logger.error(f"Error generating transcript: {e}")
             return ""
 
     def generate_description(
