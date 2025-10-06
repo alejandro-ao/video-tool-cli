@@ -530,7 +530,7 @@ class VideoProcessor:
             # Direct callable invocation for tests expecting logger.assert_called()
             if callable(getattr(logger, "__call__", None)):
                 logger(f"Error generating transcript: {e}")
-            logger.error("Error generating transcript: %s", e)
+            logger.error(f"Error generating transcript: {e}")
             return ""
 
     def generate_description(
