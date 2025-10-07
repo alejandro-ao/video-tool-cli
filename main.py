@@ -150,19 +150,19 @@ def main():
         elif not params['skip_transcript']:
             logger.warning('⚠️ Skipping transcript: no video file available')
 
+        resolved_transcript: Path | None = None
+        if transcript_path and Path(transcript_path).exists():
+            resolved_transcript = Path(transcript_path)
+        else:
+            default_transcript = processor.output_dir / "transcript.vtt"
+            if default_transcript.exists():
+                resolved_transcript = default_transcript
+
         # Context cards and resource mentions
         if not params['skip_context_cards']:
-            transcript_candidate = None
-            if transcript_path and Path(transcript_path).exists():
-                transcript_candidate = Path(transcript_path)
-            else:
-                default_transcript = processor.output_dir / "transcript.vtt"
-                if default_transcript.exists():
-                    transcript_candidate = default_transcript
-
-            if transcript_candidate:
+            if resolved_transcript:
                 logger.info('🗂️ Identifying YouTube card opportunities and resource mentions...')
-                cards_path = processor.generate_context_cards(str(transcript_candidate))
+                cards_path = processor.generate_context_cards(str(resolved_transcript))
                 if cards_path:
                     logger.info(f'✅ Context cards generated: {Path(cards_path).name}')
                 else:
@@ -202,9 +202,9 @@ def main():
             logger.info('ℹ️ Skipping description: no repository URL provided')
 
         # Generate social media posts
-        if not params['skip_linkedin'] and video_path and transcript_path and Path(transcript_path).exists():
+        if not params['skip_linkedin'] and video_path and resolved_transcript:
             logger.info('📱 Generating LinkedIn post...')
-            linkedin_path = processor.generate_linkedin_post(transcript_path)
+            linkedin_path = processor.generate_linkedin_post(str(resolved_transcript))
             if linkedin_path:
                 logger.info(f'✅ LinkedIn post generated: {Path(linkedin_path).name}')
             else:
@@ -214,9 +214,9 @@ def main():
         elif not params['skip_linkedin']:
             logger.warning('⚠️ Skipping LinkedIn post: no video file available')
 
-        if not params['skip_twitter'] and video_path and transcript_path and Path(transcript_path).exists():
+        if not params['skip_twitter'] and video_path and resolved_transcript:
             logger.info('🐦 Generating Twitter post...')
-            twitter_path = processor.generate_twitter_post(transcript_path)
+            twitter_path = processor.generate_twitter_post(str(resolved_transcript))
             if twitter_path:
                 logger.info(f'✅ Twitter post generated: {Path(twitter_path).name}')
             else:

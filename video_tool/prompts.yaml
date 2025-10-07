@@ -74,7 +74,7 @@ generate_linkedin_post: |
   Follow this structure and style from the example below:
   
   <EXAMPLE>
-  Found a goldmine for AI developers.
+  Anthropic just dropped the best model for coding.
   
   I just dropped a new video breaking down how to build AI-powered applications from scratch.
   
@@ -102,15 +102,16 @@ generate_linkedin_post: |
   </EXAMPLE>
   
   Requirements:
-  - Start with an engaging hook phrase that makes readers want to click (examples: "Found a goldmine for Cursor users.", "I removed 50% of an LLM's brain. It got smarter.", "Context Engineering just dropped an AgenticOS.")
+  - Start with an engaging hook phrase that makes readers want to click (examples: "Found a goldmine for Cursor users.", "I removed 50% of an LLM's brain. It got smarter.", "Context Engineering just dropped an AgenticOS.", "OpenAI just dropped a new Apps SDK."). If the video covers a new product release, mention the company and what they released (e.g., "OpenAI just dropped...", "Google just launched...", "Microsoft just released...")
   - Reference the video throughout the post - this is meant to promote your YouTube video
   - Use lots of line breaks for easy readability - avoid long paragraphs or sentences
   - Avoid adverbs or use them sparingly - they add clutter without value
   - Write in first person ("I did this" not "we did this") - this is your personal post
+  - Use simple, clear language - avoid complicated words (use "importance" not "significance", "help" not "facilitate", etc.)
   - Include 3-5 key topics covered (use checkmarks ✅)
   - Add a value proposition for the target audience
-  - End with engaging questions to encourage comments
-  - Include 8-12 relevant hashtags
+  - End one engaging question to encourage comments
+  - Include 4-6 relevant hashtags
   - Keep the tone professional but approachable
   - Maximum 1300 characters (LinkedIn limit)
   
