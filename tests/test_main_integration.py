@@ -28,6 +28,7 @@ class TestGetUserInput:
         mock_input.side_effect = [
             '/path/to/videos',  # input_dir
             'https://github.com/user/repo',  # repo_url
+            'My Great Video',  # video_title
             'n',  # skip_silence_removal
             'n',  # skip_concat
             'n',  # skip_reprocessing
@@ -44,6 +45,7 @@ class TestGetUserInput:
         expected = {
             'input_dir': '/path/to/videos',
             'repo_url': 'https://github.com/user/repo',
+            'video_title': 'My Great Video',
             'skip_silence_removal': False,
             'skip_concat': False,
             'skip_reprocessing': False,
@@ -63,6 +65,7 @@ class TestGetUserInput:
         mock_input.side_effect = [
             '/path/to/videos',  # input_dir
             '',  # repo_url (empty)
+            '',  # video_title (empty)
             'y',  # skip_silence_removal
             'y',  # skip_concat
             'y',  # skip_timestamps
@@ -78,6 +81,7 @@ class TestGetUserInput:
         expected = {
             'input_dir': '/path/to/videos',
             'repo_url': None,
+            'video_title': None,
             'skip_silence_removal': True,
             'skip_concat': True,
             'skip_reprocessing': False,  # Not asked when concat is skipped
@@ -98,6 +102,7 @@ class TestGetUserInput:
             '',  # Empty input (should retry)
             '/path/to/videos',  # Valid input
             '',  # repo_url (empty)
+            'My Video',  # video_title
             'n',  # skip_silence_removal
             'n',  # skip_concat
             'n',  # skip_reprocessing
@@ -113,6 +118,7 @@ class TestGetUserInput:
         
         assert result['input_dir'] == '/path/to/videos'
         assert result['repo_url'] is None
+        assert result['video_title'] == 'My Video'
     
     @patch('builtins.input')
     def test_get_user_input_quoted_paths(self, mock_input):
@@ -120,6 +126,7 @@ class TestGetUserInput:
         mock_input.side_effect = [
             '"/path/with spaces/videos"',  # Quoted path
             '',  # repo_url (empty)
+            'Fun Video',  # video_title
             'n',  # skip_silence_removal
             'n',  # skip_concat
             'n',  # skip_reprocessing
@@ -136,6 +143,7 @@ class TestGetUserInput:
         # Should strip quotes
         assert result['input_dir'] == '/path/with spaces/videos'
         assert result['repo_url'] is None
+        assert result['video_title'] == 'Fun Video'
 
 
 class TestMainWorkflow:
@@ -153,6 +161,7 @@ class TestMainWorkflow:
         mock_get_input.return_value = {
             'input_dir': str(temp_dir),
             'repo_url': 'https://github.com/test/repo',
+            'video_title': 'Product Launch Recap',
             'skip_silence_removal': False,
             'skip_concat': False,
             'skip_reprocessing': False,
@@ -194,6 +203,7 @@ class TestMainWorkflow:
         mock_get_input.return_value = {
             'input_dir': str(temp_dir),
             'repo_url': 'https://github.com/user/repo',
+            'video_title': 'Launch Update',
             'skip_silence_removal': False,
             'skip_concat': False,
             'skip_reprocessing': False,
@@ -247,6 +257,7 @@ class TestMainWorkflow:
         mock_get_input.return_value = {
             'input_dir': str(temp_dir),
             'repo_url': None,
+            'video_title': None,
             'skip_silence_removal': True,
             'skip_concat': True,
             'skip_reprocessing': True,
@@ -284,6 +295,7 @@ class TestMainWorkflow:
         mock_get_input.return_value = {
             'input_dir': str(temp_dir),
             'repo_url': 'https://github.com/test/repo',
+            'video_title': 'Weekly Update',
             'skip_silence_removal': True,  # Skip
             'skip_concat': True,          # Skip
             'skip_reprocessing': False,
@@ -331,7 +343,8 @@ class TestMainWorkflow:
             'skip_seo': True,
             'skip_linkedin': True,
             'skip_twitter': True,
-            'repo_url': None
+            'repo_url': None,
+            'video_title': None
         }
         
         # Clear environment variables and mock logger
@@ -358,6 +371,7 @@ class TestMainWorkflow:
         mock_get_input.return_value = {
             'input_dir': '/nonexistent/path',
             'repo_url': None,
+            'video_title': None,
             'skip_silence_removal': True,
             'skip_concat': True,
             'skip_reprocessing': True,
@@ -385,6 +399,7 @@ class TestMainWorkflow:
         mock_get_input.return_value = {
             'input_dir': str(temp_dir),
             'repo_url': None,
+            'video_title': 'Problematic Run',
             'skip_silence_removal': False,
             'skip_concat': True,
             'skip_reprocessing': True,
@@ -417,6 +432,7 @@ class TestMainWorkflow:
         mock_get_input.return_value = {
             'input_dir': str(temp_dir),
             'repo_url': None,  # No repo URL provided
+            'video_title': 'No Repo Video',
             'skip_silence_removal': True,
             'skip_concat': True,
             'skip_reprocessing': True,
@@ -453,6 +469,7 @@ class TestWorkflowIntegration:
         mock_get_input.return_value = {
             'input_dir': str(temp_dir),
             'repo_url': 'https://github.com/test/repo',
+            'video_title': 'Integration Run',
             'skip_silence_removal': True,  # Skip heavy processing
             'skip_concat': True,
             'skip_reprocessing': True,
@@ -485,6 +502,7 @@ class TestWorkflowIntegration:
         mock_get_input.return_value = {
             'input_dir': str(temp_dir),
             'repo_url': 'https://github.com/test/repo',
+            'video_title': 'Dependency Check',
             'skip_silence_removal': True,
             'skip_concat': True,
             'skip_reprocessing': True,
@@ -527,6 +545,7 @@ class TestWorkflowIntegration:
         mock_get_input.return_value = {
             'input_dir': str(temp_dir),
             'repo_url': 'https://github.com/test/repo',
+            'video_title': 'Existing Outputs',
             'skip_silence_removal': True,
             'skip_concat': True,
             'skip_reprocessing': True,

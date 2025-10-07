@@ -27,6 +27,7 @@ def get_user_input():
     
     # Get optional parameters
     repo_url = input("Enter GitHub repository URL (optional): ").strip()
+    video_title = input("Enter the video title (optional): ").strip()
     
     # Get processing options
     print("\nProcessing options (Enter 'y' to skip, any other key to process):")
@@ -49,6 +50,7 @@ def get_user_input():
     return {
         'input_dir': input_dir,
         'repo_url': repo_url if repo_url else None,
+        'video_title': video_title if video_title else None,
         'skip_silence_removal': skip_silence_removal,
         'skip_concat': skip_concat,
         'skip_reprocessing': skip_reprocessing,
@@ -84,7 +86,7 @@ def main():
             logger.error(f'Path is not a directory: {input_dir}')
             return
 
-        processor = VideoProcessor(str(input_dir))
+        processor = VideoProcessor(str(input_dir), video_title=params['video_title'])
 
         # Remove silences
         if not params['skip_silence_removal']:
