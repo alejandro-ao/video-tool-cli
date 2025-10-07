@@ -13,6 +13,7 @@ from datetime import datetime
 def temp_dir():
     """Create a temporary directory for tests."""
     temp_path = Path(tempfile.mkdtemp())
+    (temp_path / "output").mkdir(parents=True, exist_ok=True)
     yield temp_path
     shutil.rmtree(temp_path)
 

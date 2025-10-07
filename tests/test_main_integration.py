@@ -156,6 +156,7 @@ class TestMainWorkflow:
         """Test complete main workflow with all steps enabled."""
         # Setup test data
         test_data = create_complete_test_dataset(temp_dir)
+        output_dir = temp_dir / "output"
         
         # Mock user input
         mock_get_input.return_value = {
@@ -175,14 +176,15 @@ class TestMainWorkflow:
         
         # Mock VideoProcessor
         mock_processor = Mock()
+        mock_processor.output_dir = output_dir
         mock_processor_class.return_value = mock_processor
         
         # Mock method returns
         mock_processor.remove_silences.return_value = temp_dir / "processed"
-        mock_processor.concatenate_videos.return_value = temp_dir / "concatenated_video.mp4"
-        mock_processor.generate_transcript.return_value = temp_dir / "transcript.vtt"
-        mock_processor.generate_description.return_value = temp_dir / "description.md"
-        mock_processor.generate_seo_keywords.return_value = temp_dir / "keywords.txt"
+        mock_processor.concatenate_videos.return_value = str(output_dir / "concatenated_video.mp4")
+        mock_processor.generate_transcript.return_value = str(output_dir / "transcript.vtt")
+        mock_processor.generate_description.return_value = str(output_dir / "description.md")
+        mock_processor.generate_seo_keywords.return_value = str(output_dir / "keywords.txt")
         
         # Run main
         main()
@@ -200,6 +202,7 @@ class TestMainWorkflow:
     @patch('main.VideoProcessor')
     def test_main_complete_workflow_with_social_posts(self, mock_processor_class, mock_get_input, temp_dir):
         """Test main function with complete workflow including social media posts."""
+        output_dir = temp_dir / "output"
         mock_get_input.return_value = {
             'input_dir': str(temp_dir),
             'repo_url': 'https://github.com/user/repo',
@@ -220,19 +223,20 @@ class TestMainWorkflow:
         test_video.write_text("fake video content")
         
         # Create transcript file for social media post generation
-        transcript_file = temp_dir / "transcript.vtt"
+        transcript_file = output_dir / "transcript.vtt"
         transcript_file.write_text("WEBVTT\n\n00:00:00.000 --> 00:00:05.000\nTest transcript content")
         
         # Mock processor methods
         mock_processor = Mock()
+        mock_processor.output_dir = output_dir
         mock_processor.remove_silences.return_value = str(temp_dir / "processed")
         mock_processor.generate_timestamps.return_value = {"timestamps": []}
-        mock_processor.concatenate_videos.return_value = str(temp_dir / "concatenated.mp4")
-        mock_processor.generate_transcript.return_value = str(temp_dir / "transcript.vtt")
-        mock_processor.generate_description.return_value = str(temp_dir / "description.md")
-        mock_processor.generate_seo_keywords.return_value = str(temp_dir / "keywords.txt")
-        mock_processor.generate_linkedin_post.return_value = str(temp_dir / "linkedin_post.md")
-        mock_processor.generate_twitter_post.return_value = str(temp_dir / "twitter_post.md")
+        mock_processor.concatenate_videos.return_value = str(output_dir / "concatenated.mp4")
+        mock_processor.generate_transcript.return_value = str(output_dir / "transcript.vtt")
+        mock_processor.generate_description.return_value = str(output_dir / "description.md")
+        mock_processor.generate_seo_keywords.return_value = str(output_dir / "keywords.txt")
+        mock_processor.generate_linkedin_post.return_value = str(output_dir / "linkedin_post.md")
+        mock_processor.generate_twitter_post.return_value = str(output_dir / "twitter_post.md")
         mock_processor_class.return_value = mock_processor
         
         # Run main function
@@ -270,6 +274,7 @@ class TestMainWorkflow:
         }
         
         mock_processor = Mock()
+        mock_processor.output_dir = temp_dir / "output"
         mock_processor_class.return_value = mock_processor
         
         # Run main
@@ -308,12 +313,13 @@ class TestMainWorkflow:
         }
         
         mock_processor = Mock()
+        mock_processor.output_dir = temp_dir / "output"
         mock_processor_class.return_value = mock_processor
         
         # Mock returns
-        mock_processor.generate_transcript.return_value = temp_dir / "transcript.vtt"
-        mock_processor.generate_description.return_value = temp_dir / "description.md"
-        mock_processor.generate_seo_keywords.return_value = temp_dir / "keywords.txt"
+        mock_processor.generate_transcript.return_value = str(mock_processor.output_dir / "transcript.vtt")
+        mock_processor.generate_description.return_value = str(mock_processor.output_dir / "description.md")
+        mock_processor.generate_seo_keywords.return_value = str(mock_processor.output_dir / "keywords.txt")
         
         # Run main
         main()
@@ -412,6 +418,7 @@ class TestMainWorkflow:
         }
         
         mock_processor = Mock()
+        mock_processor.output_dir = temp_dir / "output"
         mock_processor_class.return_value = mock_processor
         
         # Mock method to raise exception
@@ -445,6 +452,7 @@ class TestMainWorkflow:
         }
         
         mock_processor = Mock()
+        mock_processor.output_dir = temp_dir / "output"
         mock_processor_class.return_value = mock_processor
         
         # Run main
@@ -483,10 +491,11 @@ class TestWorkflowIntegration:
         
         # Mock VideoProcessor
         mock_processor = Mock()
+        mock_processor.output_dir = temp_dir / "output"
         mock_processor_class.return_value = mock_processor
         
         # Mock method returns
-        mock_processor.generate_timestamps.return_value = temp_dir / "timestamps.json"
+        mock_processor.generate_timestamps.return_value = str(mock_processor.output_dir / "timestamps.json")
         
         # Should complete without errors
         main()
@@ -516,6 +525,7 @@ class TestWorkflowIntegration:
         
         # Mock VideoProcessor
         mock_processor = Mock()
+        mock_processor.output_dir = temp_dir / "output"
         mock_processor_class.return_value = mock_processor
         
         # Mock method returns - simulate missing files by raising exceptions
@@ -539,8 +549,9 @@ class TestWorkflowIntegration:
         create_complete_test_dataset(temp_dir)
         
         # Create some existing output files
-        (temp_dir / "timestamps.json").write_text('{"existing": true}')
-        (temp_dir / "transcript.vtt").write_text("WEBVTT\n\nexisting transcript")
+        existing_output = temp_dir / "output"
+        (existing_output / "timestamps.json").write_text('{"existing": true}')
+        (existing_output / "transcript.vtt").write_text("WEBVTT\n\nexisting transcript")
         
         mock_get_input.return_value = {
             'input_dir': str(temp_dir),
@@ -559,12 +570,13 @@ class TestWorkflowIntegration:
         
         # Mock VideoProcessor
         mock_processor = Mock()
+        mock_processor.output_dir = temp_dir / "output"
         mock_processor_class.return_value = mock_processor
         
         # Mock method returns
-        mock_processor.generate_timestamps.return_value = temp_dir / "timestamps.json"
-        mock_processor.generate_description.return_value = temp_dir / "description.md"
-        mock_processor.generate_seo_keywords.return_value = temp_dir / "keywords.txt"
+        mock_processor.generate_timestamps.return_value = str(mock_processor.output_dir / "timestamps.json")
+        mock_processor.generate_description.return_value = str(mock_processor.output_dir / "description.md")
+        mock_processor.generate_seo_keywords.return_value = str(mock_processor.output_dir / "keywords.txt")
         
         # Run main
         main()

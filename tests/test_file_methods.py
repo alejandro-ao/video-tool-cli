@@ -160,7 +160,7 @@ class TestCSVExtraction:
         mock_get_metadata.side_effect = metadata_side_effect
         
         # Set output file path
-        csv_file = temp_dir / "video_metadata.csv"
+        csv_file = temp_dir / "output" / "video_metadata.csv"
         mock_video_processor.video_dir = temp_dir
         
         # Call the method
@@ -194,7 +194,7 @@ class TestCSVExtraction:
         
         result = mock_video_processor.extract_duration_csv()
         
-        csv_file = temp_dir / "video_metadata.csv"
+        csv_file = temp_dir / "output" / "video_metadata.csv"
         
         # CSV should still be created with just headers
         assert csv_file.exists()
@@ -221,7 +221,7 @@ class TestCSVExtraction:
         
         result = mock_video_processor.extract_duration_csv()
         
-        csv_file = temp_dir / "video_metadata.csv"
+        csv_file = temp_dir / "output" / "video_metadata.csv"
         assert csv_file.exists()
         
         # Should handle the error gracefully and skip the file
@@ -318,7 +318,7 @@ class TestIntegrationFileOperations:
             csv_result = mock_video_processor.extract_duration_csv()
             
             # Verify CSV was created
-            csv_file = temp_dir / "video_metadata.csv"
+            csv_file = temp_dir / "output" / "video_metadata.csv"
             assert csv_file.exists()
     
     def test_error_recovery(self, temp_dir, mock_video_processor):
@@ -350,5 +350,5 @@ class TestIntegrationFileOperations:
             # Should complete without raising exceptions
             csv_result = mock_video_processor.extract_duration_csv()
             
-            csv_file = temp_dir / "video_metadata.csv"
+            csv_file = temp_dir / "output" / "video_metadata.csv"
             assert csv_file.exists()

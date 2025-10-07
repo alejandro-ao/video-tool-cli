@@ -261,6 +261,8 @@ class MockKeywordsGenerator:
 def create_complete_test_dataset(base_dir: Path) -> Dict[str, List[Path]]:
     """Create a complete test dataset with all file types."""
     base_dir.mkdir(parents=True, exist_ok=True)
+    output_dir = base_dir / "output"
+    output_dir.mkdir(parents=True, exist_ok=True)
     
     # Create video files
     video_files = MockVideoGenerator.create_test_video_set(base_dir, count=3)
@@ -277,27 +279,27 @@ def create_complete_test_dataset(base_dir: Path) -> Dict[str, List[Path]]:
         audio_files.append(audio_file)
     
     # Create transcript
-    transcript_file = base_dir / "transcript.vtt"
+    transcript_file = output_dir / "transcript.vtt"
     MockTranscriptGenerator.create_vtt_transcript(transcript_file)
     
     # Create description
-    description_file = base_dir / "description.md"
+    description_file = output_dir / "description.md"
     MockDescriptionGenerator.create_description_md(description_file)
     
     # Create timestamps
-    timestamps_file = base_dir / "timestamps.json"
+    timestamps_file = output_dir / "timestamps.json"
     MockTimestampGenerator.create_timestamps_json(
         timestamps_file, [f.name for f in video_files]
     )
     
     # Create CSV metadata
-    csv_file = base_dir / "video_metadata.csv"
+    csv_file = output_dir / "video_metadata.csv"
     MockCSVGenerator.create_video_metadata_csv(
         csv_file, [f.name for f in video_files]
     )
     
     # Create keywords
-    keywords_file = base_dir / "keywords.txt"
+    keywords_file = output_dir / "keywords.txt"
     MockKeywordsGenerator.create_keywords_txt(keywords_file)
     
     return {

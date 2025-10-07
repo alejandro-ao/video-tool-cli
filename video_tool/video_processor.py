@@ -20,6 +20,8 @@ from groq import Groq
 class VideoProcessor:
     def __init__(self, input_dir: str, video_title: Optional[str] = None):
         self.input_dir = Path(input_dir)
+        self.output_dir = self.input_dir / "output"
+        self.output_dir.mkdir(exist_ok=True)
         self.video_title = video_title.strip() if video_title else None
         self.client = OpenAI()
         self.groq = Groq()
@@ -52,7 +54,7 @@ class VideoProcessor:
 
     def _resolve_unique_output_path(self, filename: str) -> Path:
         """Ensure the output filename does not overwrite an existing file."""
-        output_path = self.input_dir / filename
+        output_path = self.output_dir / filename
         if not output_path.exists():
             return output_path
 
@@ -61,7 +63,7 @@ class VideoProcessor:
         counter = 1
 
         while True:
-            candidate = self.input_dir / f"{stem}_{counter}{suffix}"
+            candidate = self.output_dir / f"{stem}_{counter}{suffix}"
             if not candidate.exists():
                 logger.warning(
                     "Output file %s exists, using %s instead",
@@ -85,23 +87,26 @@ class VideoProcessor:
         if self.last_output_path and self.last_output_path.exists():
             return self.last_output_path
 
+        search_roots = [self.output_dir, self.input_dir]
+
         if self._preferred_output_filename:
-            preferred = self.input_dir / self._preferred_output_filename
-            if preferred.exists():
-                return preferred
+            stem = Path(self._preferred_output_filename).stem
+            for root in search_roots:
+                preferred = root / self._preferred_output_filename
+                if preferred.exists():
+                    return preferred
 
-            stem = preferred.stem
-            # Attempt to find suffixed variants (e.g., Title_1.mp4)
-            matches = sorted(
-                self.input_dir.glob(f"{stem}_*.mp4"),
-                key=lambda p: p.stat().st_mtime,
-            )
-            if matches:
-                return matches[-1]
+                matches = sorted(
+                    root.glob(f"{stem}_*.mp4"),
+                    key=lambda p: p.stat().st_mtime,
+                )
+                if matches:
+                    return matches[-1]
 
-        legacy_candidate = self.input_dir / "concatenated_video.mp4"
-        if legacy_candidate.exists():
-            return legacy_candidate
+        for root in search_roots:
+            legacy_candidate = root / "concatenated_video.mp4"
+            if legacy_candidate.exists():
+                return legacy_candidate
 
         return None
 
@@ -118,7 +123,7 @@ class VideoProcessor:
 
     def extract_duration_csv(self) -> str:
         """Processes all mp4 files in a directory and its subdirectories, and writes metadata to a CSV."""
-        output_csv = self.input_dir / "video_metadata.csv"
+        output_csv = self.output_dir / "video_metadata.csv"
         with open(output_csv, 'w', newline='', encoding='utf-8') as csvfile:
             csv_writer = csv.writer(csvfile)
             # Write header
@@ -289,7 +294,7 @@ class VideoProcessor:
                     "creation_date": datetime.now().isoformat(),
                 },
             }
-            output_path = Path(self.input_dir) / "timestamps.json"
+            output_path = self.output_dir / "timestamps.json"
             with open(output_path, "w") as f:
                 json.dump([video_info], f, indent=2)
             return video_info
@@ -452,7 +457,7 @@ class VideoProcessor:
                     "creation_date": datetime.now().isoformat(),
                 },
             }
-            output_path = Path(self.input_dir) / "timestamps.json"
+            output_path = self.output_dir / "timestamps.json"
             with open(output_path, "w") as f:
                 json.dump([video_info], f, indent=2)
             return video_info
@@ -512,7 +517,7 @@ class VideoProcessor:
             },
         }
 
-        output_path = Path(self.input_dir) / "timestamps.json"
+        output_path = self.output_dir / "timestamps.json"
         with open(output_path, "w") as f:
             json.dump([video_info], f, indent=2)
 
@@ -530,7 +535,10 @@ class VideoProcessor:
             if candidate_path:
                 video_path = str(candidate_path)
             else:
-                mp4s = list(Path(self.input_dir).glob("*.mp4"))
+                mp4s = list(self.output_dir.glob("*.mp4"))
+                
+                if not mp4s:
+                    mp4s = list(self.input_dir.glob("*.mp4"))
                 
                 if mp4s:
                     video_path = str(mp4s[0])
@@ -628,7 +636,7 @@ class VideoProcessor:
                 # Combine transcripts
                 transcript = self._merge_vtt_transcripts(transcripts)
             
-            output_path = Path(video_path).parent / "transcript.vtt"
+            output_path = self.output_dir / "transcript.vtt"
             
             with open(output_path, "w") as f:
                 f.write(transcript)
@@ -664,15 +672,16 @@ class VideoProcessor:
                     raise FileNotFoundError("No video file found for description generation")
 
         if transcript_path is None:
-            transcript_path = str(Path(video_path).parent / "transcript.vtt")
+            transcript_path = str(self.output_dir / "transcript.vtt")
 
-        if not Path(transcript_path).exists():
+        transcript_file = Path(transcript_path)
+        if not transcript_file.exists():
             logger.error("Transcript file not found for description generation")
             return ""
 
         repo_url = repo_url or ""
 
-        with open(transcript_path) as f:
+        with open(transcript_file) as f:
             transcript = f.read()
 
         prompt = self.prompts["generate_description"].format(transcript=transcript)
@@ -701,9 +710,13 @@ class VideoProcessor:
             },
         ]
 
-        timestamps = json.load(open(Path(video_path).parent / "timestamps.json"))[0][
-            "timestamps"
-        ]
+        timestamps_path = self.output_dir / "timestamps.json"
+        if not timestamps_path.exists():
+            logger.error("Timestamps file not found for description generation")
+            return ""
+
+        with open(timestamps_path) as f:
+            timestamps = json.load(f)[0]["timestamps"]
 
         from string import Template
 
@@ -751,7 +764,7 @@ class VideoProcessor:
             logger.error(f"Error extracting polished description: {e}")
             return ""
 
-        output_path = Path(video_path).parent / "description.md"
+        output_path = self.output_dir / "description.md"
         try:
             with open(output_path, "w") as f:
                 f.write(polished_description)
@@ -769,7 +782,7 @@ class VideoProcessor:
             transcript_file = (
                 Path(transcript_path)
                 if transcript_path
-                else self.input_dir / "transcript.vtt"
+                else self.output_dir / "transcript.vtt"
             )
 
             if not transcript_file.exists():
@@ -794,7 +807,7 @@ class VideoProcessor:
                 temperature=0.4,
             )
 
-            output_path = transcript_file.parent / "context-cards.md"
+            output_path = self.output_dir / "context-cards.md"
             with open(output_path, "w") as f:
                 f.write(response.choices[0].message.content)
 
@@ -1326,7 +1339,7 @@ class VideoProcessor:
                 temperature=0.7
             )
 
-            output_path = self.input_dir / "linkedin_post.md"
+            output_path = self.output_dir / "linkedin_post.md"
             with open(output_path, "w") as f:
                 f.write(response.choices[0].message.content)
 
@@ -1358,7 +1371,7 @@ class VideoProcessor:
                 temperature=0.7
             )
 
-            output_path = self.input_dir / "twitter_post.md"
+            output_path = self.output_dir / "twitter_post.md"
             with open(output_path, "w") as f:
                 f.write(response.choices[0].message.content)
 

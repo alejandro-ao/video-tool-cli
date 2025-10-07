@@ -89,6 +89,7 @@ def main():
             return
 
         processor = VideoProcessor(str(input_dir), video_title=params['video_title'])
+        logger.info(f'Output directory path: {processor.output_dir}')
 
         # Remove silences
         if not params['skip_silence_removal']:
@@ -118,7 +119,9 @@ def main():
         video_path = output_video
         
         if not video_path:
-            mp4_files = list(input_dir.glob('*.mp4'))
+            mp4_files = list(processor.output_dir.glob('*.mp4'))
+            if not mp4_files:
+                mp4_files = list(input_dir.glob('*.mp4'))
             if mp4_files:
                 # Sort by size (largest first) to get the main video
                 mp4_files_with_size = [(f, f.stat().st_size) for f in mp4_files]
@@ -153,7 +156,7 @@ def main():
             if transcript_path and Path(transcript_path).exists():
                 transcript_candidate = Path(transcript_path)
             else:
-                default_transcript = input_dir / "transcript.vtt"
+                default_transcript = processor.output_dir / "transcript.vtt"
                 if default_transcript.exists():
                     transcript_candidate = default_transcript
 
@@ -171,7 +174,7 @@ def main():
         if not params['skip_description'] and params['repo_url'] and video_path:
             logger.info('📄 Generating description...')
             
-            transcript_vtt_path = str(input_dir / 'transcript.vtt')
+            transcript_vtt_path = str(processor.output_dir / 'transcript.vtt')
             if not Path(transcript_vtt_path).exists():
                 logger.warning(f'⚠️ Transcript file not found: {transcript_vtt_path}')
             

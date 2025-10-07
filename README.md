@@ -25,14 +25,14 @@ Automate Alejandro's YouTube production workflow end to end. Given a directory o
    python main.py
    ```
 3. Provide the target directory when prompted. The tool will list each available operation and let you skip steps such as silence removal, concatenation, transcript generation, description creation, SEO keywords, and social posts.
-4. Outputs are written back to the input directory:
-   - Processed clips: `processed/`
-   - Final video: `<input_dir>/<date>_<title>.mp4`
-   - Chapters: `timestamps.json`
-   - Transcript: `transcript.vtt`
-   - Description: `description.md`
-   - SEO keywords: `keywords.txt`
-   - Social copy: `linkedin.md`, `twitter.txt`
+4. Outputs are written to an `output/` subdirectory inside your input directory:
+   - Processed clips: `processed/` (remains alongside the raw footage)
+   - Final video: `output/<date>_<title>.mp4`
+   - Chapters: `output/timestamps.json`
+   - Transcript: `output/transcript.vtt`
+   - Description: `output/description.md`
+   - SEO keywords: `output/keywords.txt`
+   - Social copy: `output/linkedin_post.md`, `output/twitter_post.md`
 
 All actions are logged to `video_processor.log` so you can review progress and debug any failures.
 
