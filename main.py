@@ -42,6 +42,7 @@ def get_user_input():
     
     skip_timestamps = input("Skip timestamp generation? ").lower().strip() == 'y'
     skip_transcript = input("Skip transcript generation? ").lower().strip() == 'y'
+    skip_context_cards = input("Skip context cards generation? ").lower().strip() == 'y'
     skip_description = input("Skip description generation? ").lower().strip() == 'y'
     skip_seo = input("Skip SEO keywords generation? ").lower().strip() == 'y'
     skip_linkedin = input("Skip LinkedIn post generation? ").lower().strip() == 'y'
@@ -56,6 +57,7 @@ def get_user_input():
         'skip_reprocessing': skip_reprocessing,
         'skip_timestamps': skip_timestamps,
         'skip_transcript': skip_transcript,
+        'skip_context_cards': skip_context_cards,
         'skip_description': skip_description,
         'skip_seo': skip_seo,
         'skip_linkedin': skip_linkedin,
@@ -144,6 +146,26 @@ def main():
                 logger.error('❌ Transcript generation failed')
         elif not params['skip_transcript']:
             logger.warning('⚠️ Skipping transcript: no video file available')
+
+        # Context cards and resource mentions
+        if not params['skip_context_cards']:
+            transcript_candidate = None
+            if transcript_path and Path(transcript_path).exists():
+                transcript_candidate = Path(transcript_path)
+            else:
+                default_transcript = input_dir / "transcript.vtt"
+                if default_transcript.exists():
+                    transcript_candidate = default_transcript
+
+            if transcript_candidate:
+                logger.info('🗂️ Identifying YouTube card opportunities and resource mentions...')
+                cards_path = processor.generate_context_cards(str(transcript_candidate))
+                if cards_path:
+                    logger.info(f'✅ Context cards generated: {Path(cards_path).name}')
+                else:
+                    logger.error('❌ Context cards generation failed')
+            else:
+                logger.warning('⚠️ Skipping context cards: no transcript available')
 
         # Description generation
         if not params['skip_description'] and params['repo_url'] and video_path:

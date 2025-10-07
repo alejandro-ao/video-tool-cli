@@ -130,7 +130,29 @@ generate_twitter_post: |
   - Include 4-6 relevant hashtags
   - Keep under 280 characters (Twitter limit)
   - Use concise, punchy language
-  
+
+  <TRANSCRIPT>
+  {transcript}
+  </TRANSCRIPT>
+
+generate_context_cards: |
+  Review the VTT transcript below. Identify each moment where the speaker explicitly references:
+  - Another video they have published or plan to publish (suggest these for YouTube cards).
+  - Any external resource such as a blog post, paper, article, tool, GitHub repo, or third-party product (capture these as resource mentions).
+
+  Output well-structured Markdown using this template:
+
+  # Contextual Cards and Resources
+  ## YouTube Card Suggestions
+  - HH:MM:SS — <brief note that includes the reason this moment needs a card>. Quote or paraphrase the mention in one sentence.
+  - If there are no card suggestions, write: `- None detected in the transcript.`
+
+  ## Resource Mentions
+  - HH:MM:SS — <short description of the resource and why it was mentioned>.
+  - If there are no resource mentions, write: `- None detected in the transcript.`
+
+  Only include timestamps that appear in the transcript VTT file. Do not invent timestamps. Keep each bullet to one sentence.
+
   <TRANSCRIPT>
   {transcript}
   </TRANSCRIPT>

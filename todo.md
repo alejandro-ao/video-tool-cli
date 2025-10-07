@@ -1,7 +1,7 @@
 # TODO
 
 - [x] rename file final video file with llm
-- [ ] identify when to add cards and links to add to the video description
+- [x] identify when to add cards and links to add to the video description
 - [ ] add willow animation
 - [ ] output files into ./output directory
 - [ ] rewrite linkedin post with shorter, more direct version

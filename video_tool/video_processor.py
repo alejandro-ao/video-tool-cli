@@ -763,6 +763,47 @@ class VideoProcessor:
 
         return str(output_path)
 
+    def generate_context_cards(self, transcript_path: Optional[str] = None) -> str:
+        """Generate Markdown file with suggested YouTube cards and resource mentions."""
+        try:
+            transcript_file = (
+                Path(transcript_path)
+                if transcript_path
+                else self.input_dir / "transcript.vtt"
+            )
+
+            if not transcript_file.exists():
+                logger.error(f"Transcript file not found: {transcript_file}")
+                return ""
+
+            with open(transcript_file) as f:
+                transcript = f.read()
+        except Exception as e:
+            logger.error(f"Error reading transcript for context cards: {e}")
+            return ""
+
+        try:
+            prompt = self.prompts["generate_context_cards"].format(
+                transcript=transcript
+            )
+
+            response = self.client.chat.completions.create(
+                model="gpt-4o",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=1500,
+                temperature=0.4,
+            )
+
+            output_path = transcript_file.parent / "context-cards.md"
+            with open(output_path, "w") as f:
+                f.write(response.choices[0].message.content)
+
+            logger.info(f"Context cards generated successfully: {output_path}")
+            return str(output_path)
+        except Exception as e:
+            logger.error(f"Error generating context cards: {e}")
+            return ""
+
     def match_video_encoding(self, source_video_path: str, reference_video_path: str, output_filename: Optional[str] = None) -> str:
         """
         Re-encode source video to match the encoding parameters of the reference video.
