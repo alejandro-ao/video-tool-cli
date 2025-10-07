@@ -69,32 +69,47 @@ generate_seo_keywords: |
 
 generate_linkedin_post: |
   Based on the following video transcript, create an engaging LinkedIn post that promotes the video content.
-  The post should be professional, informative, and encourage engagement. Do not overuse adverbs. Be concise and to the point.
+  The post should be professional, informative, and encourage engagement while referencing the video being shared.
   
   Follow this structure and style from the example below:
   
   <EXAMPLE>
-  🚀 Just published a video tutorial on building AI-powered applications!
+  Found a goldmine for AI developers.
   
-  In this deep dive, I cover:
+  I just dropped a new video breaking down how to build AI-powered applications from scratch.
+  
+  Here's what I cover:
+  
   ✅ Generating Product Requirements Documents with TRAE
-  ✅ Building Next.js apps with in-memory authentication
-  ✅ Automated testing with TestSprite's AI test suite
+  ✅ Building Next.js apps with in-memory authentication  
+  ✅ Testing with TestSprite's AI test suite
   ✅ Integrating modern AI coding assistants
   ✅ Best practices for AI-driven development
   
-  Perfect for developers looking to leverage AI tools in their workflow and build more efficient applications.
+  Perfect for developers who want to leverage AI tools in their workflow.
   
-  What's your experience with AI coding assistants? Which tools have you found most helpful? Drop a comment below! 👇
+  I built three different applications using these techniques.
+  
+  The results surprised me.
+  
+  What's your experience with AI coding assistants? 
+  
+  Which tools have you found most helpful? 
+  
+  Drop a comment below! 👇
   
   #AI #MachineLearning #WebDevelopment #NextJS #TestAutomation #ProductDevelopment #TechTutorial #Programming #Automation #SoftwareDevelopment
   </EXAMPLE>
   
   Requirements:
-  - Start with an engaging emoji and hook
+  - Start with an engaging hook phrase that makes readers want to click (examples: "Found a goldmine for Cursor users.", "I removed 50% of an LLM's brain. It got smarter.", "Context Engineering just dropped an AgenticOS.")
+  - Reference the video throughout the post - this is meant to promote your YouTube video
+  - Use lots of line breaks for easy readability - avoid long paragraphs or sentences
+  - Avoid adverbs or use them sparingly - they add clutter without value
+  - Write in first person ("I did this" not "we did this") - this is your personal post
   - Include 3-5 key topics covered (use checkmarks ✅)
   - Add a value proposition for the target audience
-  - End with an engaging question to encourage comments
+  - End with engaging questions to encourage comments
   - Include 8-12 relevant hashtags
   - Keep the tone professional but approachable
   - Maximum 1300 characters (LinkedIn limit)
