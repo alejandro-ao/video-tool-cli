@@ -121,29 +121,28 @@ generate_linkedin_post: |
 
 generate_twitter_post: |
   Based on the following video transcript, create an engaging Twitter/X post that promotes the video content.
-  The post should be concise, engaging. Do not include hashtags as they are no longer useful for Twitter/X.
+  The post should be concise, engaging, and reference the video being shared.
   
   Follow this structure and style from the example below:
   
   <EXAMPLE>
-  🎥 New tutorial: Building AI-powered apps with TRAE + TestSprite! 
+  I am not excited about visual workflow builders
   
-  Covered:
-  ✅ AI-generated PRDs
-  ✅ Next.js development
-  ✅ Automated testing
-  ✅ Modern AI tools integration
+  1. Not simple enough for the average user. I believe there should be a simpler way to create, modify, and adapt no-code agents
   
-  Perfect for devs wanting to level up their AI workflow 🚀
-
+  2. Not scalable for complex use cases
+  
+  Uploaded a quick video about this: [link to video]
   </EXAMPLE>
   
   Requirements:
-  - Start with an engaging emoji and brief hook
-  - Include 3-4 key topics with checkmarks ✅
-  - Add a brief value proposition
-  - End with a relevant emoji
-  - Include 4-6 relevant hashtags
+  - Start with an engaging hook that makes readers want to click (if covering a new product release, mention the company: "OpenAI just dropped...", "Google just launched...", etc.)
+  - Reference the video throughout the post - this promotes your YouTube video
+  - Use numbered points or simple bullet structure for key topics
+  - Write in first person ("I did this" not "we did this") - this is your personal post
+  - Use simple, clear language - avoid complicated words
+  - End with a reference to your video
+  - Do not include hashtags (they are no longer useful for Twitter/X)
   - Keep under 280 characters (Twitter limit)
   - Use concise, punchy language
 

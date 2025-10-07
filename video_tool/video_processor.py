@@ -1363,10 +1363,8 @@ class VideoProcessor:
             prompt = self.prompts["generate_twitter_post"].format(transcript=transcript)
 
             response = self.client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-5",
                 messages=[{"role": "user", "content": prompt}],
-                max_tokens=500,
-                temperature=0.7
             )
 
             output_path = self.output_dir / "twitter_post.md"
