@@ -192,7 +192,6 @@ def ensure_video_title(params: Dict[str, Any]) -> bool:
         return True
 
     if sys.stdin and sys.stdin.isatty():
-        console.print("[yellow]Video title is required for this run.[/]")
         params["video_title"] = ask_required_text("Video title")
         return True
 
@@ -740,7 +739,6 @@ def main() -> None:
 
             if not params.get("input_dir"):
                 if sys.stdin and sys.stdin.isatty():
-                    console.print("[yellow]Input directory is required for this run.[/]")
                     params["input_dir"] = ask_required_path("Input directory")
                 else:
                     console.print(
