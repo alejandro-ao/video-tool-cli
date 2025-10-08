@@ -135,7 +135,11 @@ class SilenceProcessingMixin:
 
         logger.info(f"Running ffmpeg with concat filter for {mp4_file.name}")
         try:
-            subprocess.run(cmd, check=True, capture_output=True, text=True)
+            subprocess.run(
+                cmd,
+                check=True,
+                **self._quiet_subprocess_kwargs(),
+            )
             logger.info(f"Successfully processed {mp4_file.name} to {output_path}")
         except subprocess.CalledProcessError as exc:
             logger.error(f"Failed to process {mp4_file.name} with ffmpeg.")

@@ -75,6 +75,7 @@ def _build_params(temp_dir: Path, **overrides) -> dict:
         "skip_seo": True,
         "skip_linkedin": True,
         "skip_twitter": True,
+        "verbose_logging": False,
     }
     params.update(overrides)
     return params
@@ -113,6 +114,7 @@ def test_get_user_input_all_options(mock_input):
         "n",  # skip_seo?
         "n",  # skip_linkedin?
         "n",  # skip_twitter?
+        "n",  # verbose logging
     ]
 
     result = get_user_input()
@@ -131,6 +133,7 @@ def test_get_user_input_all_options(mock_input):
         "skip_seo": False,
         "skip_linkedin": False,
         "skip_twitter": False,
+        "verbose_logging": False,
     }
 
 
@@ -150,6 +153,7 @@ def test_get_user_input_skip_everything(mock_input):
         "y",  # skip SEO keywords
         "y",  # skip LinkedIn post
         "y",  # skip Twitter post
+        "y",  # verbose logging
     ]
 
     result = get_user_input()
@@ -168,6 +172,7 @@ def test_get_user_input_skip_everything(mock_input):
         "skip_seo": True,
         "skip_linkedin": True,
         "skip_twitter": True,
+        "verbose_logging": True,
     }
 
 
@@ -187,6 +192,7 @@ def test_get_user_input_handles_quoted_path(mock_input):
         "y",
         "y",
         "y",
+        "n",
     ]
 
     result = get_user_input()
@@ -195,6 +201,7 @@ def test_get_user_input_handles_quoted_path(mock_input):
     assert result["video_title"] == "Episode 1"
     assert result["repo_url"] is None
     assert result["skip_concat"] is True
+    assert result["verbose_logging"] is False
 
 
 # ---------------------------------------------------------------------------

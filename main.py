@@ -60,14 +60,14 @@ def display_welcome() -> None:
     console.print(
         Panel(
             banner,
-            title="Video Foundry",
-            subtitle="clip • compose • publish",
+            title="videotool",
+            subtitle="capture • craft • share",
             border_style="cyan",
             box=box.ASCII,
         )
     )
     console.print(
-        "[bold magenta]Process clips, assemble stories, and draft share-ready copy.[/]",
+        "[bold magenta]Process clips, stitch the story, and publish in minutes.[/]",
         justify="center",
     )
     console.print()
@@ -303,7 +303,11 @@ def main() -> None:
             logger.error(f"Path is not a directory: {input_dir}")
             return
 
-        processor = VideoProcessor(str(input_dir), video_title=params["video_title"])
+        processor = VideoProcessor(
+            str(input_dir),
+            video_title=params["video_title"],
+            show_external_logs=params["verbose_logging"],
+        )
         logger.info(f"Input directory path: {input_dir}")
         logger.info(f"Output directory path: {processor.output_dir}")
 

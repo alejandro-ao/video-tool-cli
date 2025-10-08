@@ -35,14 +35,23 @@ class TranscriptMixin:
         audio_path = Path(video_path).with_suffix(".mp3")
 
         try:
-            video = VideoFileClip(video_path)
-            if video.audio is None:
-                logger.error("Video file has no audio track")
-                video.close()
-                return ""
+            with self.suppress_external_output():
+                try:
+                    video = VideoFileClip(video_path, audio=True, verbose=False)  # type: ignore[arg-type]
+                except TypeError:
+                    video = VideoFileClip(video_path)
 
-            video.audio.write_audiofile(str(audio_path))
-            video.close()
+                if video.audio is None:
+                    logger.error("Video file has no audio track")
+                    video.close()
+                    return ""
+
+                try:
+                    video.audio.write_audiofile(str(audio_path), logger=None)  # type: ignore[arg-type]
+                except TypeError:
+                    video.audio.write_audiofile(str(audio_path))
+                finally:
+                    video.close()
         except Exception as exc:
             logger.error(f"Error processing video file {video_path}: {exc}")
             return ""

@@ -47,10 +47,18 @@ class FileManagementMixin:
             )
             video_title = os.path.splitext(os.path.basename(file_path))[0]
 
-            with VideoFileClip(file_path) as clip:
-                duration_seconds = clip.duration
-                duration_minutes = round(duration_seconds / 60, 2)
+            with self.suppress_external_output():
+                try:
+                    clip = VideoFileClip(file_path, audio=False, verbose=False)  # type: ignore[arg-type]
+                except TypeError:
+                    clip = VideoFileClip(file_path)
 
+                try:
+                    duration_seconds = clip.duration
+                finally:
+                    clip.close()
+
+            duration_minutes = round(duration_seconds / 60, 2)
             return creation_date, video_title, duration_minutes
         except Exception as exc:  # pragma: no cover - surfaced via logging
             logger.error(f"Error processing file {file_path}: {exc}")

@@ -78,6 +78,7 @@ class ConcatenationMixin:
                         str(output_path),
                     ],
                     check=True,
+                    **self._quiet_subprocess_kwargs(),
                 )
             else:
                 logger.info(
@@ -162,7 +163,11 @@ class ConcatenationMixin:
                     logger.info(
                         f"Standardizing video with hardware acceleration: {mp4_file.name}"
                     )
-                    subprocess.run(cmd, check=True)
+                    subprocess.run(
+                        cmd,
+                        check=True,
+                        **self._quiet_subprocess_kwargs(),
+                    )
                     processed_files.append(output_file)
 
                 concat_list = temp_dir / "concat_list.txt"
@@ -185,12 +190,15 @@ class ConcatenationMixin:
                         str(output_path),
                     ],
                     check=True,
+                    **self._quiet_subprocess_kwargs(),
                 )
 
             self.last_output_path = output_path
             return str(output_path)
         except subprocess.CalledProcessError as exc:
             logger.error(f"Error during video processing: {exc}")
+            if exc.stderr:
+                logger.error(f"FFmpeg stderr: {exc.stderr}")
             raise
         finally:
             if temp_dir.exists():
@@ -253,8 +261,13 @@ class ConcatenationMixin:
                     logger(f"Metadata unavailable for {mp4_file}, attempting MoviePy fallback")
                 logger.warning(f"Falling back to MoviePy for duration of {mp4_file}")
                 try:
-                    with VideoFileClip(str(mp4_file)) as video:
-                        duration = int(video.duration)
+                    with self.suppress_external_output():
+                        try:
+                            with VideoFileClip(str(mp4_file), audio=False, verbose=False) as video:  # type: ignore[arg-type]
+                                duration = int(video.duration)
+                        except TypeError:
+                            with VideoFileClip(str(mp4_file), audio=False) as video:
+                                duration = int(video.duration)
                 except Exception as exc:
                     if callable(getattr(logger, "__call__", None)):
                         logger(f"Failed to extract duration for {mp4_file}: {exc}")

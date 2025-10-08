@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import os
 import re
 import unicodedata
+from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Dict, Optional
 
 import yaml
 
@@ -14,7 +16,12 @@ from .shared import Groq, OpenAI, logger
 class VideoProcessorBase:
     """Core configuration and shared helpers for the video processor workflow."""
 
-    def __init__(self, input_dir: str, video_title: Optional[str] = None):
+    def __init__(
+        self,
+        input_dir: str,
+        video_title: Optional[str] = None,
+        show_external_logs: bool = False,
+    ):
         self.input_dir = Path(input_dir)
         self.output_dir = self.input_dir / "output"
         self.output_dir.mkdir(exist_ok=True)
@@ -23,6 +30,7 @@ class VideoProcessorBase:
         self.groq = Groq()
         self.prompts = self._load_prompts()
         self.setup_logging()
+        self.show_external_logs = show_external_logs
         self._preferred_output_filename = (
             self._sanitize_filename(self.video_title)
             if self.video_title
@@ -117,3 +125,20 @@ class VideoProcessorBase:
             retention="1 week",
             level="INFO",
         )
+
+    def _quiet_subprocess_kwargs(self) -> Dict[str, object]:
+        """Return subprocess kwargs that suppress stdout/stderr unless verbose logging is enabled."""
+        if self.show_external_logs:
+            return {}
+        return {"capture_output": True, "text": True}
+
+    @contextmanager
+    def suppress_external_output(self):
+        """Silence STDOUT/STDERR noise from third-party tooling unless verbose logging is enabled."""
+        if self.show_external_logs:
+            yield
+            return
+
+        with open(os.devnull, "w") as devnull:
+            with redirect_stdout(devnull), redirect_stderr(devnull):
+                yield
