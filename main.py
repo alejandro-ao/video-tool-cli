@@ -32,6 +32,8 @@ ASCII_BANNER = r"""
   @@        @@@@@ @@@ @@@@@ @@          \$$$   | $$ \$$    $$ \$$     \ \$$    $$         | $$  \$$    $$ \$$    $$| $$
   @@@@           @@@@    @@@@@           \$     \$$  \$$$$$$$  \$$$$$$$  \$$$$$$           \$$   \$$$$$$   \$$$$$$  \$$
     @@@@@@@@@@@@@@@         @@                                                                                         
+
+
 """
 
 
@@ -146,109 +148,100 @@ def summarize_configuration(data: Dict[str, Any]) -> None:
 
 
 def get_user_input() -> Dict[str, Any]:
-    """Collect and confirm configuration details interactively."""
-    while True:
-        console.print("[bold]Let's configure this session.[/]\n")
-        input_dir = ask_required_path("Input directory")
-        repo_url = ask_optional_text("Repository URL")
-        video_title = ask_optional_text("Video title")
+    """Collect configuration details interactively using explicit skip prompts."""
+    console.print("[bold]Let's configure this session.[/]\n")
+    input_dir = ask_required_path("Input directory")
+    repo_url = ask_optional_text("Repository URL")
+    video_title = ask_optional_text("Video title")
 
-        console.print("\n[bold]Processing modules[/]")
-        run_silence = Confirm.ask(
-            "Run silence removal on clips?",
-            default=True,
-            console=console,
-        )
-        run_concat = Confirm.ask(
-            "Concatenate videos into a final cut?",
-            default=True,
-            console=console,
-        )
+    console.print("\n[bold]Processing modules[/]")
+    skip_silence_removal = Confirm.ask(
+        "Skip silence removal on clips?",
+        default=False,
+        console=console,
+    )
+    skip_concat = Confirm.ask(
+        "Skip concatenation into a final cut?",
+        default=False,
+        console=console,
+    )
 
-        skip_reprocessing = False
-        if run_concat:
-            skip_reprocessing = Confirm.ask(
-                "Use fast concatenation (skip reprocessing step)?",
-                default=False,
-                console=console,
-            )
-
-        run_timestamps = Confirm.ask(
-            "Generate timestamps for individual clips?",
-            default=True,
-            console=console,
-        )
-        run_transcript = Confirm.ask(
-            "Generate a transcript?",
-            default=True,
-            console=console,
-        )
-        run_context_cards = Confirm.ask(
-            "Identify context cards and resource mentions?",
-            default=True,
-            console=console,
-        )
-        run_description = Confirm.ask(
-            "Draft a video description?",
-            default=True,
-            console=console,
-        )
-
-        run_seo = False
-        if run_description:
-            run_seo = Confirm.ask(
-                "Include SEO keyword suggestions?",
-                default=True,
-                console=console,
-            )
-
-        run_linkedin = Confirm.ask(
-            "Draft a LinkedIn post?",
-            default=True,
-            console=console,
-        )
-        run_twitter = Confirm.ask(
-            "Draft a Twitter/X post?",
-            default=True,
-            console=console,
-        )
-
-        console.print("\n[bold]Diagnostics[/]")
-        verbose_logging = Confirm.ask(
-            "Show detailed log output in the terminal?",
+    skip_reprocessing = False
+    if not skip_concat:
+        skip_reprocessing = Confirm.ask(
+            "Use fast concatenation (skip reprocessing step)?",
             default=False,
             console=console,
         )
 
-        selections: Dict[str, Any] = {
-            "input_dir": input_dir,
-            "repo_url": repo_url,
-            "video_title": video_title,
-            "skip_silence_removal": not run_silence,
-            "skip_concat": not run_concat,
-            "skip_reprocessing": skip_reprocessing,
-            "skip_timestamps": not run_timestamps,
-            "skip_transcript": not run_transcript,
-            "skip_context_cards": not run_context_cards,
-            "skip_description": not run_description,
-            "skip_seo": not run_seo if run_description else True,
-            "skip_linkedin": not run_linkedin,
-            "skip_twitter": not run_twitter,
-            "verbose_logging": verbose_logging,
-        }
+    skip_timestamps = Confirm.ask(
+        "Skip generating timestamps for individual clips?",
+        default=False,
+        console=console,
+    )
+    skip_transcript = Confirm.ask(
+        "Skip generating a transcript?",
+        default=False,
+        console=console,
+    )
+    skip_context_cards = Confirm.ask(
+        "Skip identifying context cards and resource mentions?",
+        default=False,
+        console=console,
+    )
+    skip_description = Confirm.ask(
+        "Skip drafting a video description?",
+        default=False,
+        console=console,
+    )
 
-        console.print()
-        summarize_configuration(selections)
-        console.print()
+    # Always prompt for SEO keywords skip, regardless of description selection
+    skip_seo = Confirm.ask(
+        "Skip including SEO keyword suggestions?",
+        default=False,
+        console=console,
+    )
 
-        if Confirm.ask(
-            "Start processing with these settings?",
-            default=True,
-            console=console,
-        ):
-            return selections
+    skip_linkedin = Confirm.ask(
+        "Skip drafting a LinkedIn post?",
+        default=False,
+        console=console,
+    )
+    skip_twitter = Confirm.ask(
+        "Skip drafting a Twitter/X post?",
+        default=False,
+        console=console,
+    )
 
-        console.print("[yellow]Sure thing—let's adjust those answers.[/]\n")
+    console.print("\n[bold]Diagnostics[/]")
+    verbose_logging = Confirm.ask(
+        "Show detailed log output in the terminal?",
+        default=False,
+        console=console,
+    )
+
+    selections: Dict[str, Any] = {
+        "input_dir": input_dir,
+        "repo_url": repo_url,
+        "video_title": video_title,
+        "skip_silence_removal": skip_silence_removal,
+        "skip_concat": skip_concat,
+        "skip_reprocessing": skip_reprocessing,
+        "skip_timestamps": skip_timestamps,
+        "skip_transcript": skip_transcript,
+        "skip_context_cards": skip_context_cards,
+        "skip_description": skip_description,
+        "skip_seo": skip_seo,
+        "skip_linkedin": skip_linkedin,
+        "skip_twitter": skip_twitter,
+        "verbose_logging": verbose_logging,
+    }
+
+    console.print()
+    summarize_configuration(selections)
+    console.print()
+
+    return selections
 
 
 def validate_environment() -> bool:
