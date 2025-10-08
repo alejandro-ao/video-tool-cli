@@ -46,7 +46,7 @@ class ContentGenerationMixin:
 
         prompt = self.prompts["generate_description"].format(transcript=transcript)
 
-        response = self.client.chat.completions.create(
+        response = self._invoke_openai_chat(
             model="gpt-5", messages=[{"role": "user", "content": prompt}]
         )
 
@@ -101,7 +101,7 @@ class ContentGenerationMixin:
 
         description = template.substitute(
             title=Path(video_path).stem,
-            content=response.choices[0].message.content,
+            content=response.content,
             links=link_list,
             timestamps=timestamp_list,
         )
@@ -110,15 +110,13 @@ class ContentGenerationMixin:
             description=description
         )
 
-        polished_description_response = self.client.chat.completions.create(
+        polished_description_response = self._invoke_openai_chat(
             model="gpt-5",
             messages=[{"role": "user", "content": polish_description_prompt}],
         )
 
         try:
-            polished_description = (
-                polished_description_response.choices[0].message.content
-            )
+            polished_description = polished_description_response.content
             if not isinstance(polished_description, str):
                 polished_description = str(polished_description)
         except Exception as exc:
@@ -161,7 +159,7 @@ class ContentGenerationMixin:
         try:
             prompt = self.prompts["generate_context_cards"].format(transcript=transcript)
 
-            response = self.client.chat.completions.create(
+            response = self._invoke_openai_chat(
                 model="gpt-4o",
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=1500,
@@ -170,7 +168,7 @@ class ContentGenerationMixin:
 
             output_path = self.output_dir / "context-cards.md"
             with open(output_path, "w") as file:
-                file.write(response.choices[0].message.content)
+                file.write(response.content)
 
             logger.info(f"Context cards generated successfully: {output_path}")
             return str(output_path)
@@ -199,14 +197,14 @@ class ContentGenerationMixin:
                 description=description
             )
 
-            response = self.client.chat.completions.create(
+            response = self._invoke_openai_chat(
                 model="gpt-5", messages=[{"role": "user", "content": prompt}]
             )
 
             output_path = Path(description_path).parent / "keywords.txt"
 
             with open(output_path, "w") as file:
-                file.write(response.choices[0].message.content)
+                file.write(response.content)
 
             return str(output_path)
         except Exception as exc:
@@ -230,14 +228,14 @@ class ContentGenerationMixin:
         try:
             prompt = self.prompts["generate_linkedin_post"].format(transcript=transcript)
 
-            response = self.client.chat.completions.create(
+            response = self._invoke_openai_chat(
                 model="gpt-5",
                 messages=[{"role": "user", "content": prompt}],
             )
 
             output_path = self.output_dir / "linkedin_post.md"
             with open(output_path, "w") as file:
-                file.write(response.choices[0].message.content)
+                file.write(response.content)
 
             logger.info(f"LinkedIn post generated successfully: {output_path}")
             return str(output_path)
@@ -260,14 +258,14 @@ class ContentGenerationMixin:
         try:
             prompt = self.prompts["generate_twitter_post"].format(transcript=transcript)
 
-            response = self.client.chat.completions.create(
+            response = self._invoke_openai_chat(
                 model="gpt-5",
                 messages=[{"role": "user", "content": prompt}],
             )
 
             output_path = self.output_dir / "twitter_post.md"
             with open(output_path, "w") as file:
-                file.write(response.choices[0].message.content)
+                file.write(response.content)
 
             logger.info(f"Twitter post generated successfully: {output_path}")
             return str(output_path)

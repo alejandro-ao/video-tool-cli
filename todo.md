@@ -12,7 +12,12 @@
 - [X] improve CLI UX
 - [X] deploy automatically to bunny.net
   - [X] upload transcription & chapters through API
+- [X] switch to langchain for LLM calls
+- [X] integrate langsmith for tracing
 - [ ] fix chapter names with LLM right into the json file
+- [ ] allow to run the script from the video directory
+- [ ] fix interactive inputs (change the defaults to be more intuitive)
+- [ ] publish LinkedIn port and 
 - [ ] fix generate seo words with web search
 - [ ] add willow animation
 - [ ] generate a blog post

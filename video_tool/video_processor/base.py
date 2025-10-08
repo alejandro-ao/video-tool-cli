@@ -6,9 +6,10 @@ import unicodedata
 from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, List, Optional, Union
 
 import yaml
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 
 from .shared import Groq, OpenAI, logger
 
@@ -26,7 +27,6 @@ class VideoProcessorBase:
         self.output_dir = self.input_dir / "output"
         self.output_dir.mkdir(exist_ok=True)
         self.video_title = video_title.strip() if video_title else None
-        self.client = OpenAI()
         self.groq = Groq()
         self.prompts = self._load_prompts()
         self.setup_logging()
@@ -142,3 +142,65 @@ class VideoProcessorBase:
         with open(os.devnull, "w") as devnull:
             with redirect_stdout(devnull), redirect_stderr(devnull):
                 yield
+
+    def _build_openai_chat_model(
+        self,
+        *,
+        model: str,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+    ):
+        """Instantiate a LangChain ChatOpenAI model with the requested parameters."""
+        llm_kwargs: Dict[str, Union[str, float, int]] = {"model": model}
+        if temperature is not None:
+            llm_kwargs["temperature"] = temperature
+        if max_tokens is not None:
+            llm_kwargs["max_tokens"] = max_tokens
+        return OpenAI(**llm_kwargs)
+
+    def _convert_messages_to_langchain(
+        self, messages: List[Union[Dict[str, str], BaseMessage]]
+    ) -> List[BaseMessage]:
+        """Convert OpenAI-style message dicts into LangChain message objects."""
+        converted: List[BaseMessage] = []
+        for message in messages:
+            if isinstance(message, BaseMessage):
+                converted.append(message)
+                continue
+
+            if not isinstance(message, dict):
+                raise TypeError(
+                    "Messages must be dicts with 'role' and 'content' keys or LangChain BaseMessage instances."
+                )
+
+            role = message.get("role", "user")
+            content = str(message.get("content", ""))
+
+            if role == "system":
+                converted.append(SystemMessage(content=content))
+            elif role == "assistant":
+                converted.append(AIMessage(content=content))
+            elif role == "user":
+                converted.append(HumanMessage(content=content))
+            else:
+                raise ValueError(f"Unsupported message role: {role}")
+
+        return converted
+
+    def _invoke_openai_chat(
+        self,
+        *,
+        model: str,
+        messages: List[Union[Dict[str, str], BaseMessage]],
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+    ) -> AIMessage:
+        """Execute a chat completion request using LangChain's OpenAI integration."""
+        chat_model = self._build_openai_chat_model(
+            model=model, temperature=temperature, max_tokens=max_tokens
+        )
+        langchain_messages = self._convert_messages_to_langchain(messages)
+        response = chat_model.invoke(langchain_messages)
+        if not isinstance(response, AIMessage):
+            raise TypeError("Expected LangChain AIMessage response from ChatOpenAI invocation.")
+        return response

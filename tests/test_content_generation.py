@@ -3,10 +3,8 @@
 import pytest
 import json
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
-import tempfile
-from openai import OpenAI
-from groq import Groq
+from unittest.mock import Mock, patch
+from langchain_core.messages import AIMessage
 
 from video_tool.video_processor import VideoProcessor
 from tests.test_data.mock_generators import (
@@ -405,38 +403,44 @@ class TestGenerateDescription:
         MockTimestampGenerator.create_timestamps_json(timestamps_file, ["test_video.mp4"])
         
         mock_video_processor.video_dir = temp_dir
-        
+
         # Mock OpenAI response
-        with patch.object(mock_video_processor.client.chat.completions, 'create') as mock_create:
+        with patch.object(mock_video_processor, '_invoke_openai_chat') as mock_invoke:
             # Mock both generation and polishing responses
-            responses = [
-                Mock(choices=[Mock(message=Mock(content='Initial description'))]),
-                Mock(choices=[Mock(message=Mock(content=SAMPLE_OPENAI_DESCRIPTION_RESPONSE['choices'][0]['message']['content']))])
+            mock_invoke.side_effect = [
+                AIMessage(content='Initial description'),
+                AIMessage(
+                    content=(
+                        SAMPLE_OPENAI_DESCRIPTION_RESPONSE['choices'][0]['message']['content']
+                    )
+                ),
             ]
-            mock_create.side_effect = responses
-            
+
             # Create dummy paths for the test
             video_path = str(temp_dir / "test_video.mp4")
             repo_url = "https://github.com/test/repo"
             transcript_path = str(temp_dir / "output" / "transcript.vtt")
-            
+
             # Create a dummy transcript file
             with open(transcript_path, 'w') as f:
                 f.write("Test transcript content")
-            
+
             result = mock_video_processor.generate_description(video_path, repo_url, transcript_path)
-            
+
             # Verify description file was created
             description_file = temp_dir / "output" / "description.md"
             assert description_file.exists()
-            
+
             # Verify OpenAI API was called twice (generation + polishing)
-            assert mock_create.call_count == 2
-            
+            assert mock_invoke.call_count == 2
+
             # Check that transcript was used in the first prompt (generation call)
-            first_call_args = mock_create.call_args_list[0]
-            messages = first_call_args[1]['messages']
-            assert any('transcript' in str(msg).lower() for msg in messages)
+            first_call_kwargs = mock_invoke.call_args_list[0].kwargs
+            messages = first_call_kwargs['messages']
+            assert any(
+                isinstance(msg, dict) and 'transcript' in msg.get('content', '').lower()
+                for msg in messages
+            )
     
     def test_generate_description_with_polishing(self, temp_dir, mock_video_processor):
         """Test description generation with polishing step."""
@@ -448,29 +452,32 @@ class TestGenerateDescription:
         MockTimestampGenerator.create_timestamps_json(timestamps_file, ["test_video.mp4"])
         
         mock_video_processor.video_dir = temp_dir
-        
-        with patch.object(mock_video_processor.client.chat.completions, 'create') as mock_create:
+
+        with patch.object(mock_video_processor, '_invoke_openai_chat') as mock_invoke:
             # Mock both generation and polishing responses
-            responses = [
-                Mock(choices=[Mock(message=Mock(content='Initial description'))]),
-                Mock(choices=[Mock(message=Mock(content=SAMPLE_OPENAI_DESCRIPTION_RESPONSE['choices'][0]['message']['content']))])
+            mock_invoke.side_effect = [
+                AIMessage(content='Initial description'),
+                AIMessage(
+                    content=(
+                        SAMPLE_OPENAI_DESCRIPTION_RESPONSE['choices'][0]['message']['content']
+                    )
+                ),
             ]
-            mock_create.side_effect = responses
-            
+
             # Create dummy paths for the test
             video_path = str(temp_dir / "test_video.mp4")
             repo_url = "https://github.com/test/repo"
             transcript_path = str(temp_dir / "output" / "transcript.vtt")
-            
+
             # Create a dummy transcript file
             with open(transcript_path, 'w') as f:
                 f.write("Test transcript content")
-            
+
             result = mock_video_processor.generate_description(video_path, repo_url, transcript_path)
-            
+
             # Should call OpenAI twice (generation + polishing)
-            assert mock_create.call_count == 2
-            
+            assert mock_invoke.call_count == 2
+
             description_file = temp_dir / "output" / "description.md"
             assert description_file.exists()
     
@@ -508,8 +515,8 @@ class TestGenerateDescription:
         
         mock_video_processor.video_dir = temp_dir
         
-        with patch.object(mock_video_processor.client.chat.completions, 'create') as mock_create:
-            mock_create.side_effect = Exception("OpenAI API Error")
+        with patch.object(mock_video_processor, '_invoke_openai_chat') as mock_invoke:
+            mock_invoke.side_effect = Exception("OpenAI API Error")
             
             with patch('video_tool.video_processor.logger') as mock_logger:
                 # Create dummy paths for the test
@@ -536,12 +543,12 @@ class TestGenerateDescription:
         
         mock_video_processor.video_dir = temp_dir
         
-        with patch.object(mock_video_processor.client.chat.completions, 'create') as mock_create:
-            mock_choice = Mock()
-            mock_choice.message.content = SAMPLE_OPENAI_DESCRIPTION_RESPONSE['choices'][0]['message']['content']
-            mock_response = Mock()
-            mock_response.choices = [mock_choice]
-            mock_create.return_value = mock_response
+        with patch.object(mock_video_processor, '_invoke_openai_chat') as mock_invoke:
+            mock_invoke.return_value = AIMessage(
+                content=(
+                    SAMPLE_OPENAI_DESCRIPTION_RESPONSE['choices'][0]['message']['content']
+                )
+            )
             
             # Create dummy paths for the test
             video_path = str(temp_dir / "test_video.mp4")
@@ -574,12 +581,10 @@ class TestGenerateSEOKeywords:
         
         mock_video_processor.video_dir = temp_dir
         
-        with patch.object(mock_video_processor.client.chat.completions, 'create') as mock_create:
-            mock_response = Mock()
-            mock_choice = Mock()
-            mock_choice.message.content = SAMPLE_OPENAI_KEYWORDS_RESPONSE['choices'][0]['message']['content']
-            mock_response.choices = [mock_choice]
-            mock_create.return_value = mock_response
+        with patch.object(mock_video_processor, '_invoke_openai_chat') as mock_invoke:
+            mock_invoke.return_value = AIMessage(
+                content=SAMPLE_OPENAI_KEYWORDS_RESPONSE['choices'][0]['message']['content']
+            )
             
             result = mock_video_processor.generate_seo_keywords(str(description_file))
             
@@ -594,7 +599,7 @@ class TestGenerateSEOKeywords:
                 assert ',' in content  # Should be comma-separated
             
             # Verify OpenAI API was called
-            mock_create.assert_called_once()
+            mock_invoke.assert_called_once()
     
     def test_generate_seo_keywords_no_description(self, temp_dir, mock_video_processor):
         """Test SEO keywords generation when description doesn't exist."""
@@ -620,8 +625,8 @@ class TestGenerateSEOKeywords:
         
         mock_video_processor.video_dir = temp_dir
         
-        with patch.object(mock_video_processor.client.chat.completions, 'create') as mock_create:
-            mock_create.side_effect = Exception("OpenAI API Error")
+        with patch.object(mock_video_processor, '_invoke_openai_chat') as mock_invoke:
+            mock_invoke.side_effect = Exception("OpenAI API Error")
             
             # Should return empty string and log error instead of raising exception
             result = mock_video_processor.generate_seo_keywords(str(description_file))
@@ -635,8 +640,8 @@ class TestGenerateSEOKeywords:
         
         mock_video_processor.video_dir = temp_dir
         
-        with patch.object(mock_video_processor.client.chat.completions, 'create') as mock_create:
-            mock_create.side_effect = Exception("Rate limit exceeded")
+        with patch.object(mock_video_processor, '_invoke_openai_chat') as mock_invoke:
+            mock_invoke.side_effect = Exception("Rate limit exceeded")
             
             # Should return empty string and log error instead of raising exception
             result = mock_video_processor.generate_seo_keywords(str(description_file))
@@ -667,7 +672,7 @@ class TestContentGenerationIntegration:
         # Mock all external dependencies
         with patch.object(mock_video_processor, '_get_video_metadata') as mock_metadata, \
              patch.object(mock_video_processor.groq.audio.transcriptions, 'create') as mock_groq, \
-             patch.object(mock_video_processor.client.chat.completions, 'create') as mock_openai, \
+             patch.object(mock_video_processor, '_invoke_openai_chat') as mock_openai, \
              patch('video_tool.video_processor.VideoFileClip'):
             
             # Setup mocks
@@ -679,9 +684,16 @@ class TestContentGenerationIntegration:
             mock_groq.return_value = mock_groq_response
             
             # Set up mock responses for multiple OpenAI calls (2 for description, 1 for keywords)
-            description_response = Mock(choices=[Mock(message=Mock(content=SAMPLE_OPENAI_DESCRIPTION_RESPONSE['choices'][0]['message']['content']))])
-            polished_description_response = Mock(choices=[Mock(message=Mock(content="Polished: " + SAMPLE_OPENAI_DESCRIPTION_RESPONSE['choices'][0]['message']['content']))])
-            keywords_response = Mock(choices=[Mock(message=Mock(content=SAMPLE_OPENAI_KEYWORDS_RESPONSE['choices'][0]['message']['content']))])
+            description_response = AIMessage(
+                content=SAMPLE_OPENAI_DESCRIPTION_RESPONSE['choices'][0]['message']['content']
+            )
+            polished_description_response = AIMessage(
+                content="Polished: "
+                + SAMPLE_OPENAI_DESCRIPTION_RESPONSE['choices'][0]['message']['content']
+            )
+            keywords_response = AIMessage(
+                content=SAMPLE_OPENAI_KEYWORDS_RESPONSE['choices'][0]['message']['content']
+            )
             mock_openai.side_effect = [description_response, polished_description_response, keywords_response]
             
             # Run complete workflow
@@ -718,14 +730,16 @@ class TestContentGenerationIntegration:
         # Test partial failure scenario
         with patch.object(mock_video_processor, '_get_video_metadata') as mock_metadata, \
              patch.object(mock_video_processor.groq.audio.transcriptions, 'create') as mock_groq, \
-             patch.object(mock_video_processor.client.chat.completions, 'create') as mock_openai, \
+             patch.object(mock_video_processor, '_invoke_openai_chat') as mock_openai, \
              patch('video_tool.video_processor.VideoFileClip'), \
              patch('video_tool.video_processor.logger') as mock_logger:
             
             # Setup mocks - some succeed, some fail
             mock_metadata.return_value = {'duration': 300.0}
             mock_groq.side_effect = Exception("Groq API Error")
-            mock_openai.return_value = Mock(choices=[Mock(message=Mock(content=SAMPLE_OPENAI_DESCRIPTION_RESPONSE['choices'][0]['message']['content']))])
+            mock_openai.return_value = AIMessage(
+                content=SAMPLE_OPENAI_DESCRIPTION_RESPONSE['choices'][0]['message']['content']
+            )
             
             # Run workflow - should handle errors gracefully
             timestamps_result = mock_video_processor.generate_timestamps()
@@ -779,12 +793,7 @@ class TestGenerateLinkedInPost:
         mock_video_processor.input_dir = temp_dir
         
         # Mock OpenAI response
-        mock_response = Mock()
-        mock_response.choices = [Mock()]
-        mock_response.choices[0].message = Mock()
-        mock_response.choices[0].message.content = SAMPLE_LINKEDIN_POST
-        
-        with patch.object(mock_video_processor.client.chat.completions, 'create', return_value=mock_response):
+        with patch.object(mock_video_processor, '_invoke_openai_chat', return_value=AIMessage(content=SAMPLE_LINKEDIN_POST)):
             result = mock_video_processor.generate_linkedin_post(str(transcript_file))
             
             # Verify file was created
@@ -812,7 +821,7 @@ class TestGenerateLinkedInPost:
         mock_video_processor.input_dir = temp_dir
         
         # Mock OpenAI error
-        with patch.object(mock_video_processor.client.chat.completions, 'create', side_effect=Exception("API Error")):
+        with patch.object(mock_video_processor, '_invoke_openai_chat', side_effect=Exception("API Error")):
             with pytest.raises(Exception, match="API Error"):
                 mock_video_processor.generate_linkedin_post(str(transcript_file))
 
@@ -829,12 +838,7 @@ class TestGenerateTwitterPost:
         mock_video_processor.input_dir = temp_dir
         
         # Mock OpenAI response
-        mock_response = Mock()
-        mock_response.choices = [Mock()]
-        mock_response.choices[0].message = Mock()
-        mock_response.choices[0].message.content = SAMPLE_TWITTER_POST
-        
-        with patch.object(mock_video_processor.client.chat.completions, 'create', return_value=mock_response):
+        with patch.object(mock_video_processor, '_invoke_openai_chat', return_value=AIMessage(content=SAMPLE_TWITTER_POST)):
             result = mock_video_processor.generate_twitter_post(str(transcript_file))
             
             # Verify file was created
@@ -862,6 +866,6 @@ class TestGenerateTwitterPost:
         mock_video_processor.input_dir = temp_dir
         
         # Mock OpenAI error
-        with patch.object(mock_video_processor.client.chat.completions, 'create', side_effect=Exception("API Error")):
+        with patch.object(mock_video_processor, '_invoke_openai_chat', side_effect=Exception("API Error")):
             with pytest.raises(Exception, match="API Error"):
                 mock_video_processor.generate_twitter_post(str(transcript_file))
