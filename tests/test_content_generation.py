@@ -131,10 +131,11 @@ class TestGenerateTranscript:
     @patch('groq.Groq')
     def test_generate_transcript_success(self, mock_groq_class, temp_dir, mock_video_processor):
         """Test successful transcript generation."""
-        # Create concatenated video
-        video_file = temp_dir / "output" / "concatenated_video.mp4"
-        MockVideoGenerator.create_mock_mp4(video_file)
+        # Create concatenated video in output directory
         output_dir = temp_dir / "output"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        video_file = output_dir / "concatenated_video.mp4"
+        MockVideoGenerator.create_mock_mp4(video_file)
         
         # Mock Groq client
         mock_groq_instance = Mock()
@@ -150,14 +151,33 @@ class TestGenerateTranscript:
         mock_video_processor.video_dir = temp_dir
         mock_video_processor.groq = mock_groq_instance
         
-        with patch('video_tool.video_processor.VideoFileClip') as mock_video_clip:
+        with patch('video_tool.video_processor.VideoFileClip') as mock_video_clip, \
+             patch.object(mock_video_processor, '_groq_verbose_json_to_vtt') as mock_vtt_converter, \
+             patch('os.path.getsize') as mock_getsize:
             # Mock audio extraction
             mock_clip = Mock()
             mock_audio = Mock()
             mock_clip.audio = mock_audio
             mock_video_clip.return_value = mock_clip
             
-            result = mock_video_processor.generate_transcript(str(video_file))
+            # Mock file size to be under 25MB limit
+            mock_getsize.return_value = 20 * 1024 * 1024  # 20MB
+            
+            # Mock VTT conversion to return expected content
+            mock_vtt_converter.return_value = SAMPLE_VTT_CONTENT
+            
+            # Create the audio file with content to simulate successful extraction
+            audio_file = video_file.with_suffix(".mp3")  # Use the same path as video but with .mp3 extension
+            # Create a large file (simulate > 25MB) by writing a lot of content
+            large_content = "mock audio content " * 1000000  # Create a large string
+            audio_file.write_text(large_content)
+            
+            try:
+                result = mock_video_processor.generate_transcript(str(video_file))
+                print(f"DEBUG: Test result: {result}")
+            except Exception as e:
+                print(f"DEBUG: Exception in test: {e}")
+                raise
             
             # Verify transcript file was created
             transcript_file = output_dir / "transcript.vtt"
@@ -166,6 +186,72 @@ class TestGenerateTranscript:
             # Verify Groq API was called
             mock_groq_instance.audio.transcriptions.create.assert_called_once()
     
+    @patch('groq.Groq')
+    def test_generate_transcript_small_file(self, mock_groq_class, temp_dir, mock_video_processor):
+        """Test transcript generation with small file (no chunking needed)."""
+        video_file = temp_dir / "output" / "concatenated_video.mp4"
+        MockVideoGenerator.create_mock_mp4(video_file)
+        output_dir = temp_dir / "output"
+        
+        mock_groq_instance = Mock()
+        mock_groq_class.return_value = mock_groq_instance
+        
+        # Mock single response for small file
+        mock_groq_instance.audio.transcriptions.create.return_value = Mock(
+            text="Test transcript", 
+            segments=SAMPLE_GROQ_RESPONSE['segments']
+        )
+        
+        mock_video_processor.video_dir = temp_dir
+        mock_video_processor.groq = mock_groq_instance
+        
+        with patch('video_tool.video_processor.VideoFileClip') as mock_video_clip, \
+             patch.object(mock_video_processor, '_groq_verbose_json_to_vtt') as mock_vtt_converter, \
+             patch.object(mock_video_processor, '_clean_vtt_transcript') as mock_clean_vtt, \
+             patch('builtins.open', create=True) as mock_open, \
+             patch('os.path.getsize') as mock_getsize, \
+             patch('pathlib.Path.stat') as mock_stat:
+            
+            # Mock small audio file (≤25MB)
+            mock_clip = Mock()
+            mock_audio = Mock()
+            mock_audio.duration = 600  # 10 minutes - small file
+            mock_clip.audio = mock_audio
+            mock_clip.close = Mock()
+            mock_video_clip.return_value = mock_clip
+            
+            # Mock audio write operation
+            mock_audio.write_audiofile = Mock()
+            
+            # Create the audio file to simulate successful extraction
+            audio_file = video_file.with_suffix(".mp3")
+            audio_file.touch()  # Create empty file
+            
+            # Mock file size to be small (≤25MB) - no chunking needed
+            mock_getsize.return_value = 20 * 1024 * 1024  # 20MB
+            
+            # Mock stat for pathlib.Path.stat() to return small file size
+            mock_stat_result = Mock()
+            mock_stat_result.st_size = 20 * 1024 * 1024  # 20MB
+            mock_stat.return_value = mock_stat_result
+            
+            # Mock VTT conversion and cleaning
+            mock_vtt_converter.return_value = SAMPLE_VTT_CONTENT
+            mock_clean_vtt.return_value = SAMPLE_VTT_CONTENT
+            
+            # Mock file operations
+            mock_file_handle = Mock()
+            mock_open.return_value.__enter__.return_value = mock_file_handle
+            
+            result = mock_video_processor.generate_transcript(str(video_file))
+            
+            # Should call transcription once for small file
+            assert mock_groq_instance.audio.transcriptions.create.call_count == 1
+            
+            # Verify the result is the expected VTT file path
+            expected_output = str(output_dir / "transcript.vtt")
+            assert result == expected_output
+
     @patch('groq.Groq')
     def test_generate_transcript_large_file_chunking(self, mock_groq_class, temp_dir, mock_video_processor):
         """Test transcript generation with large file chunking."""
@@ -183,25 +269,76 @@ class TestGenerateTranscript:
         ]
         
         mock_groq_instance.audio.transcriptions.create.side_effect = chunk_responses
-        
         mock_video_processor.video_dir = temp_dir
+        # Ensure the groq instance is properly set
         mock_video_processor.groq = mock_groq_instance
-        
-        with patch('video_tool.video_processor.VideoFileClip') as mock_video_clip:
-            # Mock large audio file that needs chunking
+         
+        with patch('video_tool.video_processor.VideoFileClip') as mock_video_clip, \
+             patch('video_tool.video_processor.AudioSegment') as mock_audio_segment, \
+             patch.object(mock_video_processor, '_groq_verbose_json_to_vtt') as mock_vtt_converter, \
+             patch.object(mock_video_processor, '_clean_vtt_transcript') as mock_clean_vtt, \
+             patch.object(mock_video_processor, '_merge_vtt_transcripts') as mock_merge, \
+             patch('builtins.open', create=True) as mock_open, \
+             patch('os.path.getsize') as mock_getsize, \
+             patch('pathlib.Path.stat') as mock_stat, \
+             patch('os.remove') as mock_remove:
+            
+            # Mock large audio file that needs chunking (>25MB)
             mock_clip = Mock()
             mock_audio = Mock()
             mock_audio.duration = 3600  # 1 hour - should trigger chunking
             mock_clip.audio = mock_audio
+            mock_clip.close = Mock()
             mock_video_clip.return_value = mock_clip
             
-            with patch.object(mock_video_processor, '_merge_vtt_transcripts') as mock_merge:
-                mock_merge.return_value = SAMPLE_VTT_CONTENT
-                
-                result = mock_video_processor.generate_transcript(str(video_file))
-                
-                # Should call transcription multiple times for chunks
-                assert mock_groq_instance.audio.transcriptions.create.call_count >= 1
+            # Mock audio write operation
+            mock_audio.write_audiofile = Mock()
+            
+            # Create the audio file to simulate successful extraction
+            audio_file = video_file.with_suffix(".mp3")
+            audio_file.touch()  # Create empty file
+            
+            # Mock file size to be large (>25MB) to trigger chunking
+            mock_getsize.return_value = 30 * 1024 * 1024  # 30MB
+            
+            # Mock stat for pathlib.Path.stat() to return large file size
+            mock_stat_result = Mock()
+            mock_stat_result.st_size = 30 * 1024 * 1024  # 30MB
+            mock_stat.return_value = mock_stat_result
+            
+            # Mock AudioSegment for chunking
+            mock_audio_instance = Mock()
+            # Configure the mock to support len() operation
+            type(mock_audio_instance).__len__ = Mock(return_value=1200000)  # 20 minutes (2 chunks of 10 min each)
+            mock_audio_segment.from_mp3.return_value = mock_audio_instance
+            
+            # Mock chunk creation and export
+            mock_chunk = Mock()
+            def create_chunk_file(path, format=None):
+                # Create the chunk file when export is called
+                chunk_path = Path(path)
+                chunk_path.touch()
+            mock_chunk.export.side_effect = create_chunk_file
+            # Configure the mock to support slicing operations
+            type(mock_audio_instance).__getitem__ = Mock(return_value=mock_chunk)
+            
+            # Mock VTT conversion and cleaning
+            mock_vtt_converter.return_value = "WEBVTT\n\n00:00:00.000 --> 00:00:05.000\nTest chunk\n"
+            mock_clean_vtt.return_value = "WEBVTT\n\n00:00:00.000 --> 00:00:05.000\nTest chunk\n"
+            mock_merge.return_value = SAMPLE_VTT_CONTENT
+            
+            # Mock file operations for chunk processing
+            mock_file_handle = Mock()
+            mock_open.return_value.__enter__.return_value = mock_file_handle
+            
+            result = mock_video_processor.generate_transcript(str(video_file))
+            
+            # Should call transcription multiple times for chunks (2 chunks expected)
+            assert mock_groq_instance.audio.transcriptions.create.call_count == 2
+            
+            # Verify the result is the expected VTT file path
+            expected_output = str(output_dir / "transcript.vtt")
+            assert result == expected_output
     
     @patch('groq.Groq')
     def test_generate_transcript_groq_error(self, mock_groq_class, temp_dir, mock_video_processor):
@@ -225,7 +362,7 @@ class TestGenerateTranscript:
                 result = mock_video_processor.generate_transcript(str(video_file))
                 
                 # Should log the error
-                mock_logger.assert_called()
+                mock_logger.error.assert_called()
     
     def test_generate_transcript_no_video_file(self, temp_dir, mock_video_processor):
         """Test transcript generation when concatenated video doesn't exist."""

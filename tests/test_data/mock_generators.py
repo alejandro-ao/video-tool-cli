@@ -142,6 +142,11 @@ class MockTranscriptGenerator:
         minutes = int((seconds % 3600) // 60)
         secs = seconds % 60
         return f"{hours:02d}:{minutes:02d}:{secs:06.3f}"
+    
+    @staticmethod
+    def create_vtt_file(file_path: Path, segments: Optional[List[Dict]] = None) -> Path:
+        """Create a VTT file (alias for create_vtt_transcript for backward compatibility)."""
+        return MockTranscriptGenerator.create_vtt_transcript(file_path, segments)
 
 
 class MockDescriptionGenerator:

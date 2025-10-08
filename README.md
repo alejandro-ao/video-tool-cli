@@ -39,4 +39,13 @@ All actions are logged to `video_processor.log` so you can review progress and d
 ## Additional Tools
 - `VideoProcessor.extract_duration_csv()` exports `video_metadata.csv` summarizing clip lengths and creation dates across a directory tree.
 
+## Testing
+Run the automated suite to exercise the CLI and processing workflows:
+
+```bash
+pytest
+```
+
+If you prefer using `uv`, execute `uv run pytest` instead.
+
 For outstanding improvements and roadmap items, see `todo.md`.

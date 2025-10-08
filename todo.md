@@ -7,6 +7,9 @@
   - [X] add example
   - [X] make it remove adverbs
 - [X] rewrite twitter post
+- [x] add tests
+- [ ] refactor script
+- [ ] improve CLI UX
 - [ ] fix generate seo words with web search
 - [ ] add willow animation
 - [ ] generate a blog post
