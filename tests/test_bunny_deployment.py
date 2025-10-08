@@ -55,11 +55,11 @@ def test_deploy_to_bunny_uploads_video_and_metadata(mock_video_processor, temp_d
         {"title": "Intro", "start": "00:00:00", "end": "00:01:00"},
     ]
 
+    # Updated flow: srclang POST succeeds directly; legacy caption creation/upload is not used
     responses = [
         _make_response({"videoId": "vid-123"}),
         _make_response({}),
         _make_response({}),
-        _make_response({"guid": "cap-123"}),
         _make_response({}),
     ]
 
@@ -88,9 +88,9 @@ def test_deploy_to_bunny_uploads_video_and_metadata(mock_video_processor, temp_d
         "pending": False,
     }
 
-    assert mock_request.call_count == 5
+    assert mock_request.call_count == 4
     methods = [call.kwargs["method"] for call in mock_request.call_args_list]
-    assert methods == ["POST", "PUT", "POST", "POST", "PUT"]
+    assert methods == ["POST", "PUT", "POST", "POST"]
 
     # Create video request payload
     create_kwargs = mock_request.call_args_list[0].kwargs
@@ -113,21 +113,13 @@ def test_deploy_to_bunny_uploads_video_and_metadata(mock_video_processor, temp_d
         "chapters": [{"title": "Intro", "start": 0, "end": 60}]
     }
 
-    # Caption creation request
+    # Caption upload using srclang JSON endpoint
     caption_kwargs = mock_request.call_args_list[3].kwargs
-    assert caption_kwargs["json"] == {
-        "srclang": "en",
-        "captionTitle": "EN",
-    }
-
-    # Caption upload request contains file payload
-    caption_upload_kwargs = mock_request.call_args_list[4].kwargs
-    files = caption_upload_kwargs["files"]
-    assert "captionsFile" in files
-    filename, file_content, content_type = files["captionsFile"]
-    assert filename == "transcript.vtt"
-    assert content_type == "text/vtt"
-    assert b"Hello" in file_content
+    assert caption_kwargs["url"].endswith("/library/lib-1/videos/vid-123/captions/en")
+    assert caption_kwargs["headers"]["Content-Type"] == "application/json"
+    assert caption_kwargs["headers"]["accept"] == "application/json"
+    assert caption_kwargs["json"]["srclang"] == "en"
+    assert "captionsFile" in caption_kwargs["json"]
 
 
 def test_deploy_to_bunny_metadata_only_with_existing_video(mock_video_processor, temp_dir):
@@ -138,9 +130,9 @@ def test_deploy_to_bunny_metadata_only_with_existing_video(mock_video_processor,
 
     chapters = [{"title": "Intro", "start": "00:00:00", "end": "00:01:00"}]
 
+    # Updated flow: srclang POST used; legacy creation/upload not used
     responses = [
         _make_response({}),
-        _make_response({"guid": "cap-789"}),
         _make_response({}),
     ]
 
@@ -167,19 +159,17 @@ def test_deploy_to_bunny_metadata_only_with_existing_video(mock_video_processor,
         "transcript_uploaded": True,
         "pending": False,
     }
-    assert mock_request.call_count == 3
+    assert mock_request.call_count == 2
     methods = [call.kwargs["method"] for call in mock_request.call_args_list]
-    assert methods == ["POST", "POST", "PUT"]
+    assert methods == ["POST", "POST"]
 
     update_kwargs = mock_request.call_args_list[0].kwargs
     assert update_kwargs["url"].endswith("/library/lib-1/videos/vid-123")
     assert update_kwargs["json"]["chapters"][0]["start"] == 0
 
-    caption_create_kwargs = mock_request.call_args_list[1].kwargs
-    assert caption_create_kwargs["url"].endswith("/videos/vid-123/captions")
-
-    caption_upload_kwargs = mock_request.call_args_list[2].kwargs
-    assert caption_upload_kwargs["url"].endswith("/videos/vid-123/captions/cap-789")
+    caption_upload_kwargs = mock_request.call_args_list[1].kwargs
+    assert caption_upload_kwargs["url"].endswith("/library/lib-1/videos/vid-123/captions/en")
+    assert caption_upload_kwargs["headers"]["Content-Type"] == "application/json"
 
 
 def test_deploy_to_bunny_waits_for_processing(mock_video_processor):

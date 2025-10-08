@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import base64
 from typing import Dict, Iterable, List, Optional, Sequence
 
 import requests
@@ -317,49 +318,53 @@ class BunnyDeploymentMixin:
         transcript_path: Path,
         language: str,
     ) -> bool:
-        """Create or update a caption track with the generated transcript."""
+        """Upload captions using srclang JSON endpoint; fallback to legacy flow if needed."""
+        # Primary: use srclang endpoint with JSON and base64-encoded VTT (per latest API)
+        url = f"{self._API_BASE}/library/{library}/videos/{video_id}/captions/{language}"
+        vtt_bytes = transcript_path.read_bytes()
+        vtt_b64 = base64.b64encode(vtt_bytes).decode("ascii")
+        payload = {
+            "srclang": language,
+            "label": f"{language.upper()} Subtitles",
+            "captionsFile": vtt_b64,
+        }
+        headers = {"Content-Type": "application/json", "accept": "application/json"}
+        response = self._perform_request(
+            method="POST",
+            url=url,
+            access_key=access_key,
+            headers=headers,
+            json=payload,
+            timeout=30,
+        )
+        if response is not None:
+            return True
+
+        # Fallback: legacy flow — create/get caption track and PUT VTT file
+        logger.info(
+            "srclang upload failed; attempting legacy caption track create + file PUT."
+        )
         caption_id = self._ensure_caption_track(
             library=library,
             access_key=access_key,
             video_id=video_id,
             language=language,
         )
-        if caption_id:
-            url = f"{self._API_BASE}/library/{library}/videos/{video_id}/captions/{caption_id}"
-            files = {"captionsFile": ("transcript.vtt", transcript_path.read_bytes(), "text/vtt")}
+        if not caption_id:
+            logger.warning("Failed to ensure caption track for legacy upload.")
+            return False
 
-            response = self._perform_request(
-                method="PUT",
-                url=url,
-                access_key=access_key,
-                files=files,
-                timeout=30,
-            )
-            if response is None:
-                logger.warning("Failed to upload transcript captions to Bunny.")
-                return False
-            return True
-
-        # Fallback: some Bunny API variants expect direct POST to srclang endpoint with VTT body
-        logger.info(
-            "Caption track creation returned no identifier; attempting direct srclang upload."
-        )
-        fallback_url = (
-            f"{self._API_BASE}/library/{library}/videos/{video_id}/captions/{language}"
-        )
-        headers = {"Content-Type": "text/vtt"}
+        legacy_url = f"{self._API_BASE}/library/{library}/videos/{video_id}/captions/{caption_id}"
+        files = {"captionsFile": ("transcript.vtt", vtt_bytes, "text/vtt")}
         response = self._perform_request(
-            method="POST",
-            url=fallback_url,
+            method="PUT",
+            url=legacy_url,
             access_key=access_key,
-            headers=headers,
-            data=transcript_path.read_bytes(),
+            files=files,
             timeout=30,
         )
         if response is None:
-            logger.warning(
-                "Failed to upload transcript via srclang endpoint; Bunny may still be processing."
-            )
+            logger.warning("Failed to upload transcript captions via legacy flow.")
             return False
         return True
 

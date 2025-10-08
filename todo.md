@@ -10,8 +10,9 @@
 - [x] add tests
 - [X] refactor script
 - [X] improve CLI UX
-- [ ] deploy automatically to bunny.net
-  - [ ] upload transcription & chapters through API
+- [X] deploy automatically to bunny.net
+  - [X] upload transcription & chapters through API
+- [ ] fix chapter names with LLM right into the json file
 - [ ] fix generate seo words with web search
 - [ ] add willow animation
 - [ ] generate a blog post
