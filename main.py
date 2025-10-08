@@ -186,6 +186,24 @@ def apply_cli_overrides(params: Dict[str, Any], args: argparse.Namespace) -> Dic
     return params
 
 
+def ensure_video_title(params: Dict[str, Any]) -> bool:
+    """Ensure a video title is present, prompting the user if necessary."""
+    if params.get("video_title"):
+        return True
+
+    if sys.stdin and sys.stdin.isatty():
+        console.print("[yellow]Video title is required for this run.[/]")
+        params["video_title"] = ask_required_text("Video title")
+        return True
+
+    console.print(
+        "[bold red]Video title required.[/] "
+        "Provide it via --manual, --profile, or CLI overrides."
+    )
+    logger.error("Missing video title for non-interactive run.")
+    return False
+
+
 def ensure_repo_url(params: Dict[str, Any]) -> bool:
     """Make sure a repository URL is available when description generation runs."""
     if params.get("skip_description", False):
@@ -687,6 +705,8 @@ def main() -> None:
             params = get_user_input()
             params = apply_default_settings(params)
             params["input_dir"] = normalize_path(str(params["input_dir"]))
+            if not ensure_video_title(params):
+                return
             if not ensure_repo_url(params):
                 return
         else:
@@ -732,6 +752,8 @@ def main() -> None:
             else:
                 params["input_dir"] = normalize_path(str(params["input_dir"]))
 
+            if not ensure_video_title(params):
+                return
             if not ensure_repo_url(params):
                 return
 

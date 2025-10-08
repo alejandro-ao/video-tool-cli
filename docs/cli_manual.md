@@ -87,6 +87,7 @@ All step flags override `--skip-all` and force the associated stage to run. They
 - `--profile <name>`: load a saved profile. Profiles are case insensitive. An error lists available profiles if the requested one is missing.
 - `--manual`: enter interactive mode (see above).
 - When description generation is enabled without a stored URL, the CLI prompts for the repository (TTY) or exits with instructions.
+- Every run asks for a video title; provide it when prompted or via `--manual` responses.
 
 ## Configuration Summary
 
