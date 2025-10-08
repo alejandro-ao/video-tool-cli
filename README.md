@@ -8,6 +8,7 @@ Automate Alejandro's YouTube production workflow end to end. Given a directory o
 - Automatic chapter map (`timestamps.json`) with ISO-formatted timecode.
 - Whisper transcription (`transcript.vtt`) via `OPENAI_API_KEY`.
 - Markdown description, SEO keywords, and social posts derived from `prompts.yaml`.
+- Optional Bunny.net deployment that uploads the final cut, chapters, and transcript captions.
 - Optional duration CSV export for analytics.
 
 ## Requirements

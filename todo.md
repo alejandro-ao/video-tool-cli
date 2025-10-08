@@ -9,12 +9,11 @@
 - [X] rewrite twitter post
 - [x] add tests
 - [X] refactor script
-- [ ] improve CLI UX
+- [X] improve CLI UX
+- [ ] deploy automatically to bunny.net
+  - [ ] upload transcription & chapters through API
 - [ ] fix generate seo words with web search
 - [ ] add willow animation
 - [ ] generate a blog post
   - [ ] create agent with access to github repo
   - [ ] have agent write the blog post with transcript & repo
-- [ ] deploy automatically to bunny.net
-  - [ ] upload transcription & chapters through API
-- [ ] IMPORTANT: use agents

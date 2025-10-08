@@ -135,6 +135,17 @@ def summarize_configuration(data: Dict[str, Any]) -> None:
     summary.add_row("SEO keywords", "run" if not data["skip_seo"] else "skip")
     summary.add_row("LinkedIn copy", "run" if not data["skip_linkedin"] else "skip")
     summary.add_row("Twitter copy", "run" if not data["skip_twitter"] else "skip")
+    bunny_status = "run" if not data.get("skip_bunny_upload") else "skip"
+    if bunny_status == "run":
+        library_hint = (
+            data.get("bunny_library_id")
+            or os.getenv("BUNNY_LIBRARY_ID")
+            or "—"
+        )
+        bunny_label = f"run (library {library_hint})"
+    else:
+        bunny_label = bunny_status
+    summary.add_row("Bunny upload", bunny_label)
     summary.add_row("Verbose logs", "on" if data.get("verbose_logging") else "off")
 
     console.print(
@@ -213,6 +224,32 @@ def get_user_input() -> Dict[str, Any]:
         console=console,
     )
 
+    skip_bunny_upload = Confirm.ask(
+        "Skip uploading the final video to Bunny.net?",
+        default=True,
+        console=console,
+    )
+
+    bunny_library_id: Optional[str] = None
+    bunny_collection_id: Optional[str] = None
+    bunny_caption_language = "en"
+
+    if not skip_bunny_upload:
+        bunny_library_id = ask_optional_text(
+            "Bunny library ID (leave blank to use BUNNY_LIBRARY_ID env)"
+        )
+        bunny_collection_id = ask_optional_text(
+            "Bunny collection ID (optional)"
+        )
+        bunny_caption_language = (
+            Prompt.ask(
+                "[bold cyan]Caption language code for transcript[/] ([dim]default: en[/])",
+                default="en",
+                console=console,
+            ).strip()
+            or "en"
+        )
+
     console.print("\n[bold]Diagnostics[/]")
     verbose_logging = Confirm.ask(
         "Show detailed log output in the terminal?",
@@ -234,6 +271,10 @@ def get_user_input() -> Dict[str, Any]:
         "skip_seo": skip_seo,
         "skip_linkedin": skip_linkedin,
         "skip_twitter": skip_twitter,
+        "skip_bunny_upload": skip_bunny_upload,
+        "bunny_library_id": bunny_library_id,
+        "bunny_collection_id": bunny_collection_id,
+        "bunny_caption_language": bunny_caption_language,
         "verbose_logging": verbose_logging,
     }
 
@@ -305,6 +346,7 @@ def main() -> None:
         logger.info(f"Output directory path: {processor.output_dir}")
 
         artifacts: Dict[str, Any] = {}
+        timestamps_info: Optional[Dict[str, Any]] = None
 
         # Remove silences
         if not params["skip_silence_removal"]:
@@ -320,7 +362,7 @@ def main() -> None:
 
         # Generate timestamps for individual videos
         if not params["skip_timestamps"]:
-            run_step(
+            timestamps_info = run_step(
                 "⏰ Generating timestamps for individual videos...",
                 processor.generate_timestamps,
             )
@@ -415,6 +457,41 @@ def main() -> None:
             if default_transcript.exists():
                 resolved_transcript = default_transcript
                 artifacts.setdefault("Transcript", str(default_transcript))
+
+        bunny_result: Optional[Dict[str, Any]] = None
+        if not params["skip_bunny_upload"]:
+            if video_path:
+                chapter_entries = None
+                if isinstance(timestamps_info, dict):
+                    chapter_entries = timestamps_info.get("timestamps")
+                bunny_result = run_step(
+                    "🚀 Uploading final video to Bunny.net...",
+                    lambda: processor.deploy_to_bunny(
+                        str(video_path),
+                        library_id=params.get("bunny_library_id"),
+                        collection_id=params.get("bunny_collection_id"),
+                        video_title=params.get("video_title"),
+                        chapters=chapter_entries,
+                        transcript_path=str(resolved_transcript) if resolved_transcript else None,
+                        caption_language=params.get("bunny_caption_language"),
+                    ),
+                )
+                if bunny_result:
+                    logger.info(
+                        "✅ Uploaded video to Bunny "
+                        f"(library={bunny_result['library_id']}, video_id={bunny_result['video_id']})"
+                    )
+                    console.print(
+                        "[green]Uploaded to Bunny[/] -> "
+                        f"Library {bunny_result['library_id']} • ID {bunny_result['video_id']}"
+                    )
+                    artifacts["Bunny video"] = bunny_result["video_id"]
+                else:
+                    logger.error("❌ Bunny upload failed")
+                    console.print("[red]Bunny upload failed[/]")
+            else:
+                logger.warning("⚠️ Skipping Bunny upload: no video file available")
+                console.print("[yellow]Skipping Bunny upload: no video file available[/]")
 
         if not params["skip_context_cards"]:
             if resolved_transcript:

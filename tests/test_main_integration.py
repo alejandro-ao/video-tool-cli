@@ -25,6 +25,7 @@ PROCESSOR_METHODS = [
     "generate_seo_keywords",
     "generate_linkedin_post",
     "generate_twitter_post",
+    "deploy_to_bunny",
 ]
 
 
@@ -56,6 +57,11 @@ def _create_processor_mock(temp_dir: Path) -> MagicMock:
     processor.generate_seo_keywords.return_value = str(output_dir / "keywords.txt")
     processor.generate_linkedin_post.return_value = str(output_dir / "linkedin_post.md")
     processor.generate_twitter_post.return_value = str(output_dir / "twitter_post.md")
+    processor.deploy_to_bunny.return_value = {
+        "library_id": "lib123",
+        "video_id": "vid123",
+        "title": "Test Video",
+    }
     return processor
 
 
@@ -75,6 +81,10 @@ def _build_params(temp_dir: Path, **overrides) -> dict:
         "skip_seo": True,
         "skip_linkedin": True,
         "skip_twitter": True,
+        "skip_bunny_upload": True,
+        "bunny_library_id": None,
+        "bunny_collection_id": None,
+        "bunny_caption_language": "en",
         "verbose_logging": False,
     }
     params.update(overrides)
@@ -114,6 +124,10 @@ def test_get_user_input_all_options(mock_input):
         "n",  # skip_seo?
         "n",  # skip_linkedin?
         "n",  # skip_twitter?
+        "n",  # skip_bunny_upload?
+        "library-123",
+        "collection-456",
+        "en",
         "n",  # verbose logging
     ]
 
@@ -133,6 +147,10 @@ def test_get_user_input_all_options(mock_input):
         "skip_seo": False,
         "skip_linkedin": False,
         "skip_twitter": False,
+        "skip_bunny_upload": False,
+        "bunny_library_id": "library-123",
+        "bunny_collection_id": "collection-456",
+        "bunny_caption_language": "en",
         "verbose_logging": False,
     }
 
@@ -153,6 +171,7 @@ def test_get_user_input_skip_everything(mock_input):
         "y",  # skip SEO keywords
         "y",  # skip LinkedIn post
         "y",  # skip Twitter post
+        "y",  # skip Bunny upload
         "y",  # verbose logging
     ]
 
@@ -172,6 +191,10 @@ def test_get_user_input_skip_everything(mock_input):
         "skip_seo": True,
         "skip_linkedin": True,
         "skip_twitter": True,
+        "skip_bunny_upload": True,
+        "bunny_library_id": None,
+        "bunny_collection_id": None,
+        "bunny_caption_language": "en",
         "verbose_logging": True,
     }
 
@@ -192,6 +215,7 @@ def test_get_user_input_handles_quoted_path(mock_input):
         "y",
         "y",
         "y",
+        "y",
         "n",
     ]
 
@@ -201,6 +225,7 @@ def test_get_user_input_handles_quoted_path(mock_input):
     assert result["video_title"] == "Episode 1"
     assert result["repo_url"] is None
     assert result["skip_concat"] is True
+    assert result["skip_bunny_upload"] is True
     assert result["verbose_logging"] is False
 
 
@@ -224,6 +249,9 @@ def test_main_full_workflow_runs_every_step(temp_dir):
         skip_seo=False,
         skip_linkedin=False,
         skip_twitter=False,
+        skip_bunny_upload=False,
+        bunny_library_id="library-123",
+        bunny_collection_id="collection-456",
     )
 
     with patch("main.get_user_input", return_value=params), patch(
@@ -242,11 +270,21 @@ def test_main_full_workflow_runs_every_step(temp_dir):
         "generate_seo_keywords",
         "generate_linkedin_post",
         "generate_twitter_post",
+        "deploy_to_bunny",
     )
     processor.concatenate_videos.assert_called_once_with(skip_reprocessing=False)
     processor.generate_transcript.assert_called_once_with(str(processor.output_dir / "final.mp4"))
     processor.generate_context_cards.assert_called_once_with(
         str(processor.output_dir / "transcript.vtt")
+    )
+    processor.deploy_to_bunny.assert_called_once_with(
+        str(processor.output_dir / "final.mp4"),
+        library_id=params["bunny_library_id"],
+        collection_id=params["bunny_collection_id"],
+        video_title=params["video_title"],
+        chapters=[],
+        transcript_path=str(processor.output_dir / "transcript.vtt"),
+        caption_language=params["bunny_caption_language"],
     )
 
 
