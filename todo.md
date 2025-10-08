@@ -8,7 +8,7 @@
   - [X] make it remove adverbs
 - [X] rewrite twitter post
 - [x] add tests
-- [ ] refactor script
+- [X] refactor script
 - [ ] improve CLI UX
 - [ ] fix generate seo words with web search
 - [ ] add willow animation
