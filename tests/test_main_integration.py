@@ -7,12 +7,13 @@ independently, that the complete workflow executes every stage, and that a user
 choosing to skip all actions is handled cleanly.
 """
 
+from argparse import Namespace
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from main import get_user_input, main
+from main import STEP_FLAG_SPECS, get_user_input, main
 
 
 PROCESSOR_METHODS = [
@@ -256,7 +257,23 @@ def test_get_user_input_handles_quoted_path(mock_input):
 # ---------------------------------------------------------------------------
 
 
-def test_main_full_workflow_runs_every_step(temp_dir):
+@pytest.fixture
+def manual_cli_args():
+    """Patch CLI parsing to emulate --manual runs inside integration tests."""
+    base_flags = {spec.attr: False for spec in STEP_FLAG_SPECS}
+    args = Namespace(
+        command="run",
+        manual=True,
+        profile=None,
+        input_dir=None,
+        skip_all=False,
+        **base_flags,
+    )
+    with patch("main.parse_cli_args", return_value=args):
+        yield
+
+
+def test_main_full_workflow_runs_every_step(temp_dir, manual_cli_args):
     """Running with every step enabled invokes the complete pipeline."""
     processor = _create_processor_mock(temp_dir)
     params = _build_params(
@@ -316,7 +333,7 @@ def test_main_full_workflow_runs_every_step(temp_dir):
     )
 
 
-def test_main_skip_all_steps(temp_dir):
+def test_main_skip_all_steps(temp_dir, manual_cli_args):
     """When every flag is skipped, no processing methods are called."""
     processor = _create_processor_mock(temp_dir)
     params = _build_params(temp_dir, repo_url=None, video_title=None)
@@ -339,7 +356,7 @@ def test_main_skip_all_steps(temp_dir):
         (dict(skip_context_cards=False), ["generate_context_cards"]),
     ],
 )
-def test_main_individual_core_steps(temp_dir, flag_overrides, expected_calls):
+def test_main_individual_core_steps(temp_dir, manual_cli_args, flag_overrides, expected_calls):
     """Each core step can run in isolation without invoking neighbours."""
     processor = _create_processor_mock(temp_dir)
     params = _build_params(temp_dir, **flag_overrides)
@@ -362,7 +379,7 @@ def test_main_individual_core_steps(temp_dir, flag_overrides, expected_calls):
         processor.generate_context_cards.assert_called_once_with(expected_transcript)
 
 
-def test_main_generates_description_and_seo(temp_dir):
+def test_main_generates_description_and_seo(temp_dir, manual_cli_args):
     """Description generation triggers the SEO keyword pass when enabled."""
     processor = _create_processor_mock(temp_dir)
     params = _build_params(
@@ -386,7 +403,7 @@ def test_main_generates_description_and_seo(temp_dir):
     processor.generate_seo_keywords.assert_called_once_with(description_path)
 
 
-def test_main_generates_social_posts(temp_dir):
+def test_main_generates_social_posts(temp_dir, manual_cli_args):
     """Social post generation runs independently once transcript is present."""
     processor = _create_processor_mock(temp_dir)
     params = _build_params(
@@ -406,7 +423,7 @@ def test_main_generates_social_posts(temp_dir):
     processor.generate_twitter_post.assert_called_once_with(transcript_path)
 
 
-def test_main_skips_description_without_repo_url(temp_dir):
+def test_main_skips_description_without_repo_url(temp_dir, manual_cli_args):
     """Description generation is skipped when a repository URL is not provided."""
     processor = _create_processor_mock(temp_dir)
     params = _build_params(

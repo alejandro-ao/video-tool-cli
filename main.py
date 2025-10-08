@@ -211,6 +211,10 @@ def ensure_repo_url(params: Dict[str, Any]) -> bool:
 
 def prompt_save_profile(params: Dict[str, Any]) -> None:
     """Offer to persist the current configuration for future runs."""
+    # Avoid interactive prompts when stdin is not a TTY (e.g., tests/CI)
+    if not (sys.stdin and sys.stdin.isatty()):
+        return
+
     profiles = load_profiles()
     if not Confirm.ask(
         "Save this configuration for future runs?",
