@@ -44,6 +44,8 @@ Automate Alejandro's YouTube production workflow end to end. Given a directory o
 
 All actions are logged to `video_processor.log` so you can review progress and debug any failures.
 
+For a full reference of CLI commands and flags, see `docs/cli_manual.md`.
+
 ## Additional Tools
 - `VideoProcessor.extract_duration_csv()` exports `video_metadata.csv` summarizing clip lengths and creation dates across a directory tree.
 

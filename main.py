@@ -1,8 +1,10 @@
+import argparse
+import json
 import os
 import sys
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional, TypeVar
+from typing import Any, Callable, Dict, List, Optional, TypeVar
 
 from dotenv import load_dotenv
 from loguru import logger
@@ -35,6 +37,257 @@ ASCII_BANNER = r"""
 
 
 """
+
+
+def get_config_dir() -> Path:
+    """Determine the platform-appropriate configuration directory."""
+    if sys.platform == "win32":
+        base = Path(os.getenv("APPDATA") or Path.home() / "AppData" / "Roaming")
+    elif sys.platform == "darwin":
+        base = Path.home() / "Library" / "Application Support"
+    else:
+        base = Path(os.getenv("XDG_CONFIG_HOME") or Path.home() / ".config")
+    return base / "video-tool"
+
+
+CONFIG_DIR = get_config_dir()
+PROFILES_FILE = CONFIG_DIR / "profiles.json"
+
+DEFAULT_PARAMS: Dict[str, Any] = {
+    "input_dir": None,
+    "repo_url": None,
+    "video_title": None,
+    "skip_silence_removal": False,
+    "skip_concat": False,
+    "skip_reprocessing": False,
+    "skip_timestamps": False,
+    "skip_transcript": False,
+    "skip_context_cards": False,
+    "skip_description": False,
+    "skip_seo": False,
+    "skip_linkedin": False,
+    "skip_twitter": False,
+    "skip_bunny_video_upload": True,
+    "skip_bunny_chapter_upload": True,
+    "skip_bunny_transcript_upload": True,
+    "bunny_library_id": None,
+    "bunny_collection_id": None,
+    "bunny_caption_language": "en",
+    "bunny_video_id": None,
+    "verbose_logging": False,
+}
+
+
+class StepFlagSpec:
+    """Metadata describing CLI toggles for specific processing steps."""
+
+    def __init__(self, cli_name: str, skip_key: str, help_text: str):
+        self.cli_name = cli_name
+        self.skip_key = skip_key
+        self.help_text = help_text
+
+    @property
+    def attr(self) -> str:
+        return self.cli_name.replace("-", "_")
+
+
+STEP_FLAG_SPECS: List[StepFlagSpec] = [
+    StepFlagSpec("silence-removal", "skip_silence_removal", "Run silence removal."),
+    StepFlagSpec("concat", "skip_concat", "Run video concatenation."),
+    StepFlagSpec("timestamps", "skip_timestamps", "Generate timestamps."),
+    StepFlagSpec("transcript", "skip_transcript", "Generate transcript."),
+    StepFlagSpec("context-cards", "skip_context_cards", "Generate context cards."),
+    StepFlagSpec("description", "skip_description", "Draft video description."),
+    StepFlagSpec("seo", "skip_seo", "Generate SEO keyword suggestions."),
+    StepFlagSpec("linkedin", "skip_linkedin", "Draft LinkedIn copy."),
+    StepFlagSpec("twitter", "skip_twitter", "Draft Twitter/X copy."),
+    StepFlagSpec("bunny-video", "skip_bunny_video_upload", "Upload video to Bunny.net."),
+    StepFlagSpec(
+        "bunny-chapters",
+        "skip_bunny_chapter_upload",
+        "Upload chapter markers to Bunny.net.",
+    ),
+    StepFlagSpec(
+        "bunny-transcript",
+        "skip_bunny_transcript_upload",
+        "Upload transcript captions to Bunny.net.",
+    ),
+]
+
+
+def load_profiles() -> Dict[str, Dict[str, Any]]:
+    """Load persisted profile configurations."""
+    if not PROFILES_FILE.exists():
+        return {}
+
+    try:
+        with PROFILES_FILE.open("r", encoding="utf-8") as handle:
+            raw = json.load(handle)
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.error(f"Unable to read saved profiles: {exc}")
+        return {}
+
+    if not isinstance(raw, dict):
+        logger.warning("Profiles file is malformed; ignoring.")
+        return {}
+
+    profiles: Dict[str, Dict[str, Any]] = {}
+    for name, data in raw.items():
+        if not isinstance(data, dict):
+            continue
+        cleaned = {
+            key: value
+            for key, value in data.items()
+            if key in DEFAULT_PARAMS
+            and key not in {"input_dir", "repo_url", "video_title"}
+        }
+        profiles[str(name)] = cleaned
+    return profiles
+
+
+def save_profiles(profiles: Dict[str, Dict[str, Any]]) -> None:
+    """Persist the provided profile collection."""
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    with PROFILES_FILE.open("w", encoding="utf-8") as handle:
+        json.dump(profiles, handle, indent=2)
+
+
+def resolve_profile(name: str) -> Optional[Dict[str, Any]]:
+    """Return the configuration for a saved profile name (case insensitive)."""
+    profiles = load_profiles()
+    for stored_name, data in profiles.items():
+        if stored_name.lower() == name.lower():
+            return {
+                key: value
+                for key, value in data.items()
+                if key in DEFAULT_PARAMS
+            }
+    return None
+
+
+def apply_default_settings(overrides: Dict[str, Any]) -> Dict[str, Any]:
+    """Merge overrides with CLI defaults."""
+    merged = DEFAULT_PARAMS.copy()
+    merged.update({key: overrides[key] for key in overrides if key in merged})
+    return merged
+
+
+def apply_cli_overrides(params: Dict[str, Any], args: argparse.Namespace) -> Dict[str, Any]:
+    """Apply non-interactive CLI toggles to the run configuration."""
+    if getattr(args, "skip_all", False):
+        for key in params:
+            if key.startswith("skip_") and key != "skip_reprocessing":
+                params[key] = True
+
+    for spec in STEP_FLAG_SPECS:
+        if getattr(args, spec.attr, False):
+            params[spec.skip_key] = False
+
+    return params
+
+
+def ensure_repo_url(params: Dict[str, Any]) -> bool:
+    """Make sure a repository URL is available when description generation runs."""
+    if params.get("skip_description", False):
+        return True
+
+    if params.get("repo_url"):
+        return True
+
+    if sys.stdin and sys.stdin.isatty():
+        console.print(
+            "[yellow]Description generation requires a repository URL.[/]"
+        )
+        params["repo_url"] = ask_required_text("Repository URL")
+        return True
+
+    console.print(
+        "[bold red]Repository URL required for description generation.[/]\n"
+        "Provide it via --manual, --profile, or the profiles file."
+    )
+    logger.error("Missing repository URL while description generation is enabled.")
+    return False
+
+
+def prompt_save_profile(params: Dict[str, Any]) -> None:
+    """Offer to persist the current configuration for future runs."""
+    profiles = load_profiles()
+    if not Confirm.ask(
+        "Save this configuration for future runs?",
+        default=False,
+        console=console,
+    ):
+        return
+
+    while True:
+        profile_name = (
+            Prompt.ask("[bold cyan]Profile name[/]", console=console).strip()
+        )
+        if not profile_name:
+            console.print("[yellow]Please choose a non-empty profile name.[/]")
+            continue
+
+        existing = next(
+            (
+                stored_name
+                for stored_name in profiles
+                if stored_name.lower() == profile_name.lower()
+            ),
+            None,
+        )
+        if existing and not Confirm.ask(
+            f"Profile '{existing}' exists. Overwrite?",
+            default=False,
+            console=console,
+        ):
+            continue
+
+        profiles[existing or profile_name] = {
+            key: params.get(key)
+            for key in DEFAULT_PARAMS
+            if key not in {"input_dir", "repo_url", "video_title"}
+        }
+        save_profiles(profiles)
+        console.print(f"[green]Saved profile[/] -> {existing or profile_name}")
+        break
+
+
+def parse_cli_args() -> argparse.Namespace:
+    """Parse CLI arguments for run configuration."""
+    parser = argparse.ArgumentParser(description="Video tool orchestrator.")
+    parser.add_argument(
+        "command",
+        nargs="?",
+        default="run",
+        help="Subcommand to execute (only 'run' is currently supported).",
+    )
+    parser.add_argument(
+        "--manual",
+        action="store_true",
+        help="Run in interactive mode to configure all options.",
+    )
+    parser.add_argument(
+        "--profile",
+        type=str,
+        help="Load configuration from a saved profile.",
+    )
+    parser.add_argument(
+        "--input-dir",
+        type=str,
+        help="Override input directory when running non-interactively.",
+    )
+    parser.add_argument(
+        "--skip-all",
+        action="store_true",
+        help="Skip every optional processing step unless explicitly re-enabled.",
+    )
+    for spec in STEP_FLAG_SPECS:
+        parser.add_argument(
+            f"--{spec.cli_name}",
+            action="store_true",
+            help=spec.help_text + " Overrides --skip-all for this step.",
+        )
+    return parser.parse_args()
 
 
 def configure_logging(verbose: bool) -> None:
@@ -107,6 +360,18 @@ def ask_optional_text(prompt_text: str) -> Optional[str]:
         console=console,
     ).strip()
     return response or None
+
+
+def ask_required_text(prompt_text: str) -> str:
+    """Prompt until a non-empty text value is provided."""
+    while True:
+        response = (
+            Prompt.ask(f"[bold cyan]{prompt_text}[/]", console=console)
+            .strip()
+        )
+        if response:
+            return response
+        console.print("[yellow]Please provide a value.[/]")
 
 
 def summarize_configuration(data: Dict[str, Any]) -> None:
@@ -235,6 +500,12 @@ def get_user_input() -> Dict[str, Any]:
         default=False,
         console=console,
     )
+
+    if not skip_description and not repo_url:
+        console.print(
+            "[yellow]A repository URL is required to generate a description.[/]"
+        )
+        repo_url = ask_required_text("Repository URL")
 
     # Always prompt for SEO keywords skip, regardless of description selection
     skip_seo = Confirm.ask(
@@ -372,14 +643,102 @@ def run_step(message: str, action: Callable[[], T]) -> T:
 
 def main() -> None:
     load_dotenv()
+    args = parse_cli_args()
+
+    if args.command.lower() != "run":
+        console.print(f"[bold red]Unsupported command:[/] {args.command}")
+        console.print("[cyan]Available command:[/] run")
+        return
+
+    if args.manual and args.profile:
+        console.print("[bold red]Cannot combine --manual with --profile.[/]")
+        return
+
     configure_logging(verbose=False)
     display_welcome()
 
     if not validate_environment():
         return
 
+    manual_mode = args.manual
+    profile_used: Optional[str] = None
+
+    if manual_mode:
+        ignored_flags: List[str] = []
+        if getattr(args, "skip_all", False):
+            ignored_flags.append("--skip-all")
+        ignored_flags.extend(
+            f"--{spec.cli_name}"
+            for spec in STEP_FLAG_SPECS
+            if getattr(args, spec.attr, False)
+        )
+        if ignored_flags:
+            console.print(
+                "[yellow]Manual mode ignores non-interactive flags:[/] "
+                + ", ".join(ignored_flags)
+            )
+
     try:
-        params = get_user_input()
+        if manual_mode:
+            params = get_user_input()
+            params = apply_default_settings(params)
+            params["input_dir"] = normalize_path(str(params["input_dir"]))
+            if not ensure_repo_url(params):
+                return
+        else:
+            profile_data: Optional[Dict[str, Any]] = None
+            if args.profile:
+                profile_used = args.profile
+                profile_data = resolve_profile(args.profile)
+                if profile_data is None:
+                    available_profiles = list(load_profiles().keys())
+                    console.print(
+                        f"[bold red]Profile not found:[/] {args.profile}"
+                    )
+                    if available_profiles:
+                        console.print(
+                            "[cyan]Available profiles:[/] "
+                            + ", ".join(sorted(available_profiles))
+                        )
+                    logger.error(f"Requested profile not found: {args.profile}")
+                    return
+            else:
+                default_profile = resolve_profile("default")
+                if default_profile:
+                    profile_used = "default"
+                    profile_data = default_profile
+
+            params = apply_default_settings(profile_data or {})
+            if args.input_dir:
+                params["input_dir"] = normalize_path(args.input_dir)
+
+            params = apply_cli_overrides(params, args)
+
+            if not params.get("input_dir"):
+                if sys.stdin and sys.stdin.isatty():
+                    console.print("[yellow]Input directory is required for this run.[/]")
+                    params["input_dir"] = ask_required_path("Input directory")
+                else:
+                    console.print(
+                        "[bold red]Input directory not provided. "
+                        "Set --input-dir or save it in the selected profile.[/]"
+                    )
+                    logger.error("Input directory missing for non-interactive run.")
+                    return
+            else:
+                params["input_dir"] = normalize_path(str(params["input_dir"]))
+
+            if not ensure_repo_url(params):
+                return
+
+            if profile_used:
+                console.print(f"[cyan]Using profile[/] -> {profile_used}")
+            else:
+                console.print("[cyan]Using default run configuration.[/]")
+            console.print()
+            summarize_configuration(params)
+            console.print()
+
         configure_logging(params.get("verbose_logging", False))
 
         input_dir = Path(params["input_dir"]).expanduser().resolve()
@@ -759,6 +1118,9 @@ def main() -> None:
                     box=box.ASCII,
                 )
             )
+
+        if manual_mode:
+            prompt_save_profile(params)
 
         console.print("\n[bold green]All done! Happy editing.[/]")
         console.print("[dim]Detailed logs saved to video_processor.log[/]")
