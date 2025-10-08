@@ -4,6 +4,7 @@ from openai import OpenAI
 from pydub import AudioSegment
 from pydub.silence import detect_nonsilent
 from groq import Groq
+import requests
 
 from .processor import VideoProcessor
 
@@ -15,5 +16,6 @@ __all__ = [
     "OpenAI",
     "Groq",
     "logger",
+    "requests",
 ]
 

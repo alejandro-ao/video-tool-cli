@@ -324,21 +324,42 @@ class BunnyDeploymentMixin:
             video_id=video_id,
             language=language,
         )
-        if not caption_id:
-            return False
+        if caption_id:
+            url = f"{self._API_BASE}/library/{library}/videos/{video_id}/captions/{caption_id}"
+            files = {"captionsFile": ("transcript.vtt", transcript_path.read_bytes(), "text/vtt")}
 
-        url = f"{self._API_BASE}/library/{library}/videos/{video_id}/captions/{caption_id}"
-        files = {"captionsFile": ("transcript.vtt", transcript_path.read_bytes(), "text/vtt")}
+            response = self._perform_request(
+                method="PUT",
+                url=url,
+                access_key=access_key,
+                files=files,
+                timeout=30,
+            )
+            if response is None:
+                logger.warning("Failed to upload transcript captions to Bunny.")
+                return False
+            return True
 
+        # Fallback: some Bunny API variants expect direct POST to srclang endpoint with VTT body
+        logger.info(
+            "Caption track creation returned no identifier; attempting direct srclang upload."
+        )
+        fallback_url = (
+            f"{self._API_BASE}/library/{library}/videos/{video_id}/captions/{language}"
+        )
+        headers = {"Content-Type": "text/vtt"}
         response = self._perform_request(
-            method="PUT",
-            url=url,
+            method="POST",
+            url=fallback_url,
             access_key=access_key,
-            files=files,
+            headers=headers,
+            data=transcript_path.read_bytes(),
             timeout=30,
         )
         if response is None:
-            logger.warning("Failed to upload transcript captions to Bunny.")
+            logger.warning(
+                "Failed to upload transcript via srclang endpoint; Bunny may still be processing."
+            )
             return False
         return True
 

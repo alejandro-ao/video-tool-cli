@@ -93,6 +93,16 @@ def setup_test_env():
     original_env = os.environ.copy()
     os.environ['OPENAI_API_KEY'] = 'test-key'
     os.environ['GROQ_API_KEY'] = 'test-key'
+    # Ensure Bunny deployment tests don't pick up real environment values
+    for key in (
+        'BUNNY_LIBRARY_ID',
+        'BUNNY_ACCESS_KEY',
+        'BUNNY_COLLECTION_ID',
+        'BUNNY_CAPTION_LANGUAGE',
+        'BUNNY_VIDEO_ID',
+    ):
+        if key in os.environ:
+            del os.environ[key]
     yield
     os.environ.clear()
     os.environ.update(original_env)
