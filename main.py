@@ -418,15 +418,6 @@ def main() -> None:
             )
             artifacts["Processed clips"] = processed_dir
 
-        # Generate timestamps for individual videos
-        if not params["skip_timestamps"]:
-            timestamps_info = run_step(
-                "⏰ Generating timestamps for individual videos...",
-                processor.generate_timestamps,
-            )
-            logger.info("✅ Timestamps generated for all videos")
-            console.print("[green]Timestamps generated for all videos[/]")
-
         # Concatenation
         output_video: Optional[str] = None
         if not params["skip_concat"]:
@@ -515,6 +506,14 @@ def main() -> None:
             if default_transcript.exists():
                 resolved_transcript = default_transcript
                 artifacts.setdefault("Transcript", str(default_transcript))
+
+        if not params["skip_timestamps"]:
+            timestamps_info = run_step(
+                "⏰ Generating timestamps for individual videos...",
+                processor.generate_timestamps,
+            )
+            logger.info("✅ Timestamps generated for all videos")
+            console.print("[green]Timestamps generated for all videos[/]")
 
         bunny_result: Optional[Dict[str, Any]] = None
         upload_bunny_video = not params["skip_bunny_video_upload"]

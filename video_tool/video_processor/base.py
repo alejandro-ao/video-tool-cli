@@ -6,12 +6,15 @@ import unicodedata
 from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Type, TypeVar, Union
 
 import yaml
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
+from pydantic import BaseModel
 
 from .shared import Groq, OpenAI, logger
+
+StructuredResponse = TypeVar("StructuredResponse", bound=BaseModel)
 
 
 class VideoProcessorBase:
@@ -203,4 +206,23 @@ class VideoProcessorBase:
         response = chat_model.invoke(langchain_messages)
         if not isinstance(response, AIMessage):
             raise TypeError("Expected LangChain AIMessage response from ChatOpenAI invocation.")
+        return response
+
+    def _invoke_openai_chat_structured_output(
+        self,
+        *,
+        model: str,
+        messages: List[Union[Dict[str, str], BaseMessage]],
+        schema: Type[StructuredResponse],
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        include_raw: bool = False,
+    ) -> StructuredResponse:
+        """Execute a chat request that returns structured output defined by the schema."""
+        chat_model = self._build_openai_chat_model(
+            model=model, temperature=temperature, max_tokens=max_tokens
+        )
+        structured_model = chat_model.with_structured_output(schema, include_raw=include_raw)
+        langchain_messages = self._convert_messages_to_langchain(messages)
+        response = structured_model.invoke(langchain_messages)
         return response

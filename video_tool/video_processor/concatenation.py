@@ -4,9 +4,32 @@ import json
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from textwrap import dedent
+from typing import Dict, List, Optional, Sequence, Tuple
+
+from pydantic import BaseModel
 
 from .shared import VideoFileClip, logger
+
+
+class ChapterUpdate(BaseModel):
+    start: str
+    end: str
+    title: str
+
+
+class ChapterUpdateResponse(BaseModel):
+    chapters: List[ChapterUpdate]
+
+
+CHAPTER_SYSTEM_PROMPT = dedent(
+    """
+    You generate polished YouTube chapter titles.
+    Match each chapter's start and end timestamp exactly as provided.
+    Titles must be concise, descriptive, and reflect the transcript excerpt.
+    Return structured data using the supplied schema only.
+    """
+).strip()
 
 
 class ConcatenationMixin:
@@ -287,6 +310,17 @@ class ConcatenationMixin:
 
             current_time = end_time
 
+        transcript_path = self.output_dir / "transcript.vtt"
+        if transcript_path.exists():
+            try:
+                transcript_segments = self._load_transcript_segments(transcript_path)
+                if transcript_segments:
+                    timestamps = self._refine_timestamp_titles_with_structured_output(
+                        timestamps, transcript_segments
+                    )
+            except Exception as exc:
+                logger.warning(f"Unable to refine timestamp titles via transcript: {exc}")
+
         video_info = {
             "timestamps": timestamps,
             "metadata": {
@@ -299,6 +333,187 @@ class ConcatenationMixin:
             json.dump([video_info], file, indent=2)
 
         return video_info
+
+    def _parse_vtt_timestamp(self, timestamp: str) -> float:
+        """Convert a VTT timestamp (HH:MM:SS.mmm) to seconds."""
+        try:
+            hours, minutes, seconds = timestamp.strip().split(":")
+            return int(hours) * 3600 + int(minutes) * 60 + float(seconds)
+        except ValueError as exc:
+            raise ValueError(f"Invalid VTT timestamp: {timestamp}") from exc
+
+    def _normalize_timestamp_for_seconds(self, timestamp: str) -> str:
+        """Ensure timestamps include hours and milliseconds for parsing."""
+        normalized = timestamp.strip()
+        if normalized.count(":") == 1:
+            normalized = f"00:{normalized}"
+        if "." not in normalized:
+            normalized = f"{normalized}.000"
+        return normalized
+
+    def _load_transcript_segments(self, transcript_path: Path) -> List[Dict[str, object]]:
+        """Parse a VTT transcript into time-bound text segments."""
+        try:
+            content = transcript_path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            logger.warning(f"Transcript not found for timestamp enrichment: {transcript_path}")
+            return []
+
+        lines = content.splitlines()
+        segments: List[Dict[str, object]] = []
+        index = 0
+        total_lines = len(lines)
+
+        while index < total_lines:
+            line = lines[index].strip()
+            if "-->" not in line:
+                index += 1
+                continue
+
+            try:
+                start_str, end_str = [part.strip() for part in line.split("-->")]
+                start_seconds = self._parse_vtt_timestamp(self._normalize_timestamp_for_seconds(start_str))
+                end_seconds = self._parse_vtt_timestamp(self._normalize_timestamp_for_seconds(end_str))
+            except ValueError:
+                index += 1
+                continue
+
+            index += 1
+            text_lines: List[str] = []
+            while index < total_lines:
+                text_line = lines[index].strip()
+                if not text_line:
+                    break
+                text_lines.append(text_line)
+                index += 1
+
+            if text_lines:
+                segments.append(
+                    {
+                        "start": start_seconds,
+                        "end": end_seconds,
+                        "text": " ".join(text_lines),
+                    }
+                )
+
+            index += 1
+
+        return segments
+
+    def _refine_timestamp_titles_with_structured_output(
+        self,
+        timestamps: List[Dict[str, str]],
+        transcript_segments: List[Dict[str, object]],
+    ) -> List[Dict[str, str]]:
+        """Use structured output to enrich chapter titles with transcript context."""
+        if not timestamps:
+            return timestamps
+
+        class ChapterUpdate(BaseModel):
+            start: str
+            end: str
+            title: str
+
+        class ChapterUpdateResponse(BaseModel):
+            chapters: List[ChapterUpdate]
+
+        chapter_contexts: List[Dict[str, str]] = []
+        context_char_limit = 600
+        for entry in timestamps:
+            start_seconds = self._parse_vtt_timestamp(
+                self._normalize_timestamp_for_seconds(entry["start"])
+            )
+            end_seconds = self._parse_vtt_timestamp(
+                self._normalize_timestamp_for_seconds(entry["end"])
+            )
+
+            excerpts: List[str] = []
+            for segment in transcript_segments:
+                segment_start = float(segment["start"])
+                segment_end = float(segment["end"])
+                if segment_end >= start_seconds and segment_start <= end_seconds:
+                    segment_text = str(segment.get("text", "")).strip()
+                    if segment_text:
+                        excerpts.append(segment_text)
+
+            context_text = " ".join(excerpts).strip()
+            if not context_text:
+                context_text = "No transcript context captured for this interval."
+
+            if len(context_text) > context_char_limit:
+                context_text = context_text[:context_char_limit]
+
+            chapter_contexts.append(
+                {
+                    "start": entry["start"],
+                    "end": entry["end"],
+                    "current_title": entry.get("title", ""),
+                    "transcript_excerpt": context_text,
+                }
+            )
+
+        updated_titles: Dict[Tuple[str, str], str] = {}
+        batch_size = 4
+        for index in range(0, len(chapter_contexts), batch_size):
+            chunk = chapter_contexts[index : index + batch_size]
+            response = self._request_structured_chapter_updates(chunk)
+
+            if response is None and len(chunk) > 1:
+                for item in chunk:
+                    fallback_response = self._request_structured_chapter_updates([item])
+                    if fallback_response:
+                        for chapter in fallback_response.chapters:
+                            key = (chapter.start.strip(), chapter.end.strip())
+                            if chapter.title.strip():
+                                updated_titles[key] = chapter.title.strip()
+                continue
+
+            if response:
+                for chapter in response.chapters:
+                    if chapter.title.strip():
+                        key = (chapter.start.strip(), chapter.end.strip())
+                        updated_titles[key] = chapter.title.strip()
+
+        if updated_titles:
+            for entry in timestamps:
+                key = (entry["start"].strip(), entry["end"].strip())
+                new_title = updated_titles.get(key)
+                if new_title:
+                    entry["title"] = new_title
+
+        return timestamps
+
+    def _request_structured_chapter_updates(
+        self, chapter_contexts: Sequence[Dict[str, str]]
+    ) -> Optional[ChapterUpdateResponse]:
+        if not chapter_contexts:
+            return None
+
+        payload = {
+            "video_title": self.video_title or Path(self.input_dir).stem,
+            "chapters": list(chapter_contexts),
+            "instructions": "Generate clear, descriptive chapter titles using the provided transcript excerpts. Keep titles under 70 characters and make them engaging.",
+        }
+
+        messages: List[Dict[str, str]] = [
+            {"role": "system", "content": CHAPTER_SYSTEM_PROMPT},
+            {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
+        ]
+
+        try:
+            structured_response = self._invoke_openai_chat_structured_output(
+                model="gpt-4o-mini",
+                messages=messages,
+                schema=ChapterUpdateResponse,
+                temperature=0.3,
+                max_tokens=256,
+            )
+            return structured_response
+        except Exception as exc:
+            logger.warning(
+                f"Structured chapter generation failed for batch of size {len(chapter_contexts)}: {exc}"
+            )
+            return None
 
     def match_video_encoding(
         self,

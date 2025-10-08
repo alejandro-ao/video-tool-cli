@@ -4,6 +4,7 @@ import pytest
 import json
 from pathlib import Path
 from unittest.mock import Mock, patch
+from types import SimpleNamespace
 from langchain_core.messages import AIMessage
 
 from video_tool.video_processor import VideoProcessor
@@ -121,6 +122,99 @@ class TestGenerateTimestamps:
                 
                 # Should handle error gracefully
                 mock_logger.assert_called()
+
+    def test_generate_timestamps_refines_titles_with_transcript(
+        self, temp_dir, mock_video_processor
+    ):
+        """Structured output should refine chapter titles using transcript excerpts."""
+        processed_dir = temp_dir / "processed"
+        MockVideoGenerator.create_test_video_set(processed_dir, count=2)
+        transcript_file = temp_dir / "output" / "transcript.vtt"
+        MockTranscriptGenerator.create_vtt_transcript(
+            transcript_file,
+            segments=[
+                {"start": 0.0, "end": 60.0, "text": "Introduction to the tool and workflow."},
+                {"start": 60.0, "end": 120.0, "text": "Project setup and configuration details."},
+                {"start": 120.0, "end": 210.0, "text": "Deep dive into content generation routines."},
+                {"start": 210.0, "end": 300.0, "text": "Best practices and final thoughts."},
+            ],
+        )
+
+        mock_video_processor.video_dir = temp_dir
+
+        with patch.object(mock_video_processor, '_get_video_metadata') as mock_metadata, patch.object(
+            mock_video_processor, '_invoke_openai_chat_structured_output'
+        ) as mock_structured:
+            mock_metadata.side_effect = [
+                {'duration': 120.0},
+                {'duration': 180.0},
+            ]
+
+            mock_structured.return_value = SimpleNamespace(
+                chapters=[
+                    SimpleNamespace(start="00:00:00", end="00:02:00", title="Workflow Overview"),
+                    SimpleNamespace(start="00:02:00", end="00:05:00", title="Content Generation Deep Dive"),
+                ]
+            )
+
+            result = mock_video_processor.generate_timestamps()
+
+        timestamps_file = temp_dir / "output" / "timestamps.json"
+        assert timestamps_file.exists()
+
+        data = json.loads(timestamps_file.read_text())
+        assert data[0]['timestamps'][0]['title'] == "Workflow Overview"
+        assert data[0]['timestamps'][1]['title'] == "Content Generation Deep Dive"
+        mock_structured.assert_called_once()
+
+    def test_generate_timestamps_structured_fallback_to_singles(
+        self, temp_dir, mock_video_processor
+    ):
+        """If batch request fails, fallback per chapter still refines titles."""
+        processed_dir = temp_dir / "processed"
+        MockVideoGenerator.create_test_video_set(processed_dir, count=2)
+        transcript_file = temp_dir / "output" / "transcript.vtt"
+        MockTranscriptGenerator.create_vtt_transcript(
+            transcript_file,
+            segments=[
+                {"start": 0.0, "end": 60.0, "text": "Intro segment here."},
+                {"start": 60.0, "end": 120.0, "text": "Second chapter details."},
+            ],
+        )
+
+        mock_video_processor.video_dir = temp_dir
+
+        with patch.object(mock_video_processor, '_get_video_metadata') as mock_metadata, patch.object(
+            mock_video_processor, '_invoke_openai_chat_structured_output'
+        ) as mock_structured:
+            mock_metadata.side_effect = [
+                {'duration': 60.0},
+                {'duration': 60.0},
+            ]
+
+            mock_structured.side_effect = [
+                Exception("Length limit"),
+                SimpleNamespace(
+                    chapters=[
+                        SimpleNamespace(start="00:00:00", end="00:01:00", title="Introduction Overview"),
+                    ]
+                ),
+                SimpleNamespace(
+                    chapters=[
+                        SimpleNamespace(start="00:01:00", end="00:02:00", title="Deep Dive Topic"),
+                    ]
+                ),
+            ]
+
+            result = mock_video_processor.generate_timestamps()
+
+        timestamps_file = temp_dir / "output" / "timestamps.json"
+        assert timestamps_file.exists()
+
+        data = json.loads(timestamps_file.read_text())
+        assert data[0]['timestamps'][0]['title'] == "Introduction Overview"
+        assert data[0]['timestamps'][1]['title'] == "Deep Dive Topic"
+        assert mock_structured.call_count == 3
 
 
 class TestGenerateTranscript:

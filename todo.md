@@ -14,10 +14,10 @@
   - [X] upload transcription & chapters through API
 - [X] switch to langchain for LLM calls
 - [X] integrate langsmith for tracing
-- [ ] fix chapter names with LLM right into the json file
+- [X] fix chapter names with LLM right into the json file
 - [ ] allow to run the script from the video directory
 - [ ] fix interactive inputs (change the defaults to be more intuitive)
-- [ ] publish LinkedIn port and 
+- [ ] publish LinkedIn post
 - [ ] fix generate seo words with web search
 - [ ] add willow animation
 - [ ] generate a blog post
