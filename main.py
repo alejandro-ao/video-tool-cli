@@ -1,234 +1,588 @@
 import os
-import argparse
+import sys
+from contextlib import contextmanager
 from pathlib import Path
+from typing import Any, Callable, Dict, Optional, TypeVar
+
 from dotenv import load_dotenv
 from loguru import logger
+from rich import box
+from rich.console import Console
+from rich.panel import Panel
+from rich.prompt import Confirm, Prompt
+from rich.table import Table
+from rich.text import Text
+
 from video_tool import VideoProcessor
 
-def get_user_input():
-    """Get parameters from user input."""
-    print("\nVideo Processing Tool\n")
-    
-    # Get input directory
-    while True:
-        input_dir = input("Enter the input directory path: ").strip()
-        # Remove surrounding quotes if present
-        if input_dir.startswith('"') and input_dir.endswith('"'):
-            input_dir = input_dir[1:-1]
-        elif input_dir.startswith("'") and input_dir.endswith("'"):
-            input_dir = input_dir[1:-1]
-        else:
-            # Handle escaped spaces by replacing \  with just space
-            input_dir = input_dir.replace('\\ ', ' ')
-        
-        if input_dir:
-            break
-        print("Input directory is required!")
-    
-    # Get optional parameters
-    repo_url = input("Enter GitHub repository URL (optional): ").strip()
-    video_title = input("Enter the video title (optional): ").strip()
-    
-    # Get processing options
-    print("\nProcessing options (Enter 'y' to skip, any other key to process):")
-    skip_silence_removal = input("Skip silence removal? ").lower().strip() == 'y'
-    skip_concat = input("Skip video concatenation? ").lower().strip() == 'y'
-    
-    # Only ask about reprocessing if concatenation is not being skipped
-    skip_reprocessing = False
-    if not skip_concat:
-        print("\nConcatenation options:")
-        skip_reprocessing = input("Skip video reprocessing for faster concatenation (assumes same format)? ").lower().strip() == 'y'
-    
-    skip_timestamps = input("Skip timestamp generation? ").lower().strip() == 'y'
-    skip_transcript = input("Skip transcript generation? ").lower().strip() == 'y'
-    skip_context_cards = input("Skip context cards generation? ").lower().strip() == 'y'
-    skip_description = input("Skip description generation? ").lower().strip() == 'y'
-    skip_seo = input("Skip SEO keywords generation? ").lower().strip() == 'y'
-    skip_linkedin = input("Skip LinkedIn post generation? ").lower().strip() == 'y'
-    skip_twitter = input("Skip Twitter post generation? ").lower().strip() == 'y'
-    
-    return {
-        'input_dir': input_dir,
-        'repo_url': repo_url if repo_url else None,
-        'video_title': video_title if video_title else None,
-        'skip_silence_removal': skip_silence_removal,
-        'skip_concat': skip_concat,
-        'skip_reprocessing': skip_reprocessing,
-        'skip_timestamps': skip_timestamps,
-        'skip_transcript': skip_transcript,
-        'skip_context_cards': skip_context_cards,
-        'skip_description': skip_description,
-        'skip_seo': skip_seo,
-        'skip_linkedin': skip_linkedin,
-        'skip_twitter': skip_twitter
-    }
+console = Console()
+T = TypeVar("T")
+CONSOLE_SINK_ID: Optional[int] = None
 
-def main():
+ASCII_BANNER = r"""
+
+
+    @@@@@@@@@@@@@@@         @@        __     __  __        __                            ________                    __ 
+  @@@@           @@@@    @@@@@      |  \   |  \|  \      |  \                          |        \                  |  \
+  @@ @@@@@        @@@ @@@@@ @@      | $$   | $$ \$$  ____| $$  ______    ______         \$$$$$$$$______    ______  | $$
+  @@ @@@          @@@@@@    @@      | $$   | $$|  \ /      $$ /      \  /      \          | $$  /      \  /      \ | $$
+  @@              @@@@@@    @@       \$$\ /  $$| $$|  $$$$$$$|  $$$$$$\|  $$$$$$\         | $$ |  $$$$$$\|  $$$$$$\| $$
+  @@              @@@@@@    @@        \$$\  $$ | $$| $$  | $$| $$    $$| $$  | $$         | $$ | $$  | $$| $$  | $$| $$
+  @@           @@ @@@@@@    @@         \$$ $$  | $$| $$__| $$| $$$$$$$$| $$__/ $$         | $$ | $$__/ $$| $$__/ $$| $$
+  @@        @@@@@ @@@ @@@@@ @@          \$$$   | $$ \$$    $$ \$$     \ \$$    $$         | $$  \$$    $$ \$$    $$| $$
+  @@@@           @@@@    @@@@@           \$     \$$  \$$$$$$$  \$$$$$$$  \$$$$$$           \$$   \$$$$$$   \$$$$$$  \$$
+    @@@@@@@@@@@@@@@         @@                                                                                         
+"""
+
+
+def configure_logging(verbose: bool) -> None:
+    """Configure loguru sinks so console output matches verbosity preference."""
+    global CONSOLE_SINK_ID
+
+    console_level = "DEBUG" if verbose else "WARNING"
+
+    if CONSOLE_SINK_ID is None:
+        logger.remove()
+    else:
+        logger.remove(CONSOLE_SINK_ID)
+
+    CONSOLE_SINK_ID = logger.add(
+        sys.stderr,
+        level=console_level,
+        colorize=True,
+        enqueue=True,
+    )
+
+
+def display_welcome() -> None:
+    """Render an ASCII banner and short tagline."""
+    banner = Text(ASCII_BANNER.rstrip("\n"), style="bold cyan")
+    console.print(
+        Panel(
+            banner,
+            title="Video Foundry",
+            subtitle="clip • compose • publish",
+            border_style="cyan",
+            box=box.ASCII,
+        )
+    )
+    console.print(
+        "[bold magenta]Process clips, assemble stories, and draft share-ready copy.[/]",
+        justify="center",
+    )
+    console.print()
+
+
+def normalize_path(raw: str) -> str:
+    """Normalize shell-style input paths (quotes / escaped spaces)."""
+    trimmed = raw.strip()
+    if trimmed.startswith('"') and trimmed.endswith('"'):
+        trimmed = trimmed[1:-1]
+    elif trimmed.startswith("'") and trimmed.endswith("'"):
+        trimmed = trimmed[1:-1]
+    return trimmed.replace("\\ ", " ")
+
+
+def ask_required_path(prompt_text: str) -> str:
+    """Prompt until a non-empty path-like value is provided."""
+    while True:
+        response = Prompt.ask(
+            f"[bold cyan]{prompt_text}[/]",
+            console=console,
+        )
+        normalized = normalize_path(response)
+        if normalized:
+            return normalized
+        console.print("[yellow]Please provide a value.[/]")
+
+
+def ask_optional_text(prompt_text: str) -> Optional[str]:
+    """Prompt for optional text input."""
+    response = Prompt.ask(
+        f"[bold cyan]{prompt_text}[/] ([dim]optional[/])",
+        default="",
+        show_default=False,
+        console=console,
+    ).strip()
+    return response or None
+
+
+def summarize_configuration(data: Dict[str, Any]) -> None:
+    """Show the user a quick overview of their selections."""
+    summary = Table(box=box.ASCII, show_header=False, pad_edge=False)
+    summary.add_row("Input directory", str(Path(data["input_dir"]).expanduser()))
+    summary.add_row("Repository URL", data["repo_url"] or "—")
+    summary.add_row("Video title", data["video_title"] or "—")
+    summary.add_row("Silence removal", "run" if not data["skip_silence_removal"] else "skip")
+    summary.add_row("Concatenation", "run" if not data["skip_concat"] else "skip")
+    if not data["skip_concat"]:
+        summary.add_row(
+            "Fast concatenation",
+            "enabled" if data["skip_reprocessing"] else "standard",
+        )
+    summary.add_row("Timestamps", "run" if not data["skip_timestamps"] else "skip")
+    summary.add_row("Transcript", "run" if not data["skip_transcript"] else "skip")
+    summary.add_row(
+        "Context cards",
+        "run" if not data["skip_context_cards"] else "skip",
+    )
+    description_label = "run" if not data["skip_description"] else "skip"
+    if description_label == "run" and not data["repo_url"]:
+        description_label = "run (requires repo URL)"
+    summary.add_row("Description", description_label)
+    summary.add_row("SEO keywords", "run" if not data["skip_seo"] else "skip")
+    summary.add_row("LinkedIn copy", "run" if not data["skip_linkedin"] else "skip")
+    summary.add_row("Twitter copy", "run" if not data["skip_twitter"] else "skip")
+    summary.add_row("Verbose logs", "on" if data.get("verbose_logging") else "off")
+
+    console.print(
+        Panel(
+            summary,
+            title="Run Overview",
+            border_style="magenta",
+            box=box.ASCII,
+        )
+    )
+
+
+def get_user_input() -> Dict[str, Any]:
+    """Collect and confirm configuration details interactively."""
+    while True:
+        console.print("[bold]Let's configure this session.[/]\n")
+        input_dir = ask_required_path("Input directory")
+        repo_url = ask_optional_text("Repository URL")
+        video_title = ask_optional_text("Video title")
+
+        console.print("\n[bold]Processing modules[/]")
+        run_silence = Confirm.ask(
+            "Run silence removal on clips?",
+            default=True,
+            console=console,
+        )
+        run_concat = Confirm.ask(
+            "Concatenate videos into a final cut?",
+            default=True,
+            console=console,
+        )
+
+        skip_reprocessing = False
+        if run_concat:
+            skip_reprocessing = Confirm.ask(
+                "Use fast concatenation (skip reprocessing step)?",
+                default=False,
+                console=console,
+            )
+
+        run_timestamps = Confirm.ask(
+            "Generate timestamps for individual clips?",
+            default=True,
+            console=console,
+        )
+        run_transcript = Confirm.ask(
+            "Generate a transcript?",
+            default=True,
+            console=console,
+        )
+        run_context_cards = Confirm.ask(
+            "Identify context cards and resource mentions?",
+            default=True,
+            console=console,
+        )
+        run_description = Confirm.ask(
+            "Draft a video description?",
+            default=True,
+            console=console,
+        )
+
+        run_seo = False
+        if run_description:
+            run_seo = Confirm.ask(
+                "Include SEO keyword suggestions?",
+                default=True,
+                console=console,
+            )
+
+        run_linkedin = Confirm.ask(
+            "Draft a LinkedIn post?",
+            default=True,
+            console=console,
+        )
+        run_twitter = Confirm.ask(
+            "Draft a Twitter/X post?",
+            default=True,
+            console=console,
+        )
+
+        console.print("\n[bold]Diagnostics[/]")
+        verbose_logging = Confirm.ask(
+            "Show detailed log output in the terminal?",
+            default=False,
+            console=console,
+        )
+
+        selections: Dict[str, Any] = {
+            "input_dir": input_dir,
+            "repo_url": repo_url,
+            "video_title": video_title,
+            "skip_silence_removal": not run_silence,
+            "skip_concat": not run_concat,
+            "skip_reprocessing": skip_reprocessing,
+            "skip_timestamps": not run_timestamps,
+            "skip_transcript": not run_transcript,
+            "skip_context_cards": not run_context_cards,
+            "skip_description": not run_description,
+            "skip_seo": not run_seo if run_description else True,
+            "skip_linkedin": not run_linkedin,
+            "skip_twitter": not run_twitter,
+            "verbose_logging": verbose_logging,
+        }
+
+        console.print()
+        summarize_configuration(selections)
+        console.print()
+
+        if Confirm.ask(
+            "Start processing with these settings?",
+            default=True,
+            console=console,
+        ):
+            return selections
+
+        console.print("[yellow]Sure thing—let's adjust those answers.[/]\n")
+
+
+def validate_environment() -> bool:
+    """Ensure required API keys are present."""
+    missing = [var for var in ("OPENAI_API_KEY", "GROQ_API_KEY") if not os.getenv(var)]
+    if missing:
+        missing_list = ", ".join(missing)
+        console.print(
+            f"[bold red]Missing required environment variables:[/] {missing_list}"
+        )
+        logger.error(f"Missing required environment variables: {missing_list}")
+        return False
+    return True
+
+
+@contextmanager
+def stage(message: str):
+    """Show a terminal spinner while a stage is running."""
+    with console.status(f"[bold blue]{message}[/]", spinner="line"):
+        yield
+
+
+def run_step(message: str, action: Callable[[], T]) -> T:
+    """Execute an action while displaying a spinner."""
+    logger.info(message)
+    with stage(message):
+        return action()
+
+
+def main() -> None:
     load_dotenv()
-    if not os.getenv('OPENAI_API_KEY'):
-        logger.error('OPENAI_API_KEY environment variable not set')
-        return
-    if not os.getenv('GROQ_API_KEY'):
-        logger.error('GROQ_API_KEY environment variable not set')
+    configure_logging(verbose=False)
+    display_welcome()
+
+    if not validate_environment():
         return
 
     try:
-        # Get parameters from user input
         params = get_user_input()
-        
-        # Convert to absolute path and handle spaces correctly
-        input_dir = Path(params['input_dir']).expanduser().resolve()
-        logger.info(f'Input directory path: {input_dir}')
-        
+        configure_logging(params.get("verbose_logging", False))
+
+        input_dir = Path(params["input_dir"]).expanduser().resolve()
+
         if not input_dir.exists():
-            logger.error(f'Input directory does not exist: {input_dir}')
+            console.print(
+                f"[bold red]Input directory does not exist:[/] {input_dir}"
+            )
+            logger.error(f"Input directory does not exist: {input_dir}")
             return
         if not input_dir.is_dir():
-            logger.error(f'Path is not a directory: {input_dir}')
+            console.print(f"[bold red]Path is not a directory:[/] {input_dir}")
+            logger.error(f"Path is not a directory: {input_dir}")
             return
 
-        processor = VideoProcessor(str(input_dir), video_title=params['video_title'])
-        logger.info(f'Output directory path: {processor.output_dir}')
+        processor = VideoProcessor(str(input_dir), video_title=params["video_title"])
+        logger.info(f"Input directory path: {input_dir}")
+        logger.info(f"Output directory path: {processor.output_dir}")
+
+        artifacts: Dict[str, Any] = {}
 
         # Remove silences
-        if not params['skip_silence_removal']:
-            logger.info('🔇 Removing silences from videos...')
-            processed_dir = processor.remove_silences()
-            logger.info(f'✅ Silences removed. Processed videos in: {processed_dir}')
+        if not params["skip_silence_removal"]:
+            processed_dir = run_step(
+                "🔇 Removing silences from videos...",
+                processor.remove_silences,
+            )
+            logger.info(f"✅ Silences removed. Processed videos in: {processed_dir}")
+            console.print(
+                f"[green]Silences removed[/] -> {processed_dir}"
+            )
+            artifacts["Processed clips"] = processed_dir
 
-        # Generate timestamps for individual videos first
-        if not params['skip_timestamps']:
-            logger.info('⏰ Generating timestamps for individual videos...')
-            processor.generate_timestamps()
-            logger.info('✅ Timestamps generated for all videos')
+        # Generate timestamps for individual videos
+        if not params["skip_timestamps"]:
+            run_step(
+                "⏰ Generating timestamps for individual videos...",
+                processor.generate_timestamps,
+            )
+            logger.info("✅ Timestamps generated for all videos")
+            console.print("[green]Timestamps generated for all videos[/]")
 
-        # Then proceed with concatenation
-        output_video = None
-        if not params['skip_concat']:
-            logger.info('🎬 Starting video concatenation...')
-            output_video = processor.concatenate_videos(skip_reprocessing=params['skip_reprocessing'])
+        # Concatenation
+        output_video: Optional[str] = None
+        if not params["skip_concat"]:
+            output_video = run_step(
+                "🎬 Starting video concatenation...",
+                lambda: processor.concatenate_videos(
+                    skip_reprocessing=params["skip_reprocessing"]
+                ),
+            )
             if output_video:
-                file_size = Path(output_video).stat().st_size / (1024*1024)
-                logger.info(f'✅ Videos concatenated: {Path(output_video).name} ({file_size:.1f} MB)')
+                file_size = Path(output_video).stat().st_size / (1024 * 1024)
+                logger.info(
+                    f"✅ Videos concatenated: {Path(output_video).name} ({file_size:.1f} MB)"
+                )
+                console.print(
+                    f"[green]Videos concatenated[/] -> "
+                    f"{Path(output_video).name} ({file_size:.1f} MB)"
+                )
+                artifacts["Final video"] = output_video
             else:
-                logger.warning('⚠️ Video concatenation completed but no output file returned')
+                logger.warning(
+                    "⚠️ Video concatenation completed but no output file returned"
+                )
+                console.print(
+                    "[yellow]Video concatenation completed but no output file returned[/]"
+                )
 
-        # Find video file for transcript/description generation
+        console.print("\n[bold]Selecting video for downstream tasks[/]")
         logger.info("🎥 Selecting video file for content generation...")
         video_path = output_video
-        
+
         if not video_path:
-            mp4_files = list(processor.output_dir.glob('*.mp4'))
+            mp4_files = list(processor.output_dir.glob("*.mp4"))
             if not mp4_files:
-                mp4_files = list(input_dir.glob('*.mp4'))
+                mp4_files = list(input_dir.glob("*.mp4"))
             if mp4_files:
-                # Sort by size (largest first) to get the main video
                 mp4_files_with_size = [(f, f.stat().st_size) for f in mp4_files]
-                mp4_files_with_size.sort(key=lambda x: x[1], reverse=True)
-                
-                video_path = mp4_files_with_size[0][0]
-                largest_size = mp4_files_with_size[0][1] / (1024*1024)
-                logger.info(f"📁 Selected largest MP4: {video_path.name} ({largest_size:.1f} MB)")
+                mp4_files_with_size.sort(key=lambda item: item[1], reverse=True)
+                video_path = str(mp4_files_with_size[0][0])
+                largest_size = mp4_files_with_size[0][1] / (1024 * 1024)
+                logger.info(
+                    f"📁 Selected largest MP4: {Path(video_path).name} ({largest_size:.1f} MB)"
+                )
+                console.print(
+                    f"[green]Using video[/] -> "
+                    f"{Path(video_path).name} ({largest_size:.1f} MB)"
+                )
+                artifacts.setdefault("Candidate video", Path(video_path))
             else:
-                logger.warning('❌ No video files found for content generation')
+                logger.warning("❌ No video files found for content generation")
+                console.print("[yellow]No video files found for content generation[/]")
                 video_path = None
         else:
             logger.info(f"📁 Using concatenated video: {Path(video_path).name}")
+            console.print(
+                f"[green]Using concatenated video[/] -> {Path(video_path).name}"
+            )
+            artifacts.setdefault("Candidate video", Path(video_path))
 
-        # Transcript generation
-        transcript_path = None
-        if not params['skip_transcript'] and video_path:
-            logger.info('📝 Generating transcript...')
-            transcript_path = processor.generate_transcript(str(video_path))
-            
+        transcript_path: Optional[str] = None
+        if not params["skip_transcript"] and video_path:
+            transcript_path = run_step(
+                "📝 Generating transcript...",
+                lambda: processor.generate_transcript(str(video_path)),
+            )
             if transcript_path and Path(transcript_path).exists():
                 transcript_size = Path(transcript_path).stat().st_size
-                logger.info(f'✅ Transcript generated ({transcript_size} bytes)')
+                logger.info(f"✅ Transcript generated ({transcript_size} bytes)")
+                console.print(
+                    f"[green]Transcript generated[/] -> "
+                    f"{Path(transcript_path).name} ({transcript_size} bytes)"
+                )
+                artifacts["Transcript"] = transcript_path
             else:
-                logger.error('❌ Transcript generation failed')
-        elif not params['skip_transcript']:
-            logger.warning('⚠️ Skipping transcript: no video file available')
+                logger.error("❌ Transcript generation failed")
+                console.print("[red]Transcript generation failed[/]")
+        elif not params["skip_transcript"]:
+            logger.warning("⚠️ Skipping transcript: no video file available")
+            console.print("[yellow]Skipping transcript: no video file available[/]")
 
-        resolved_transcript: Path | None = None
+        resolved_transcript: Optional[Path] = None
         if transcript_path and Path(transcript_path).exists():
             resolved_transcript = Path(transcript_path)
         else:
             default_transcript = processor.output_dir / "transcript.vtt"
             if default_transcript.exists():
                 resolved_transcript = default_transcript
+                artifacts.setdefault("Transcript", str(default_transcript))
 
-        # Context cards and resource mentions
-        if not params['skip_context_cards']:
+        if not params["skip_context_cards"]:
             if resolved_transcript:
-                logger.info('🗂️ Identifying YouTube card opportunities and resource mentions...')
-                cards_path = processor.generate_context_cards(str(resolved_transcript))
+                cards_path = run_step(
+                    "🗂 Identifying context cards and resource mentions...",
+                    lambda: processor.generate_context_cards(str(resolved_transcript)),
+                )
                 if cards_path:
-                    logger.info(f'✅ Context cards generated: {Path(cards_path).name}')
+                    logger.info(
+                        f"✅ Context cards generated: {Path(cards_path).name}"
+                    )
+                    console.print(
+                        f"[green]Context cards generated[/] -> "
+                        f"{Path(cards_path).name}"
+                    )
+                    artifacts["Context cards"] = cards_path
                 else:
-                    logger.error('❌ Context cards generation failed')
+                    logger.error("❌ Context cards generation failed")
+                    console.print("[red]Context cards generation failed[/]")
             else:
-                logger.warning('⚠️ Skipping context cards: no transcript available')
+                logger.warning("⚠️ Skipping context cards: no transcript available")
+                console.print(
+                    "[yellow]Skipping context cards: no transcript available[/]"
+                )
 
-        # Description generation
-        if not params['skip_description'] and params['repo_url'] and video_path:
-            logger.info('📄 Generating description...')
-            
-            transcript_vtt_path = str(processor.output_dir / 'transcript.vtt')
+        if (
+            not params["skip_description"]
+            and params["repo_url"]
+            and video_path
+        ):
+            transcript_vtt_path = str(processor.output_dir / "transcript.vtt")
             if not Path(transcript_vtt_path).exists():
-                logger.warning(f'⚠️ Transcript file not found: {transcript_vtt_path}')
-            
-            description_path = processor.generate_description(
-                str(video_path),
-                params['repo_url'],
-                transcript_vtt_path
+                logger.warning(f"⚠️ Transcript file not found: {transcript_vtt_path}")
+                console.print(
+                    f"[yellow]Transcript file not found:[/] {transcript_vtt_path}"
+                )
+
+            description_path = run_step(
+                "📄 Generating description...",
+                lambda: processor.generate_description(
+                    str(video_path),
+                    params["repo_url"],
+                    transcript_vtt_path,
+                ),
             )
-            
             if description_path:
-                logger.info(f'✅ Description generated: {Path(description_path).name}')
-                
-                if not params['skip_seo']:
-                    logger.info('🔍 Generating SEO keywords...')
-                    keywords_path = processor.generate_seo_keywords(description_path)
+                logger.info(
+                    f"✅ Description generated: {Path(description_path).name}"
+                )
+                console.print(
+                    f"[green]Description generated[/] -> "
+                    f"{Path(description_path).name}"
+                )
+                artifacts["Description"] = description_path
+
+                if not params["skip_seo"]:
+                    keywords_path = run_step(
+                        "🔍 Generating SEO keywords...",
+                        lambda: processor.generate_seo_keywords(description_path),
+                    )
                     if keywords_path:
-                        logger.info(f'✅ SEO keywords generated: {Path(keywords_path).name}')
+                        logger.info(
+                            f"✅ SEO keywords generated: {Path(keywords_path).name}"
+                        )
+                        console.print(
+                            f"[green]SEO keywords generated[/] -> "
+                            f"{Path(keywords_path).name}"
+                        )
+                        artifacts["SEO keywords"] = keywords_path
                     else:
-                        logger.error('❌ SEO keywords generation failed')
+                        logger.error("❌ SEO keywords generation failed")
+                        console.print("[red]SEO keyword generation failed[/]")
             else:
-                logger.error('❌ Description generation failed')
-        elif not params['skip_description'] and params['repo_url']:
-            logger.warning('⚠️ Skipping description: no video file available')
-        elif not params['skip_description']:
-            logger.info('ℹ️ Skipping description: no repository URL provided')
+                logger.error("❌ Description generation failed")
+                console.print("[red]Description generation failed[/]")
+        elif not params["skip_description"] and params["repo_url"]:
+            logger.warning("⚠️ Skipping description: no video file available")
+            console.print("[yellow]Skipping description: no video file available[/]")
+        elif not params["skip_description"]:
+            logger.info("ℹ️ Skipping description: no repository URL provided")
+            console.print("[yellow]Skipping description: no repository URL provided[/]")
 
-        # Generate social media posts
-        if not params['skip_linkedin'] and video_path and resolved_transcript:
-            logger.info('📱 Generating LinkedIn post...')
-            linkedin_path = processor.generate_linkedin_post(str(resolved_transcript))
+        if (
+            not params["skip_linkedin"]
+            and video_path
+            and resolved_transcript
+        ):
+            linkedin_path = run_step(
+                "📱 Generating LinkedIn post...",
+                lambda: processor.generate_linkedin_post(str(resolved_transcript)),
+            )
             if linkedin_path:
-                logger.info(f'✅ LinkedIn post generated: {Path(linkedin_path).name}')
+                logger.info(
+                    f"✅ LinkedIn post generated: {Path(linkedin_path).name}"
+                )
+                console.print(
+                    f"[green]LinkedIn post generated[/] -> "
+                    f"{Path(linkedin_path).name}"
+                )
+                artifacts["LinkedIn copy"] = linkedin_path
             else:
-                logger.error('❌ LinkedIn post generation failed')
-        elif not params['skip_linkedin'] and video_path:
-            logger.warning('⚠️ Skipping LinkedIn post: no transcript available')
-        elif not params['skip_linkedin']:
-            logger.warning('⚠️ Skipping LinkedIn post: no video file available')
+                logger.error("❌ LinkedIn post generation failed")
+                console.print("[red]LinkedIn post generation failed[/]")
+        elif not params["skip_linkedin"] and video_path:
+            logger.warning("⚠️ Skipping LinkedIn post: no transcript available")
+            console.print(
+                "[yellow]Skipping LinkedIn post: no transcript available[/]"
+            )
+        elif not params["skip_linkedin"]:
+            logger.warning("⚠️ Skipping LinkedIn post: no video file available")
+            console.print("[yellow]Skipping LinkedIn post: no video file available[/]")
 
-        if not params['skip_twitter'] and video_path and resolved_transcript:
-            logger.info('🐦 Generating Twitter post...')
-            twitter_path = processor.generate_twitter_post(str(resolved_transcript))
+        if (
+            not params["skip_twitter"]
+            and video_path
+            and resolved_transcript
+        ):
+            twitter_path = run_step(
+                "🐦 Generating Twitter post...",
+                lambda: processor.generate_twitter_post(str(resolved_transcript)),
+            )
             if twitter_path:
-                logger.info(f'✅ Twitter post generated: {Path(twitter_path).name}')
+                logger.info(
+                    f"✅ Twitter post generated: {Path(twitter_path).name}"
+                )
+                console.print(
+                    f"[green]Twitter post generated[/] -> "
+                    f"{Path(twitter_path).name}"
+                )
+                artifacts["Twitter copy"] = twitter_path
             else:
-                logger.error('❌ Twitter post generation failed')
-        elif not params['skip_twitter'] and video_path:
-            logger.warning('⚠️ Skipping Twitter post: no transcript available')
-        elif not params['skip_twitter']:
-            logger.warning('⚠️ Skipping Twitter post: no video file available')
+                logger.error("❌ Twitter post generation failed")
+                console.print("[red]Twitter post generation failed[/]")
+        elif not params["skip_twitter"] and video_path:
+            logger.warning("⚠️ Skipping Twitter post: no transcript available")
+            console.print("[yellow]Skipping Twitter post: no transcript available[/]")
+        elif not params["skip_twitter"]:
+            logger.warning("⚠️ Skipping Twitter post: no video file available")
+            console.print("[yellow]Skipping Twitter post: no video file available[/]")
 
-    except Exception as e:
-        logger.error(f'Error during processing: {e}')
+        if artifacts:
+            artifact_table = Table(box=box.ASCII, show_header=False, pad_edge=False)
+            for label, value in artifacts.items():
+                artifact_table.add_row(label, str(value))
+            console.print()
+            console.print(
+                Panel(
+                    artifact_table,
+                    title="Generated Artifacts",
+                    border_style="green",
+                    box=box.ASCII,
+                )
+            )
+
+        console.print("\n[bold green]All done! Happy editing.[/]")
+        console.print("[dim]Detailed logs saved to video_processor.log[/]")
+
+    except KeyboardInterrupt:
+        console.print("\n[bold yellow]Processing interrupted by user.[/]")
+        logger.warning("Processing interrupted by user")
+    except Exception as exc:
+        console.print(f"[bold red]Error during processing:[/] {exc}")
+        logger.error(f"Error during processing: {exc}")
         raise
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

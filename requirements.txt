@@ -5,3 +5,4 @@ python-ffmpeg>=2.0.0
 loguru>=0.7.0
 groq>=0.8.0
 PyYAML>=6.0
+rich>=13.7.0
