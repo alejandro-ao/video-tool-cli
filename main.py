@@ -135,17 +135,47 @@ def summarize_configuration(data: Dict[str, Any]) -> None:
     summary.add_row("SEO keywords", "run" if not data["skip_seo"] else "skip")
     summary.add_row("LinkedIn copy", "run" if not data["skip_linkedin"] else "skip")
     summary.add_row("Twitter copy", "run" if not data["skip_twitter"] else "skip")
-    bunny_status = "run" if not data.get("skip_bunny_upload") else "skip"
-    if bunny_status == "run":
+    bunny_actions_selected = any(
+        not data.get(flag, True)
+        for flag in (
+            "skip_bunny_video_upload",
+            "skip_bunny_chapter_upload",
+            "skip_bunny_transcript_upload",
+        )
+    )
+    summary.add_row(
+        "Bunny video",
+        "run" if not data.get("skip_bunny_video_upload") else "skip",
+    )
+    summary.add_row(
+        "Bunny chapters",
+        "run" if not data.get("skip_bunny_chapter_upload") else "skip",
+    )
+    summary.add_row(
+        "Bunny transcript",
+        "run" if not data.get("skip_bunny_transcript_upload") else "skip",
+    )
+    if bunny_actions_selected:
         library_hint = (
             data.get("bunny_library_id")
             or os.getenv("BUNNY_LIBRARY_ID")
             or "—"
         )
-        bunny_label = f"run (library {library_hint})"
-    else:
-        bunny_label = bunny_status
-    summary.add_row("Bunny upload", bunny_label)
+        summary.add_row("Bunny library", library_hint)
+        video_id_hint = (
+            data.get("bunny_video_id")
+            or os.getenv("BUNNY_VIDEO_ID")
+            or "—"
+        )
+        if not data.get("skip_bunny_video_upload") or video_id_hint != "—":
+            summary.add_row("Bunny video ID", video_id_hint)
+        if not data.get("skip_bunny_transcript_upload", True):
+            caption_lang = (
+                data.get("bunny_caption_language")
+                or os.getenv("BUNNY_CAPTION_LANGUAGE")
+                or "en"
+            )
+            summary.add_row("Bunny captions", caption_lang)
     summary.add_row("Verbose logs", "on" if data.get("verbose_logging") else "off")
 
     console.print(
@@ -224,8 +254,20 @@ def get_user_input() -> Dict[str, Any]:
         console=console,
     )
 
-    skip_bunny_upload = Confirm.ask(
+    skip_bunny_video_upload = Confirm.ask(
         "Skip uploading the final video to Bunny.net?",
+        default=True,
+        console=console,
+    )
+
+    skip_bunny_chapter_upload = Confirm.ask(
+        "Skip uploading chapters to Bunny.net?",
+        default=True,
+        console=console,
+    )
+
+    skip_bunny_transcript_upload = Confirm.ask(
+        "Skip uploading transcript captions to Bunny.net?",
         default=True,
         console=console,
     )
@@ -233,22 +275,35 @@ def get_user_input() -> Dict[str, Any]:
     bunny_library_id: Optional[str] = None
     bunny_collection_id: Optional[str] = None
     bunny_caption_language = "en"
+    bunny_video_id: Optional[str] = None
 
-    if not skip_bunny_upload:
+    bunny_actions_enabled = not (
+        skip_bunny_video_upload
+        and skip_bunny_chapter_upload
+        and skip_bunny_transcript_upload
+    )
+
+    if bunny_actions_enabled:
         bunny_library_id = ask_optional_text(
             "Bunny library ID (leave blank to use BUNNY_LIBRARY_ID env)"
         )
-        bunny_collection_id = ask_optional_text(
-            "Bunny collection ID (optional)"
-        )
-        bunny_caption_language = (
-            Prompt.ask(
-                "[bold cyan]Caption language code for transcript[/] ([dim]default: en[/])",
-                default="en",
-                console=console,
-            ).strip()
-            or "en"
-        )
+        if not skip_bunny_video_upload:
+            bunny_collection_id = ask_optional_text("Bunny collection ID (optional)")
+        if skip_bunny_video_upload and (
+            not skip_bunny_chapter_upload or not skip_bunny_transcript_upload
+        ):
+            bunny_video_id = ask_optional_text(
+                "Existing Bunny video ID (leave blank to use BUNNY_VIDEO_ID env)"
+            )
+        if not skip_bunny_transcript_upload:
+            bunny_caption_language = (
+                Prompt.ask(
+                    "[bold cyan]Caption language code for transcript[/] ([dim]default: en[/])",
+                    default="en",
+                    console=console,
+                ).strip()
+                or "en"
+            )
 
     console.print("\n[bold]Diagnostics[/]")
     verbose_logging = Confirm.ask(
@@ -271,10 +326,13 @@ def get_user_input() -> Dict[str, Any]:
         "skip_seo": skip_seo,
         "skip_linkedin": skip_linkedin,
         "skip_twitter": skip_twitter,
-        "skip_bunny_upload": skip_bunny_upload,
+        "skip_bunny_video_upload": skip_bunny_video_upload,
+        "skip_bunny_chapter_upload": skip_bunny_chapter_upload,
+        "skip_bunny_transcript_upload": skip_bunny_transcript_upload,
         "bunny_library_id": bunny_library_id,
         "bunny_collection_id": bunny_collection_id,
         "bunny_caption_language": bunny_caption_language,
+        "bunny_video_id": bunny_video_id,
         "verbose_logging": verbose_logging,
     }
 
@@ -459,39 +517,96 @@ def main() -> None:
                 artifacts.setdefault("Transcript", str(default_transcript))
 
         bunny_result: Optional[Dict[str, Any]] = None
-        if not params["skip_bunny_upload"]:
-            if video_path:
+        upload_bunny_video = not params["skip_bunny_video_upload"]
+        upload_bunny_chapters = not params["skip_bunny_chapter_upload"]
+        upload_bunny_transcript = not params["skip_bunny_transcript_upload"]
+
+        if upload_bunny_video or upload_bunny_chapters or upload_bunny_transcript:
+            if upload_bunny_video and not video_path:
+                logger.warning("⚠️ Skipping Bunny video upload: no video file available")
+                console.print(
+                    "[yellow]Skipping Bunny video upload: no video file available[/]"
+                )
+            else:
+                if upload_bunny_video and (upload_bunny_chapters or upload_bunny_transcript):
+                    bunny_message = "🚀 Syncing Bunny.net video and metadata..."
+                elif upload_bunny_video:
+                    bunny_message = "🚀 Uploading final video to Bunny.net..."
+                else:
+                    bunny_message = "🛠 Updating Bunny.net metadata..."
+
                 chapter_entries = None
                 if isinstance(timestamps_info, dict):
                     chapter_entries = timestamps_info.get("timestamps")
+
                 bunny_result = run_step(
-                    "🚀 Uploading final video to Bunny.net...",
+                    bunny_message,
                     lambda: processor.deploy_to_bunny(
-                        str(video_path),
+                        str(video_path) if video_path else None,
+                        upload_video=upload_bunny_video,
+                        upload_chapters=upload_bunny_chapters,
+                        upload_transcript=upload_bunny_transcript,
                         library_id=params.get("bunny_library_id"),
                         collection_id=params.get("bunny_collection_id"),
                         video_title=params.get("video_title"),
                         chapters=chapter_entries,
                         transcript_path=str(resolved_transcript) if resolved_transcript else None,
                         caption_language=params.get("bunny_caption_language"),
+                        video_id=params.get("bunny_video_id"),
                     ),
                 )
+
                 if bunny_result:
-                    logger.info(
-                        "✅ Uploaded video to Bunny "
-                        f"(library={bunny_result['library_id']}, video_id={bunny_result['video_id']})"
-                    )
-                    console.print(
-                        "[green]Uploaded to Bunny[/] -> "
-                        f"Library {bunny_result['library_id']} • ID {bunny_result['video_id']}"
-                    )
+                    pending = bunny_result.get("pending", False)
+                    action_labels = []
+                    if bunny_result.get("video_uploaded"):
+                        action_labels.append("video")
+                    if bunny_result.get("chapters_uploaded"):
+                        action_labels.append("chapters")
+                    if bunny_result.get("transcript_uploaded"):
+                        action_labels.append("transcript")
+                    failed_actions = []
+                    if upload_bunny_chapters and not bunny_result.get("chapters_uploaded"):
+                        failed_actions.append("chapters")
+                    if upload_bunny_transcript and not bunny_result.get("transcript_uploaded"):
+                        failed_actions.append("transcript")
+                    action_summary = ", ".join(action_labels) or "no actions"
                     artifacts["Bunny video"] = bunny_result["video_id"]
+
+                    if action_labels:
+                        logger.info(
+                            "✅ Bunny sync complete (%s) library=%s video_id=%s",
+                            action_summary,
+                            bunny_result["library_id"],
+                            bunny_result["video_id"],
+                        )
+                        console.print(
+                            "[green]Bunny sync complete[/] -> "
+                            f"{action_summary} • ID {bunny_result['video_id']}"
+                        )
+                    else:
+                        logger.info(
+                            "⏳ Bunny sync pending (library=%s video_id=%s)",
+                            bunny_result["library_id"],
+                            bunny_result["video_id"],
+                        )
+                        console.print(
+                            "[yellow]Bunny sync pending[/] -> "
+                            f"Waiting for processing • ID {bunny_result['video_id']}"
+                        )
+
+                    if failed_actions:
+                        console.print(
+                            "[yellow]Bunny skipped:[/] "
+                            f"{', '.join(failed_actions)} (asset may still be processing)"
+                        )
+                    elif pending:
+                        console.print(
+                            "[yellow]Re-run once Bunny finishes processing to push chapters/captions.[/]"
+                        )
                 else:
-                    logger.error("❌ Bunny upload failed")
-                    console.print("[red]Bunny upload failed[/]")
-            else:
-                logger.warning("⚠️ Skipping Bunny upload: no video file available")
-                console.print("[yellow]Skipping Bunny upload: no video file available[/]")
+                    logger.error("❌ Bunny sync failed")
+                    console.print("[red]Bunny sync failed[/]")
 
         if not params["skip_context_cards"]:
             if resolved_transcript:

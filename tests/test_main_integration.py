@@ -61,6 +61,10 @@ def _create_processor_mock(temp_dir: Path) -> MagicMock:
         "library_id": "lib123",
         "video_id": "vid123",
         "title": "Test Video",
+        "video_uploaded": True,
+        "chapters_uploaded": True,
+        "transcript_uploaded": True,
+        "pending": False,
     }
     return processor
 
@@ -81,10 +85,13 @@ def _build_params(temp_dir: Path, **overrides) -> dict:
         "skip_seo": True,
         "skip_linkedin": True,
         "skip_twitter": True,
-        "skip_bunny_upload": True,
+        "skip_bunny_video_upload": True,
+        "skip_bunny_chapter_upload": True,
+        "skip_bunny_transcript_upload": True,
         "bunny_library_id": None,
         "bunny_collection_id": None,
         "bunny_caption_language": "en",
+        "bunny_video_id": None,
         "verbose_logging": False,
     }
     params.update(overrides)
@@ -124,7 +131,9 @@ def test_get_user_input_all_options(mock_input):
         "n",  # skip_seo?
         "n",  # skip_linkedin?
         "n",  # skip_twitter?
-        "n",  # skip_bunny_upload?
+        "n",  # skip Bunny video upload?
+        "n",  # skip Bunny chapter upload?
+        "n",  # skip Bunny transcript upload?
         "library-123",
         "collection-456",
         "en",
@@ -147,10 +156,13 @@ def test_get_user_input_all_options(mock_input):
         "skip_seo": False,
         "skip_linkedin": False,
         "skip_twitter": False,
-        "skip_bunny_upload": False,
+        "skip_bunny_video_upload": False,
+        "skip_bunny_chapter_upload": False,
+        "skip_bunny_transcript_upload": False,
         "bunny_library_id": "library-123",
         "bunny_collection_id": "collection-456",
         "bunny_caption_language": "en",
+        "bunny_video_id": None,
         "verbose_logging": False,
     }
 
@@ -171,7 +183,9 @@ def test_get_user_input_skip_everything(mock_input):
         "y",  # skip SEO keywords
         "y",  # skip LinkedIn post
         "y",  # skip Twitter post
-        "y",  # skip Bunny upload
+        "y",  # skip Bunny video upload
+        "y",  # skip Bunny chapter upload
+        "y",  # skip Bunny transcript upload
         "y",  # verbose logging
     ]
 
@@ -191,10 +205,13 @@ def test_get_user_input_skip_everything(mock_input):
         "skip_seo": True,
         "skip_linkedin": True,
         "skip_twitter": True,
-        "skip_bunny_upload": True,
+        "skip_bunny_video_upload": True,
+        "skip_bunny_chapter_upload": True,
+        "skip_bunny_transcript_upload": True,
         "bunny_library_id": None,
         "bunny_collection_id": None,
         "bunny_caption_language": "en",
+        "bunny_video_id": None,
         "verbose_logging": True,
     }
 
@@ -208,15 +225,17 @@ def test_get_user_input_handles_quoted_path(mock_input):
         "Episode 1",
         "n",
         "y",  # skip concatenation to avoid skip_reprocessing prompt
-        "y",
-        "y",
-        "y",
-        "y",
-        "y",
-        "y",
-        "y",
-        "y",
-        "n",
+        "y",  # skip timestamps
+        "y",  # skip transcript
+        "y",  # skip context cards
+        "y",  # skip description
+        "y",  # skip SEO
+        "y",  # skip LinkedIn
+        "y",  # skip Twitter
+        "y",  # skip Bunny video upload
+        "y",  # skip Bunny chapter upload
+        "y",  # skip Bunny transcript upload
+        "n",  # verbose logging
     ]
 
     result = get_user_input()
@@ -225,7 +244,10 @@ def test_get_user_input_handles_quoted_path(mock_input):
     assert result["video_title"] == "Episode 1"
     assert result["repo_url"] is None
     assert result["skip_concat"] is True
-    assert result["skip_bunny_upload"] is True
+    assert result["skip_bunny_video_upload"] is True
+    assert result["skip_bunny_chapter_upload"] is True
+    assert result["skip_bunny_transcript_upload"] is True
+    assert result["bunny_video_id"] is None
     assert result["verbose_logging"] is False
 
 
@@ -249,7 +271,9 @@ def test_main_full_workflow_runs_every_step(temp_dir):
         skip_seo=False,
         skip_linkedin=False,
         skip_twitter=False,
-        skip_bunny_upload=False,
+        skip_bunny_video_upload=False,
+        skip_bunny_chapter_upload=False,
+        skip_bunny_transcript_upload=False,
         bunny_library_id="library-123",
         bunny_collection_id="collection-456",
     )
@@ -279,12 +303,16 @@ def test_main_full_workflow_runs_every_step(temp_dir):
     )
     processor.deploy_to_bunny.assert_called_once_with(
         str(processor.output_dir / "final.mp4"),
+        upload_video=True,
+        upload_chapters=True,
+        upload_transcript=True,
         library_id=params["bunny_library_id"],
         collection_id=params["bunny_collection_id"],
         video_title=params["video_title"],
         chapters=[],
         transcript_path=str(processor.output_dir / "transcript.vtt"),
         caption_language=params["bunny_caption_language"],
+        video_id=params["bunny_video_id"],
     )
 
 
