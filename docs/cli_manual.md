@@ -279,7 +279,6 @@ Upload a video to Bunny.net CDN.
 
 **Optional inputs:**
 - Bunny Collection ID (or set `BUNNY_COLLECTION_ID` env var)
-- Caption language code (defaults to 'en')
 
 **Example:**
 
@@ -300,7 +299,65 @@ video-tool bunny-video \
 - `--bunny-library-id ID`: Bunny.net library ID
 - `--bunny-access-key KEY`: Bunny.net access key
 - `--bunny-collection-id ID`: Bunny.net collection ID (optional)
-- `--bunny-caption-language CODE`: Caption language code (default: en)
+
+The command prints the Bunny video ID on success. Save this ID for transcript and chapter uploads.
+
+---
+
+#### `bunny-transcript`
+
+Upload a caption file to an existing Bunny.net video.
+
+**Required inputs:**
+- Bunny video ID (from `bunny-video` or an existing asset)
+- Path to transcript file (.vtt)
+- Bunny Library ID (or set `BUNNY_LIBRARY_ID` env var)
+- Bunny Access Key (or set `BUNNY_ACCESS_KEY` env var)
+
+**Optional inputs:**
+- Caption language code (defaults to `'en'` or `BUNNY_CAPTION_LANGUAGE`)
+
+**Example:**
+
+```bash
+video-tool bunny-transcript \
+  --video-id 4ce7321f-... \
+  --transcript-path ./clips/output/transcript.vtt \
+  --language en
+```
+
+**Arguments:**
+- `--video-id ID`: Existing Bunny.net video ID
+- `--transcript-path PATH`: Path to transcript file (.vtt)
+- `--language CODE`: Caption language code (default: en)
+- `--bunny-library-id ID`: Bunny.net library ID
+- `--bunny-access-key KEY`: Bunny.net access key
+
+---
+
+#### `bunny-chapters`
+
+Upload chapter data (timestamps) to an existing Bunny.net video.
+
+**Required inputs:**
+- Bunny video ID (from `bunny-video` or an existing asset)
+- Path to chapters JSON (accepts `timestamps.json` output, a list of chapter dicts, or a single chapter dict)
+- Bunny Library ID (or set `BUNNY_LIBRARY_ID` env var)
+- Bunny Access Key (or set `BUNNY_ACCESS_KEY` env var)
+
+**Example:**
+
+```bash
+video-tool bunny-chapters \
+  --video-id 4ce7321f-... \
+  --chapters-path ./clips/output/timestamps.json
+```
+
+**Arguments:**
+- `--video-id ID`: Existing Bunny.net video ID
+- `--chapters-path PATH`: Path to chapters JSON file
+- `--bunny-library-id ID`: Bunny.net library ID
+- `--bunny-access-key KEY`: Bunny.net access key
 
 ---
 
@@ -349,8 +406,18 @@ video-tool seo --transcript-path ./clips/output/transcript.vtt
 video-tool linkedin --transcript-path ./clips/output/transcript.vtt
 video-tool twitter --transcript-path ./clips/output/transcript.vtt
 
-# 9. Upload to Bunny.net
+# 9. Upload to Bunny.net (video upload)
 video-tool bunny-video --video-path ./clips/output/final-video.mp4
+
+# 10. Upload captions to Bunny.net
+video-tool bunny-transcript \
+  --video-id <video_id_from_step_9> \
+  --transcript-path ./clips/output/transcript.vtt
+
+# 11. Upload chapters to Bunny.net
+video-tool bunny-chapters \
+  --video-id <video_id_from_step_9> \
+  --chapters-path ./clips/output/timestamps.json
 ```
 
 ### Quick Transcript Generation
