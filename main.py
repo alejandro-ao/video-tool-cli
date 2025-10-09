@@ -53,16 +53,16 @@ DEFAULT_PARAMS: Dict[str, Any] = {
     "bunny_video_path": None,
     "bunny_transcript_path": None,
     "bunny_chapters_path": None,
-    "skip_silence_removal": False,
-    "skip_concat": False,
+    "skip_silence_removal": True,
+    "skip_concat": True,
     "skip_reprocessing": False,
-    "skip_timestamps": False,
-    "skip_transcript": False,
-    "skip_context_cards": False,
-    "skip_description": False,
-    "skip_seo": False,
-    "skip_linkedin": False,
-    "skip_twitter": False,
+    "skip_timestamps": True,
+    "skip_transcript": True,
+    "skip_context_cards": True,
+    "skip_description": True,
+    "skip_seo": True,
+    "skip_linkedin": True,
+    "skip_twitter": True,
     "skip_bunny_video_upload": True,
     "skip_bunny_chapter_upload": True,
     "skip_bunny_transcript_upload": True,
@@ -77,27 +77,94 @@ DEFAULT_PARAMS: Dict[str, Any] = {
 class StepFlagSpec:
     """Metadata describing CLI toggles for specific processing steps."""
 
-    def __init__(self, cli_name: str, skip_key: str, help_text: str):
+    def __init__(
+        self,
+        cli_name: str,
+        skip_key: str,
+        help_text: str,
+        *,
+        requires_input_dir: bool = False,
+        requires_video_title: bool = False,
+        requires_repo_url: bool = False,
+    ):
         self.cli_name = cli_name
         self.skip_key = skip_key
         self.help_text = help_text
+        self.requires_input_dir = requires_input_dir
+        self.requires_video_title = requires_video_title
+        self.requires_repo_url = requires_repo_url
 
     @property
     def attr(self) -> str:
         return self.cli_name.replace("-", "_")
 
+    @property
+    def display_name(self) -> str:
+        return self.cli_name.replace("-", " ").title()
+
 
 STEP_FLAG_SPECS: List[StepFlagSpec] = [
-    StepFlagSpec("silence-removal", "skip_silence_removal", "Run silence removal."),
-    StepFlagSpec("concat", "skip_concat", "Run video concatenation."),
-    StepFlagSpec("timestamps", "skip_timestamps", "Generate timestamps."),
-    StepFlagSpec("transcript", "skip_transcript", "Generate transcript."),
-    StepFlagSpec("context-cards", "skip_context_cards", "Generate context cards."),
-    StepFlagSpec("description", "skip_description", "Draft video description."),
-    StepFlagSpec("seo", "skip_seo", "Generate SEO keyword suggestions."),
-    StepFlagSpec("linkedin", "skip_linkedin", "Draft LinkedIn copy."),
-    StepFlagSpec("twitter", "skip_twitter", "Draft Twitter/X copy."),
-    StepFlagSpec("bunny-video", "skip_bunny_video_upload", "Upload video to Bunny.net."),
+    StepFlagSpec(
+        "silence-removal",
+        "skip_silence_removal",
+        "Run silence removal.",
+        requires_input_dir=True,
+    ),
+    StepFlagSpec(
+        "concat",
+        "skip_concat",
+        "Run video concatenation.",
+        requires_input_dir=True,
+    ),
+    StepFlagSpec(
+        "timestamps",
+        "skip_timestamps",
+        "Generate timestamps.",
+        requires_input_dir=True,
+    ),
+    StepFlagSpec(
+        "transcript",
+        "skip_transcript",
+        "Generate transcript.",
+        requires_input_dir=True,
+    ),
+    StepFlagSpec(
+        "context-cards",
+        "skip_context_cards",
+        "Generate context cards.",
+        requires_input_dir=True,
+    ),
+    StepFlagSpec(
+        "description",
+        "skip_description",
+        "Draft video description.",
+        requires_input_dir=True,
+        requires_repo_url=True,
+    ),
+    StepFlagSpec(
+        "seo",
+        "skip_seo",
+        "Generate SEO keyword suggestions.",
+        requires_input_dir=True,
+        requires_repo_url=True,
+    ),
+    StepFlagSpec(
+        "linkedin",
+        "skip_linkedin",
+        "Draft LinkedIn copy.",
+        requires_input_dir=True,
+    ),
+    StepFlagSpec(
+        "twitter",
+        "skip_twitter",
+        "Draft Twitter/X copy.",
+        requires_input_dir=True,
+    ),
+    StepFlagSpec(
+        "bunny-video",
+        "skip_bunny_video_upload",
+        "Upload video to Bunny.net.",
+    ),
     StepFlagSpec(
         "bunny-chapters",
         "skip_bunny_chapter_upload",
@@ -170,14 +237,18 @@ def apply_default_settings(overrides: Dict[str, Any]) -> Dict[str, Any]:
 
 def apply_cli_overrides(params: Dict[str, Any], args: argparse.Namespace) -> Dict[str, Any]:
     """Apply non-interactive CLI toggles to the run configuration."""
-    if getattr(args, "skip_all", False):
-        for key in params:
-            if key.startswith("skip_") and key != "skip_reprocessing":
-                params[key] = True
+    run_all = getattr(args, "all", False)
+    cli_selected_specs = [
+        spec for spec in STEP_FLAG_SPECS if getattr(args, spec.attr, False)
+    ]
 
-    for spec in STEP_FLAG_SPECS:
-        if getattr(args, spec.attr, False):
+    if run_all:
+        for spec in STEP_FLAG_SPECS:
             params[spec.skip_key] = False
+    elif cli_selected_specs:
+        selected_skip_keys = {spec.skip_key for spec in cli_selected_specs}
+        for spec in STEP_FLAG_SPECS:
+            params[spec.skip_key] = spec.skip_key not in selected_skip_keys
 
     # Bunny asset path overrides
     if getattr(args, "bunny_video_path", None):
@@ -187,11 +258,35 @@ def apply_cli_overrides(params: Dict[str, Any], args: argparse.Namespace) -> Dic
     if getattr(args, "bunny_chapters_path", None):
         params["bunny_chapters_path"] = normalize_path(args.bunny_chapters_path)
 
+    if getattr(args, "fast_concat", False):
+        params["skip_reprocessing"] = True
+        params["_skip_reprocessing_override"] = True
+    elif getattr(args, "standard_concat", False):
+        params["skip_reprocessing"] = False
+        params["_skip_reprocessing_override"] = True
+
     return params
 
 
-def ensure_video_title(params: Dict[str, Any]) -> bool:
-    """Ensure a video title is present, prompting the user if necessary."""
+def get_selected_step_specs(params: Dict[str, Any]) -> List[StepFlagSpec]:
+    """Return the StepFlagSpec entries that are enabled for this run."""
+    selected: List[StepFlagSpec] = []
+    for spec in STEP_FLAG_SPECS:
+        if not params.get(spec.skip_key, True):
+            selected.append(spec)
+    return selected
+
+
+def ensure_video_title(
+    params: Dict[str, Any],
+    *,
+    required: bool,
+    required_by: Optional[List[str]] = None,
+) -> bool:
+    """Ensure a video title is present when specific steps depend on it."""
+    if not required:
+        return True
+
     if params.get("video_title"):
         return True
 
@@ -199,34 +294,70 @@ def ensure_video_title(params: Dict[str, Any]) -> bool:
         params["video_title"] = ask_required_text("Video title")
         return True
 
+    steps_hint = ", ".join(required_by or []) or "the selected steps"
     console.print(
         "[bold red]Video title required.[/] "
-        "Provide it via --manual, --profile, or CLI overrides."
+        f"Provide it to continue running {steps_hint}."
     )
-    logger.error("Missing video title for non-interactive run.")
+    logger.error("Missing video title while required by the active steps.")
     return False
 
 
-def ensure_repo_url(params: Dict[str, Any]) -> bool:
-    """Make sure a repository URL is available when description generation runs."""
-    if params.get("skip_description", False):
+def ensure_repo_url(
+    params: Dict[str, Any],
+    *,
+    required: bool,
+    required_by: Optional[List[str]] = None,
+) -> bool:
+    """Ensure a repository URL is available for the selected steps."""
+    if not required:
         return True
 
     if params.get("repo_url"):
         return True
 
     if sys.stdin and sys.stdin.isatty():
-        console.print(
-            "[yellow]Description generation requires a repository URL.[/]"
-        )
+        steps_hint = ", ".join(required_by or [])
+        if steps_hint:
+            console.print(
+                f"[yellow]{steps_hint} requires a repository URL.[/]"
+            )
         params["repo_url"] = ask_required_text("Repository URL")
         return True
 
+    steps_hint = ", ".join(required_by or []) or "the selected steps"
     console.print(
-        "[bold red]Repository URL required for description generation.[/]\n"
-        "Provide it via --manual, --profile, or the profiles file."
+        "[bold red]Repository URL required.[/] "
+        f"Provide it to continue running {steps_hint}."
     )
-    logger.error("Missing repository URL while description generation is enabled.")
+    logger.error("Missing repository URL while required by the active steps.")
+    return False
+
+
+def ensure_input_dir(
+    params: Dict[str, Any],
+    *,
+    required: bool,
+    required_by: Optional[List[str]] = None,
+) -> bool:
+    """Ensure an input directory is available for filesystem-backed steps."""
+    if not required:
+        return True
+
+    if params.get("input_dir"):
+        params["input_dir"] = normalize_path(str(params["input_dir"]))
+        return True
+
+    if sys.stdin and sys.stdin.isatty():
+        params["input_dir"] = ask_required_path("Input directory")
+        return True
+
+    steps_hint = ", ".join(required_by or []) or "the selected steps"
+    console.print(
+        "[bold red]Input directory required.[/] "
+        f"Provide it to continue running {steps_hint}."
+    )
+    logger.error("Missing input directory while required by the active steps.")
     return False
 
 
@@ -302,9 +433,9 @@ def parse_cli_args() -> argparse.Namespace:
         help="Override input directory when running non-interactively.",
     )
     parser.add_argument(
-        "--skip-all",
+        "--all",
         action="store_true",
-        help="Skip every optional processing step unless explicitly re-enabled.",
+        help="Run every available processing step.",
     )
     for spec in STEP_FLAG_SPECS:
         parser.add_argument(
@@ -312,6 +443,19 @@ def parse_cli_args() -> argparse.Namespace:
             action="store_true",
             help=spec.help_text + " Overrides --skip-all for this step.",
         )
+
+    concat_mode_group = parser.add_mutually_exclusive_group()
+    concat_mode_group.add_argument(
+        "--fast-concat",
+        action="store_true",
+        help="Skip reprocessing during concatenation (fast mode).",
+    )
+    concat_mode_group.add_argument(
+        "--standard-concat",
+        action="store_true",
+        help="Force reprocessing during concatenation (standard mode).",
+    )
+
     # Optional Bunny asset paths
     parser.add_argument(
         "--bunny-video-path",
@@ -750,11 +894,12 @@ def main() -> None:
 
     manual_mode = args.manual
     profile_used: Optional[str] = None
+    skip_reprocessing_configured = False
 
     if manual_mode:
         ignored_flags: List[str] = []
-        if getattr(args, "skip_all", False):
-            ignored_flags.append("--skip-all")
+        if getattr(args, "all", False):
+            ignored_flags.append("--all")
         ignored_flags.extend(
             f"--{spec.cli_name}"
             for spec in STEP_FLAG_SPECS
@@ -768,36 +913,8 @@ def main() -> None:
 
     try:
         if manual_mode:
-            params = get_user_input()
-            params = apply_default_settings(params)
-            # Determine Bunny-only mode in manual params
-            upload_bunny_video = not params.get("skip_bunny_video_upload", True)
-            upload_bunny_chapters = not params.get("skip_bunny_chapter_upload", True)
-            upload_bunny_transcript = not params.get("skip_bunny_transcript_upload", True)
-            bunny_actions_enabled = upload_bunny_video or upload_bunny_chapters or upload_bunny_transcript
-            non_bunny_modules_selected = (
-                not params.get("skip_silence_removal", True)
-                or not params.get("skip_concat", True)
-                or not params.get("skip_timestamps", True)
-                or not params.get("skip_transcript", True)
-                or not params.get("skip_context_cards", True)
-                or not params.get("skip_description", True)
-                or not params.get("skip_seo", True)
-                or not params.get("skip_linkedin", True)
-                or not params.get("skip_twitter", True)
-            )
-            bunny_only_mode = bunny_actions_enabled and not non_bunny_modules_selected
-
-            # Normalize input_dir only when not Bunny-only and provided
-            if params.get("input_dir"):
-                params["input_dir"] = normalize_path(str(params["input_dir"]))
-
-            # Only require video title and repo url if relevant modules run
-            if not bunny_only_mode:
-                if not ensure_video_title(params):
-                    return
-                if not ensure_repo_url(params):
-                    return
+            params = apply_default_settings(get_user_input())
+            skip_reprocessing_configured = True
         else:
             profile_data: Optional[Dict[str, Any]] = None
             if args.profile:
@@ -821,49 +938,83 @@ def main() -> None:
                     profile_used = "default"
                     profile_data = default_profile
 
+            if profile_data and "skip_reprocessing" in profile_data:
+                skip_reprocessing_configured = True
+
             params = apply_default_settings(profile_data or {})
             if args.input_dir:
                 params["input_dir"] = normalize_path(args.input_dir)
 
             params = apply_cli_overrides(params, args)
+            if params.pop("_skip_reprocessing_override", False):
+                skip_reprocessing_configured = True
 
-            # Determine Bunny-only mode for non-manual runs
-            upload_bunny_video = not params.get("skip_bunny_video_upload", True)
-            upload_bunny_chapters = not params.get("skip_bunny_chapter_upload", True)
-            upload_bunny_transcript = not params.get("skip_bunny_transcript_upload", True)
-            bunny_actions_enabled = upload_bunny_video or upload_bunny_chapters or upload_bunny_transcript
-            non_bunny_modules_selected = (
-                not params.get("skip_silence_removal", True)
-                or not params.get("skip_concat", True)
-                or not params.get("skip_timestamps", True)
-                or not params.get("skip_transcript", True)
-                or not params.get("skip_context_cards", True)
-                or not params.get("skip_description", True)
-                or not params.get("skip_seo", True)
-                or not params.get("skip_linkedin", True)
-                or not params.get("skip_twitter", True)
+        selected_specs = get_selected_step_specs(params)
+        bunny_actions_enabled = any(
+            not params.get(flag, True)
+            for flag in (
+                "skip_bunny_video_upload",
+                "skip_bunny_chapter_upload",
+                "skip_bunny_transcript_upload",
             )
-            bunny_only_mode = bunny_actions_enabled and not non_bunny_modules_selected
+        )
 
-            if not bunny_only_mode:
-                if not params.get("input_dir"):
-                    if sys.stdin and sys.stdin.isatty():
-                        params["input_dir"] = ask_required_path("Input directory")
-                    else:
-                        console.print(
-                            "[bold red]Input directory not provided. "
-                            "Set --input-dir or save it in the selected profile.[/]"
-                        )
-                        logger.error("Input directory missing for non-interactive run.")
-                        return
-                else:
-                    params["input_dir"] = normalize_path(str(params["input_dir"]))
+        if not selected_specs:
+            if manual_mode:
+                console.print(
+                    "[yellow]No processing steps selected. Nothing to do.[/]"
+                )
+            else:
+                console.print(
+                    "[bold red]No processing steps selected.[/] "
+                    "Choose a flag such as --transcript or pass --all."
+                )
+            return
 
-                if not ensure_video_title(params):
-                    return
-                if not ensure_repo_url(params):
-                    return
+        input_dir_specs = [
+            spec.display_name for spec in selected_specs if spec.requires_input_dir
+        ]
+        video_title_specs = [
+            spec.display_name for spec in selected_specs if spec.requires_video_title
+        ]
+        repo_url_specs = [
+            spec.display_name for spec in selected_specs if spec.requires_repo_url
+        ]
 
+        if not ensure_input_dir(
+            params,
+            required=bool(input_dir_specs),
+            required_by=input_dir_specs,
+        ):
+            return
+        if not ensure_video_title(
+            params,
+            required=bool(video_title_specs),
+            required_by=video_title_specs,
+        ):
+            return
+        if not ensure_repo_url(
+            params,
+            required=bool(repo_url_specs),
+            required_by=repo_url_specs,
+        ):
+            return
+
+        if (
+            not manual_mode
+            and not params.get("skip_concat", True)
+            and not skip_reprocessing_configured
+            and sys.stdin
+            and sys.stdin.isatty()
+        ):
+            params["skip_reprocessing"] = Confirm.ask(
+                "Use fast concatenation (skip reprocessing step)?",
+                default=params.get("skip_reprocessing", False),
+                console=console,
+            )
+            skip_reprocessing_configured = True
+
+        if not manual_mode:
             if profile_used:
                 console.print(f"[cyan]Using profile[/] -> {profile_used}")
             else:
@@ -874,25 +1025,9 @@ def main() -> None:
 
         configure_logging(params.get("verbose_logging", False))
 
-        # Initialize processor only when not Bunny-only (depends on input_dir)
-        upload_bunny_video = not params.get("skip_bunny_video_upload", True)
-        upload_bunny_chapters = not params.get("skip_bunny_chapter_upload", True)
-        upload_bunny_transcript = not params.get("skip_bunny_transcript_upload", True)
-        bunny_actions_enabled = upload_bunny_video or upload_bunny_chapters or upload_bunny_transcript
-        non_bunny_modules_selected = (
-            not params.get("skip_silence_removal", True)
-            or not params.get("skip_concat", True)
-            or not params.get("skip_timestamps", True)
-            or not params.get("skip_transcript", True)
-            or not params.get("skip_context_cards", True)
-            or not params.get("skip_description", True)
-            or not params.get("skip_seo", True)
-            or not params.get("skip_linkedin", True)
-            or not params.get("skip_twitter", True)
-        )
-        bunny_only_mode = bunny_actions_enabled and not non_bunny_modules_selected
+        bunny_only_mode = bunny_actions_enabled and not bool(input_dir_specs)
 
-        if not bunny_only_mode:
+        if bool(input_dir_specs):
             input_dir = Path(params["input_dir"]).expanduser().resolve()
 
             if not input_dir.exists():
@@ -908,18 +1043,20 @@ def main() -> None:
 
             processor = VideoProcessor(
                 str(input_dir),
-                video_title=params["video_title"],
-                show_external_logs=params["verbose_logging"],
+                video_title=params.get("video_title"),
+                show_external_logs=params.get("verbose_logging", False),
             )
             logger.info(f"Input directory path: {input_dir}")
             logger.info(f"Output directory path: {processor.output_dir}")
-        else:
-            # Bunny-only: create a lightweight processor without filesystem coupling
+        elif bunny_actions_enabled:
             processor = VideoProcessor(
                 str(Path.cwd()),
                 video_title=params.get("video_title"),
                 show_external_logs=params.get("verbose_logging", False),
             )
+        else:
+            console.print("[yellow]No runnable steps after validation.[/]")
+            return
 
         artifacts: Dict[str, Any] = {}
         timestamps_info: Optional[Dict[str, Any]] = None
@@ -939,13 +1076,14 @@ def main() -> None:
         # Concatenation
         output_video: Optional[str] = None
         if not params["skip_concat"]:
-            output_video = run_step(
+            concat_result = run_step(
                 "🎬 Starting video concatenation...",
                 lambda: processor.concatenate_videos(
                     skip_reprocessing=params["skip_reprocessing"]
                 ),
             )
-            if output_video:
+            if isinstance(concat_result, str):
+                output_video = concat_result
                 file_size = Path(output_video).stat().st_size / (1024 * 1024)
                 logger.info(
                     f"✅ Videos concatenated: {Path(output_video).name} ({file_size:.1f} MB)"
@@ -956,9 +1094,15 @@ def main() -> None:
                 )
                 artifacts["Final video"] = output_video
             else:
-                logger.warning(
-                    "⚠️ Video concatenation completed but no output file returned"
-                )
+                if concat_result is not None:
+                    logger.warning(
+                        "⚠️ Video concatenation returned unexpected payload of type "
+                        f"{type(concat_result).__name__}; expected a file path."
+                    )
+                else:
+                    logger.warning(
+                        "⚠️ Video concatenation completed but no output file returned"
+                    )
                 console.print(
                     "[yellow]Video concatenation completed but no output file returned[/]"
                 )

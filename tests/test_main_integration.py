@@ -266,7 +266,7 @@ def manual_cli_args():
         manual=True,
         profile=None,
         input_dir=None,
-        skip_all=False,
+        all=False,
         **base_flags,
     )
     with patch("main.parse_cli_args", return_value=args):
@@ -439,3 +439,88 @@ def test_main_skips_description_without_repo_url(temp_dir, manual_cli_args):
         main()
 
     _assert_only_called(processor)
+
+
+def _build_cli_args(**overrides) -> Namespace:
+    """Helper to assemble a CLI namespace for non-manual invocations."""
+    base_flags = {spec.attr: False for spec in STEP_FLAG_SPECS}
+    base_payload = dict(
+        command="run",
+        manual=False,
+        profile=None,
+        input_dir=None,
+        all=False,
+        fast_concat=False,
+        standard_concat=False,
+        bunny_video_path=None,
+        bunny_transcript_path=None,
+        bunny_chapters_path=None,
+    )
+    base_payload.update(base_flags)
+    base_payload.update(overrides)
+    return Namespace(**base_payload)
+
+
+def test_main_cli_transcript_only_runs_single_step(temp_dir):
+    """Passing --transcript executes only the transcript stage."""
+    processor = _create_processor_mock(temp_dir)
+    args = _build_cli_args(input_dir=str(temp_dir), transcript=True)
+
+    with patch("main.parse_cli_args", return_value=args), patch(
+        "main.VideoProcessor", return_value=processor
+    ):
+        main()
+
+    _assert_only_called(processor, "generate_transcript")
+    expected_video = str(processor.output_dir / "final.mp4")
+    processor.generate_transcript.assert_called_once_with(expected_video)
+
+
+def test_main_cli_requires_input_dir_for_transcript(temp_dir):
+    """Non-interactive transcript runs fail fast when no directory is provided."""
+    args = _build_cli_args(transcript=True)
+
+    with patch("main.parse_cli_args", return_value=args), patch(
+        "main.VideoProcessor"
+    ) as mock_processor, patch("main.console.print") as mock_console:
+        main()
+
+    mock_processor.assert_not_called()
+    mock_console.assert_any_call(
+        "[bold red]Input directory required.[/] "
+        "Provide it to continue running Transcript."
+    )
+
+
+def test_main_cli_concat_handles_non_path_response(temp_dir):
+    """Concatenation gracefully handles metadata results instead of file paths."""
+    processor = _create_processor_mock(temp_dir)
+    processor.concatenate_videos.return_value = {"metadata": {}}
+    args = _build_cli_args(input_dir=str(temp_dir), concat=True)
+
+    with patch("main.parse_cli_args", return_value=args), patch(
+        "main.VideoProcessor", return_value=processor
+    ), patch("main.console.print") as mock_console:
+        main()
+
+    processor.concatenate_videos.assert_called_once_with(skip_reprocessing=False)
+    mock_console.assert_any_call(
+        "[yellow]Video concatenation completed but no output file returned[/]"
+    )
+
+
+def test_main_cli_fast_concat_flag_enables_skip_reprocessing(temp_dir):
+    """Fast concatenation flag switches the mode without prompting."""
+    processor = _create_processor_mock(temp_dir)
+    args = _build_cli_args(
+        input_dir=str(temp_dir),
+        concat=True,
+        fast_concat=True,
+    )
+
+    with patch("main.parse_cli_args", return_value=args), patch(
+        "main.VideoProcessor", return_value=processor
+    ):
+        main()
+
+    processor.concatenate_videos.assert_called_once_with(skip_reprocessing=True)

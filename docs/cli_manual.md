@@ -1,6 +1,6 @@
 # Video Tool CLI Manual
 
-This guide explains every option exposed by the video processing CLI. It covers command invocation, interactive and automated modes, profile management, and where configuration data is stored.
+This guide explains every option exposed by the video processing CLI. It covers command invocation, targeted and interactive modes, profile management, and where configuration data is stored.
 
 ## Command Overview
 
@@ -9,24 +9,26 @@ video-tool [run] [options]
 ```
 
 - `video-tool` is the recommended executable (an alias to `python main.py`).
-- The optional `run` subcommand is accepted for readability. `video-tool --profile default` and `video-tool run --profile default` behave the same.
+- The optional `run` subcommand is accepted for readability. `video-tool --transcript` and `video-tool run --transcript` behave the same.
+- Every invocation must opt into at least one processing step (via CLI flag or loaded profile); otherwise the CLI exits without work.
 
 Environment requirements (API keys, ffmpeg availability, etc.) are unchanged from `README.md`.
 
 ## Processing Modes
 
-### Automatic Mode (default)
+### Targeted Mode (default)
 
-- Runs every supported step unless skipped by profile settings or CLI flags.
-- Prompts for the input directory if it is not provided via profile or CLI flag (TTY only).
-- Prints a summary of the configuration before starting.
-- Use `--input-dir` to override the input directory without editing profiles.
+- Runs only the steps that are explicitly enabled through CLI flags or profile configuration.
+- Prompts for any missing inputs that the selected steps require (TTY only). For example, `--transcript` will request an input directory if one is not provided via `--input-dir` or the active profile.
+- When concatenation runs without an explicit mode flag, the CLI asks whether to use fast (skip reprocessing) or standard concatenation.
+- Prints a configuration summary—showing enabled stages, resolved paths, and metadata—before execution.
+- Use `--all` to opt into the full pipeline when you want every stage to run.
 
 ### Manual Mode (`--manual`)
 
-- Replays the existing interactive questionnaire.
+- Replays the interactive questionnaire that existed in previous versions.
 - At completion, you can save the answers to a named profile for future runs.
-- Non-interactive flags (such as `--skip-all` or `--timestamps`) are ignored in this mode and a warning is shown.
+- Non-interactive flags (such as `--all` or `--transcript`) are ignored in this mode and a warning is shown.
 
 ## Profiles
 
@@ -35,7 +37,8 @@ Profiles capture a complete set of answers from manual mode.
 - Save: run `video-tool --manual`, finish the prompts, then accept the save prompt and provide a profile name.
 - Load: `video-tool --profile <name>`.
 - Default fallback: if no `--profile` flag is supplied, the CLI checks for a profile named `default` and uses it automatically.
-- Profiles include skip toggles and supporting metadata except the input directory, repository URL, and video title. Provide those per run via prompts or flags.
+- Profiles remember which stages should execute along with supporting metadata, except for the input directory, repository URL, and video title. Provide those per run via prompts or flags.
+- CLI step flags override the stage selection stored in a profile; when you pass flags, only the flagged stages execute (unless `--all` is also set).
 
 ### Profile Storage
 
@@ -47,57 +50,60 @@ Profiles live in `profiles.json` inside the platform-specific config directory:
 
 Delete or edit this JSON file to manage saved profiles manually.
 
-## Skip Strategy Flags
+## Selecting Steps
 
-### Global Skip
+### All Steps
 
-- `--skip-all`: mark every optional step as skipped.
-- Combine with step flags below to opt back into specific stages. Example:
+- `--all`: enable every available processing step in one flag.
+- Combine with manual mode if you want to opt out of specific stages during the questionnaire.
+
+### Individual Steps
+
+- Step flags explicitly select the stages to run. When any flags are provided, the CLI limits execution to those stages (unless `--all` is also set).
+- Example:
 
   ```
-  video-tool run --skip-all --timestamps --transcript
+  video-tool --transcript --input-dir ./clips
   ```
 
-  This command only generates timestamps and a transcript.
-
-### Step Toggles
-
-All step flags override `--skip-all` and force the associated stage to run. They have no effect if the stage is already enabled through defaults or a profile.
+  This command only generates the transcript for the provided input directory.
 
 | Flag | Effect |
 | ---- | ------ |
-| `--silence-removal` | Remove silence from clips. |
-| `--concat` | Concatenate clips into a final MP4. |
-| `--timestamps` | Produce timestamp metadata. |
-| `--transcript` | Generate a transcript for the selected video. |
-| `--context-cards` | Identify context cards and resource mentions. |
-| `--description` | Draft the video description (requires repository URL). |
-| `--seo` | Generate SEO keywords. |
-| `--linkedin` | Create LinkedIn copy. |
-| `--twitter` | Create Twitter/X copy. |
+| `--silence-removal` | Remove silence from clips. *(requires input directory)* |
+| `--concat` | Concatenate clips into a final MP4. *(requires input directory)* |
+| `--timestamps` | Produce timestamp metadata. *(requires input directory)* |
+| `--transcript` | Generate a transcript for the selected video. *(requires input directory)* |
+| `--context-cards` | Identify context cards and resource mentions. *(requires input directory)* |
+| `--description` | Draft the video description. *(requires input directory & repository URL)* |
+| `--seo` | Generate SEO keywords. *(requires input directory & repository URL)* |
+| `--linkedin` | Create LinkedIn copy. *(requires input directory)* |
+| `--twitter` | Create Twitter/X copy. *(requires input directory)* |
 | `--bunny-video` | Upload or re-upload the video to Bunny.net. |
 | `--bunny-chapters` | Push chapter markers to Bunny.net. |
 | `--bunny-transcript` | Upload transcript captions to Bunny.net. |
 
-> Note: Social copy and Bunny uploads rely on previously generated assets (video file, transcript, timestamps). If those are skipped, associated stages will emit warnings and exit gracefully.
+> Note: Social copy and Bunny uploads rely on previously generated assets (video file, transcript, timestamps). Enable the prerequisite steps or supply the required override paths before running these stages.
 
 ## Additional Options
 
-- `--input-dir <path>`: provide the source directory. Required for non-interactive runs unless the active profile defines it. If omitted on a TTY, the CLI will prompt for the path.
+- `--input-dir <path>`: provide the source directory. Required for non-interactive runs when any selected step touches the filesystem. If omitted on a TTY, the CLI will prompt for the path.
 - `--profile <name>`: load a saved profile. Profiles are case insensitive. An error lists available profiles if the requested one is missing.
 - `--manual`: enter interactive mode (see above).
+- `--all`: shorthand to activate every processing step without naming them individually.
+- `--fast-concat`: skip the reprocessing step during concatenation (fast mode). When omitted in an interactive shell, the CLI will prompt for the preferred mode.
+- `--standard-concat`: force reprocessing during concatenation regardless of saved defaults.
 - `--bunny-video-path <path>`: optionally supply an existing MP4 to upload to Bunny.net. Overrides the automatically selected final video. Ignored in manual mode.
 - `--bunny-transcript-path <path>`: optionally supply a VTT/SRT file to upload as Bunny captions. Overrides the default `output/transcript.vtt`. Ignored in manual mode.
 - `--bunny-chapters-path <path>`: optionally supply a JSON file containing chapter markers (title, start, end) for Bunny. Overrides the normalised chapters from `timestamps.json`. Ignored in manual mode.
-- When description generation is enabled without a stored URL, the CLI prompts for the repository (TTY) or exits with instructions.
-- Every run asks for a video title; provide it when prompted or via `--manual` responses.
+- The CLI prompts for any metadata (repository URL, video title, etc.) that the selected steps need when running in a TTY. In non-interactive contexts, missing data causes the run to exit with instructions.
 
 ## Configuration Summary
 
-Before execution, automatic mode prints a table showing:
+Before execution, targeted mode prints a table showing:
 
 - Resolved input path and optional metadata (repository URL, video title).
-- Which processing stages will run or skip.
+- Which processing stages will run.
 - Bunny.net library/video identifiers if applicable.
 - Bunny override paths if provided (video, transcript, chapters).
 - Log verbosity.
