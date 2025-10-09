@@ -172,7 +172,11 @@ class ContentGenerationMixin:
 
         return str(resolved_output_path)
 
-    def generate_context_cards(self, transcript_path: Optional[str] = None) -> str:
+    def generate_context_cards(
+        self,
+        transcript_path: Optional[str] = None,
+        output_path: Optional[str] = None,
+    ) -> str:
         """Generate Markdown file with suggested YouTube cards and resource mentions."""
         try:
             transcript_file = (
@@ -201,12 +205,13 @@ class ContentGenerationMixin:
                 temperature=0.4,
             )
 
-            output_path = self.output_dir / "context-cards.md"
-            with open(output_path, "w") as file:
+            output_file = Path(output_path) if output_path else self.output_dir / "context-cards.md"
+            output_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(output_file, "w", encoding="utf-8") as file:
                 file.write(response.content)
 
-            logger.info(f"Context cards generated successfully: {output_path}")
-            return str(output_path)
+            logger.info(f"Context cards generated successfully: {output_file}")
+            return str(output_file)
         except Exception as exc:
             logger.error(f"Error generating context cards: {exc}")
             return ""

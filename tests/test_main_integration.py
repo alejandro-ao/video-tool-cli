@@ -315,9 +315,10 @@ def test_main_full_workflow_runs_every_step(temp_dir, manual_cli_args):
     )
     processor.concatenate_videos.assert_called_once_with(skip_reprocessing=False)
     processor.generate_transcript.assert_called_once_with(str(processor.output_dir / "final.mp4"))
-    processor.generate_context_cards.assert_called_once_with(
-        str(processor.output_dir / "transcript.vtt")
-    )
+    processor.generate_context_cards.assert_called_once()
+    context_args, context_kwargs = processor.generate_context_cards.call_args
+    assert context_args[0] == str(processor.output_dir / "transcript.vtt")
+    assert context_kwargs.get("output_path") is None
     processor.deploy_to_bunny.assert_called_once_with(
         str(processor.output_dir / "final.mp4"),
         upload_video=True,
@@ -376,7 +377,10 @@ def test_main_individual_core_steps(temp_dir, manual_cli_args, flag_overrides, e
         processor.generate_transcript.assert_called_once_with(expected_video)
     if "generate_context_cards" in expected_calls:
         expected_transcript = str(processor.output_dir / "transcript.vtt")
-        processor.generate_context_cards.assert_called_once_with(expected_transcript)
+        processor.generate_context_cards.assert_called_once()
+        args, kwargs = processor.generate_context_cards.call_args
+        assert args[0] == expected_transcript
+        assert kwargs.get("output_path") is None
 
 
 def test_main_generates_description_and_seo(temp_dir, manual_cli_args):

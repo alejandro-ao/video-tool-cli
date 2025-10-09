@@ -211,34 +211,46 @@ def cmd_transcript(args: argparse.Namespace) -> None:
 
 
 def cmd_context_cards(args: argparse.Namespace) -> None:
-    """Generate context cards from transcript."""
-    video_path = args.video_path
-    if not video_path:
-        video_path = ask_required_path("Path to video file")
+    """Generate context cards from a transcript file."""
+    transcript_path = args.input_transcript
+    if not transcript_path:
+        transcript_path = ask_required_path("Path to transcript file (.vtt)")
     else:
-        video_path = normalize_path(video_path)
+        transcript_path = normalize_path(transcript_path)
 
-    video_file = Path(video_path).expanduser().resolve()
-    if not video_file.exists() or not video_file.is_file():
-        console.print(f"[bold red]Error:[/] Invalid video file: {video_path}")
+    transcript_file = Path(transcript_path).expanduser().resolve()
+    if not transcript_file.exists() or not transcript_file.is_file():
+        console.print(f"[bold red]Error:[/] Invalid transcript file: {transcript_path}")
         sys.exit(1)
 
+    output_path = None
+    if args.output_path:
+        output_path = normalize_path(args.output_path)
+        output_file = Path(output_path).expanduser()
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+        output_path = str(output_file)
+
     console.print(f"[cyan]Generating context cards...[/]")
-    console.print(f"  Video: {video_file}\n")
+    console.print(f"  Transcript: {transcript_file}")
+    if output_path:
+        console.print(f"  Output file: {output_path}\n")
+    else:
+        console.print("\n")
 
-    processor = VideoProcessor(str(video_file.parent))
+    transcript_dir = transcript_file.parent
+    processor = VideoProcessor(str(transcript_dir), output_dir=str(transcript_dir))
 
-    # First, check if transcript exists
-    transcript_path = processor.output_dir / "transcript.vtt"
-    if not transcript_path.exists():
-        console.print(f"[yellow]Transcript not found. Generating transcript first...[/]")
-        transcript_path_str = processor.generate_transcript(str(video_file))
-        transcript_path = Path(transcript_path_str)
+    cards_path = processor.generate_context_cards(
+        str(transcript_file),
+        output_path=output_path,
+    )
 
-    cards_path = processor.generate_context_cards(str(transcript_path))
-
-    console.print(f"[green]✓ Context cards generated![/]")
-    console.print(f"  Context cards: {cards_path}")
+    if cards_path:
+        console.print(f"[green]✓ Context cards generated![/]")
+        console.print(f"  Context cards: {cards_path}")
+    else:
+        console.print(f"[bold red]Error:[/] Failed to generate context cards")
+        sys.exit(1)
 
 
 def cmd_description(args: argparse.Namespace) -> None:
@@ -691,11 +703,15 @@ def create_parser() -> argparse.ArgumentParser:
     # Context cards command
     context_parser = subparsers.add_parser(
         "context-cards",
-        help="Generate context cards from video"
+        help="Generate context cards from transcript"
     )
     context_parser.add_argument(
-        "--video-path",
-        help="Path to video file"
+        "--input-transcript",
+        help="Path to transcript file (.vtt)"
+    )
+    context_parser.add_argument(
+        "--output-path",
+        help="Full path for the output context cards file (default: transcript_dir/context-cards.md)"
     )
 
     # Description command

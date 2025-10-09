@@ -160,21 +160,27 @@ video-tool transcript --video-path ./my-video.mp4
 
 #### `context-cards`
 
-Generate context cards and resource mentions from a video.
+Generate context cards and resource mentions from a transcript.
 
 **Required inputs:**
-- Path to video file
+- Path to transcript file (.vtt)
 
 **Example:**
 
 ```bash
-video-tool context-cards --video-path ./my-video.mp4
+video-tool context-cards --input-transcript ./output/transcript.vtt
+
+# Custom output location
+video-tool context-cards \
+  --input-transcript ./output/transcript.vtt \
+  --output-path ./output/custom-context-cards.md
 ```
 
 **Arguments:**
-- `--video-path PATH`: Path to video file
+- `--input-transcript PATH`: Path to transcript file (.vtt)
+- `--output-path PATH`: Full path for the generated context cards file (optional)
 
-**Note:** If a transcript doesn't exist, it will be generated automatically.
+**Note:** The transcript must already exist; generate it first using the `transcript` command.
 
 **Output:** Creates `context-cards.md` in the output directory.
 
@@ -392,7 +398,7 @@ video-tool timestamps --input-dir ./clips
 video-tool transcript --video-path ./clips/output/final-video.mp4
 
 # 5. Generate context cards
-video-tool context-cards --video-path ./clips/output/final-video.mp4
+video-tool context-cards --input-transcript ./clips/output/transcript.vtt
 
 # 6. Generate description
 video-tool description \
