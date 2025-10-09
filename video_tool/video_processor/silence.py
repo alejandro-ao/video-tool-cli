@@ -13,10 +13,10 @@ class SilenceProcessingMixin:
 
     def remove_silences(self) -> str:
         """
-        Detect and remove silences from videos in the input directory, saving outputs to `processed/`.
+        Detect and remove silences from videos in the input directory, saving outputs to the output directory.
         """
-        processed_dir = self.input_dir / "processed"
-        processed_dir.mkdir(exist_ok=True)
+        processed_dir = self.output_dir
+        processed_dir.mkdir(parents=True, exist_ok=True)
 
         for mp4_file in self.get_mp4_files():
             logger.info(f"Processing video: {mp4_file.name}")

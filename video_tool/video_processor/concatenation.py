@@ -66,8 +66,9 @@ class ConcatenationMixin:
                     "creation_date": datetime.now().isoformat(),
                 },
             }
-            output_path = self.output_dir / "timestamps.json"
-            with open(output_path, "w") as file:
+            resolved_output_path = Path(output_path) if output_path else self.output_dir / "timestamps.json"
+            resolved_output_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(resolved_output_path, "w") as file:
                 json.dump([video_info], file, indent=2)
             return video_info
 
@@ -229,7 +230,7 @@ class ConcatenationMixin:
                     temp_file.unlink()
                 temp_dir.rmdir()
 
-    def generate_timestamps(self) -> Dict:
+    def generate_timestamps(self, output_path: Optional[str] = None) -> Dict:
         """Generate timestamp information for the video with chapters based on input videos."""
         processed_dir = self.input_dir / "processed"
         mp4_files: List[Path] = []
@@ -260,8 +261,9 @@ class ConcatenationMixin:
                     "creation_date": datetime.now().isoformat(),
                 },
             }
-            output_path = self.output_dir / "timestamps.json"
-            with open(output_path, "w") as file:
+            resolved_output_path = Path(output_path) if output_path else self.output_dir / "timestamps.json"
+            resolved_output_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(resolved_output_path, "w") as file:
                 json.dump([video_info], file, indent=2)
             return video_info
 

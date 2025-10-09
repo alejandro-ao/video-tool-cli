@@ -17,6 +17,8 @@ class ContentGenerationMixin:
         video_path: Optional[str] = None,
         repo_url: Optional[str] = None,
         transcript_path: Optional[str] = None,
+        output_path: Optional[str] = None,
+        timestamps_path: Optional[str] = None,
     ) -> str:
         """Generate video description using LLM."""
         if video_path is None:
@@ -70,41 +72,73 @@ class ContentGenerationMixin:
             },
         ]
 
-        timestamps_path = self.output_dir / "timestamps.json"
-        if not timestamps_path.exists():
-            logger.error("Timestamps file not found for description generation")
-            return ""
+        # Handle timestamps (optional)
+        timestamps = None
+        timestamp_list = None
 
-        with open(timestamps_path) as file:
-            timestamps = json.load(file)[0]["timestamps"]
+        if timestamps_path:
+            resolved_timestamps_path = Path(timestamps_path)
+        else:
+            resolved_timestamps_path = self.output_dir / "timestamps.json"
+
+        if resolved_timestamps_path.exists():
+            try:
+                with open(resolved_timestamps_path) as file:
+                    timestamps = json.load(file)[0]["timestamps"]
+                timestamp_list = "\n".join(
+                    f'{timestamp["start"]} - {timestamp["title"]}' for timestamp in timestamps
+                )
+                logger.info(f"Using timestamps from: {resolved_timestamps_path}")
+            except Exception as exc:
+                logger.warning(f"Could not load timestamps from {resolved_timestamps_path}: {exc}")
+                timestamps = None
+                timestamp_list = None
+        else:
+            logger.info("No timestamps file found, generating description without timestamps")
 
         link_list = "\n".join(f'- {link["description"]}: {link["url"]}' for link in links)
-        timestamp_list = "\n".join(
-            f'{timestamp["start"]} - {timestamp["title"]}' for timestamp in timestamps
-        )
 
-        template = Template(
-            dedent(
-                """
-                # $title
+        # Build template with or without timestamps section
+        if timestamp_list:
+            template = Template(
+                dedent(
+                    """
+                    # $title
 
-                $content
+                    $content
 
-                ## Links
-                $links
-                
-                ## Timestamps
-                $timestamps
-                """
+                    ## Links
+                    $links
+
+                    ## Timestamps
+                    $timestamps
+                    """
+                )
             )
-        )
+            description = template.substitute(
+                title=Path(video_path).stem,
+                content=response.content,
+                links=link_list,
+                timestamps=timestamp_list,
+            )
+        else:
+            template = Template(
+                dedent(
+                    """
+                    # $title
 
-        description = template.substitute(
-            title=Path(video_path).stem,
-            content=response.content,
-            links=link_list,
-            timestamps=timestamp_list,
-        )
+                    $content
+
+                    ## Links
+                    $links
+                    """
+                )
+            )
+            description = template.substitute(
+                title=Path(video_path).stem,
+                content=response.content,
+                links=link_list,
+            )
 
         polish_description_prompt = self.prompts["polish_description"].format(
             description=description
@@ -125,9 +159,10 @@ class ContentGenerationMixin:
             logger.error(f"Error extracting polished description: {exc}")
             return ""
 
-        output_path = self.output_dir / "description.md"
+        resolved_output_path = Path(output_path) if output_path else self.output_dir / "description.md"
+        resolved_output_path.parent.mkdir(parents=True, exist_ok=True)
         try:
-            with open(output_path, "w") as file:
+            with open(resolved_output_path, "w") as file:
                 file.write(polished_description)
         except Exception as exc:
             if callable(logger):
@@ -135,7 +170,7 @@ class ContentGenerationMixin:
             logger.error(f"Error writing description file: {exc}")
             return ""
 
-        return str(output_path)
+        return str(resolved_output_path)
 
     def generate_context_cards(self, transcript_path: Optional[str] = None) -> str:
         """Generate Markdown file with suggested YouTube cards and resource mentions."""
@@ -213,7 +248,7 @@ class ContentGenerationMixin:
             logger.error(f"Error generating SEO keywords: {exc}")
             return ""
 
-    def generate_linkedin_post(self, transcript_path: str) -> str:
+    def generate_linkedin_post(self, transcript_path: str, output_path: Optional[str] = None) -> str:
         """Generate LinkedIn post based on video transcript."""
         try:
             with open(transcript_path) as file:
@@ -233,17 +268,18 @@ class ContentGenerationMixin:
                 messages=[{"role": "user", "content": prompt}],
             )
 
-            output_path = self.output_dir / "linkedin_post.md"
-            with open(output_path, "w") as file:
+            resolved_output_path = Path(output_path) if output_path else self.output_dir / "linkedin_post.md"
+            resolved_output_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(resolved_output_path, "w") as file:
                 file.write(response.content)
 
-            logger.info(f"LinkedIn post generated successfully: {output_path}")
-            return str(output_path)
+            logger.info(f"LinkedIn post generated successfully: {resolved_output_path}")
+            return str(resolved_output_path)
         except Exception as exc:
             logger.error(f"Error generating LinkedIn post: {exc}")
             raise
 
-    def generate_twitter_post(self, transcript_path: str) -> str:
+    def generate_twitter_post(self, transcript_path: str, output_path: Optional[str] = None) -> str:
         """Generate Twitter post based on video transcript."""
         try:
             with open(transcript_path) as file:
@@ -263,12 +299,13 @@ class ContentGenerationMixin:
                 messages=[{"role": "user", "content": prompt}],
             )
 
-            output_path = self.output_dir / "twitter_post.md"
-            with open(output_path, "w") as file:
+            resolved_output_path = Path(output_path) if output_path else self.output_dir / "twitter_post.md"
+            resolved_output_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(resolved_output_path, "w") as file:
                 file.write(response.content)
 
-            logger.info(f"Twitter post generated successfully: {output_path}")
-            return str(output_path)
+            logger.info(f"Twitter post generated successfully: {resolved_output_path}")
+            return str(resolved_output_path)
         except Exception as exc:
             logger.error(f"Error generating Twitter post: {exc}")
             raise

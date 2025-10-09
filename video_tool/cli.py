@@ -144,15 +144,26 @@ def cmd_timestamps(args: argparse.Namespace) -> None:
     if args.output_dir:
         output_dir = normalize_path(args.output_dir)
 
+    # Handle output path for the JSON file
+    output_path = None
+    if args.output_path:
+        output_path = normalize_path(args.output_path)
+
     console.print(f"[cyan]Generating timestamps...[/]")
     console.print(f"  Input: {input_path}")
-    console.print(f"  Output: {output_dir or str(input_path / 'output')}\n")
+    if output_path:
+        console.print(f"  Output file: {output_path}\n")
+    else:
+        console.print(f"  Output directory: {output_dir or str(input_path / 'output')}\n")
 
     processor = VideoProcessor(str(input_path), output_dir=output_dir)
-    timestamps_info = processor.generate_timestamps()
+    timestamps_info = processor.generate_timestamps(output_path=output_path)
 
     console.print(f"[green]✓ Timestamps generated![/]")
-    console.print(f"  Timestamps file: {processor.output_dir}/timestamps.json")
+    if output_path:
+        console.print(f"  Timestamps file: {output_path}")
+    else:
+        console.print(f"  Timestamps file: {processor.output_dir}/timestamps.json")
 
 
 def cmd_transcript(args: argparse.Namespace) -> None:
@@ -168,12 +179,21 @@ def cmd_transcript(args: argparse.Namespace) -> None:
         console.print(f"[bold red]Error:[/] Invalid video file: {video_path}")
         sys.exit(1)
 
+    # Handle output path for the transcript file
+    output_path = None
+    if args.output_path:
+        output_path = normalize_path(args.output_path)
+
     console.print(f"[cyan]Generating transcript...[/]")
-    console.print(f"  Video: {video_file}\n")
+    console.print(f"  Video: {video_file}")
+    if output_path:
+        console.print(f"  Output file: {output_path}\n")
+    else:
+        console.print(f"  Output file: {video_file.parent}/output/transcript.vtt\n")
 
     # Use the video's parent directory as input_dir
     processor = VideoProcessor(str(video_file.parent))
-    transcript_path = processor.generate_transcript(str(video_file))
+    transcript_path = processor.generate_transcript(str(video_file), output_path=output_path)
 
     console.print(f"[green]✓ Transcript generated![/]")
     console.print(f"  Transcript: {transcript_path}")
@@ -227,9 +247,30 @@ def cmd_description(args: argparse.Namespace) -> None:
     if not repo_url:
         repo_url = ask_optional_text("Repository URL", None)
 
+    # Handle output path for the description file
+    output_path = None
+    if args.output_path:
+        output_path = normalize_path(args.output_path)
+
+    # Handle timestamps path
+    timestamps_path = None
+    if args.timestamps_path:
+        timestamps_path = normalize_path(args.timestamps_path)
+        timestamps_file = Path(timestamps_path)
+        if not timestamps_file.exists():
+            console.print(f"[bold yellow]Warning:[/] Timestamps file not found: {timestamps_path}")
+            console.print("[yellow]Continuing without timestamps...[/]")
+            timestamps_path = None
+
     console.print(f"[cyan]Generating description...[/]")
     console.print(f"  Transcript: {transcript_file}")
-    console.print(f"  Repository: {repo_url or 'None'}\n")
+    console.print(f"  Repository: {repo_url or 'None'}")
+    if timestamps_path:
+        console.print(f"  Timestamps: {timestamps_path}")
+    if output_path:
+        console.print(f"  Output file: {output_path}\n")
+    else:
+        console.print(f"  Output file: {transcript_file.parent}/description.md\n")
 
     processor = VideoProcessor(str(transcript_file.parent.parent))
 
@@ -246,7 +287,9 @@ def cmd_description(args: argparse.Namespace) -> None:
     description_path = processor.generate_description(
         video_path=video_path,
         repo_url=repo_url,
-        transcript_path=str(transcript_file)
+        transcript_path=str(transcript_file),
+        output_path=output_path,
+        timestamps_path=timestamps_path
     )
 
     console.print(f"[green]✓ Description generated![/]")
@@ -309,11 +352,20 @@ def cmd_linkedin(args: argparse.Namespace) -> None:
         console.print(f"[bold red]Error:[/] Invalid transcript file: {transcript_path}")
         sys.exit(1)
 
+    # Handle output path for the LinkedIn post file
+    output_path = None
+    if args.output_path:
+        output_path = normalize_path(args.output_path)
+
     console.print(f"[cyan]Generating LinkedIn post...[/]")
-    console.print(f"  Transcript: {transcript_file}\n")
+    console.print(f"  Transcript: {transcript_file}")
+    if output_path:
+        console.print(f"  Output file: {output_path}\n")
+    else:
+        console.print(f"  Output file: {transcript_file.parent}/linkedin_post.md\n")
 
     processor = VideoProcessor(str(transcript_file.parent.parent))
-    linkedin_path = processor.generate_linkedin_post(str(transcript_file))
+    linkedin_path = processor.generate_linkedin_post(str(transcript_file), output_path=output_path)
 
     console.print(f"[green]✓ LinkedIn post generated![/]")
     console.print(f"  LinkedIn post: {linkedin_path}")
@@ -332,11 +384,20 @@ def cmd_twitter(args: argparse.Namespace) -> None:
         console.print(f"[bold red]Error:[/] Invalid transcript file: {transcript_path}")
         sys.exit(1)
 
+    # Handle output path for the Twitter post file
+    output_path = None
+    if args.output_path:
+        output_path = normalize_path(args.output_path)
+
     console.print(f"[cyan]Generating Twitter post...[/]")
-    console.print(f"  Transcript: {transcript_file}\n")
+    console.print(f"  Transcript: {transcript_file}")
+    if output_path:
+        console.print(f"  Output file: {output_path}\n")
+    else:
+        console.print(f"  Output file: {transcript_file.parent}/twitter_post.md\n")
 
     processor = VideoProcessor(str(transcript_file.parent.parent))
-    twitter_path = processor.generate_twitter_post(str(transcript_file))
+    twitter_path = processor.generate_twitter_post(str(transcript_file), output_path=output_path)
 
     console.print(f"[green]✓ Twitter post generated![/]")
     console.print(f"  Twitter post: {twitter_path}")
@@ -449,6 +510,10 @@ def create_parser() -> argparse.ArgumentParser:
         "--output-dir",
         help="Output directory (default: input_dir/output)"
     )
+    timestamps_parser.add_argument(
+        "--output-path",
+        help="Full path for the output JSON file (default: output_dir/timestamps.json)"
+    )
 
     # Transcript command
     transcript_parser = subparsers.add_parser(
@@ -458,6 +523,10 @@ def create_parser() -> argparse.ArgumentParser:
     transcript_parser.add_argument(
         "--video-path",
         help="Path to video file"
+    )
+    transcript_parser.add_argument(
+        "--output-path",
+        help="Full path for the output VTT file (default: video_dir/output/transcript.vtt)"
     )
 
     # Context cards command
@@ -483,6 +552,14 @@ def create_parser() -> argparse.ArgumentParser:
         "--repo-url",
         help="Repository URL to include in description"
     )
+    desc_parser.add_argument(
+        "--timestamps-path",
+        help="Path to timestamps JSON file (optional, omit to generate without timestamps)"
+    )
+    desc_parser.add_argument(
+        "--output-path",
+        help="Full path for the output description file (default: transcript_dir/description.md)"
+    )
 
     # SEO command
     seo_parser = subparsers.add_parser(
@@ -503,6 +580,10 @@ def create_parser() -> argparse.ArgumentParser:
         "--transcript-path",
         help="Path to video transcript (.vtt file)"
     )
+    linkedin_parser.add_argument(
+        "--output-path",
+        help="Full path for the output LinkedIn post file (default: transcript_dir/linkedin_post.md)"
+    )
 
     # Twitter command
     twitter_parser = subparsers.add_parser(
@@ -512,6 +593,10 @@ def create_parser() -> argparse.ArgumentParser:
     twitter_parser.add_argument(
         "--transcript-path",
         help="Path to video transcript (.vtt file)"
+    )
+    twitter_parser.add_argument(
+        "--output-path",
+        help="Full path for the output Twitter post file (default: transcript_dir/twitter_post.md)"
     )
 
     # Bunny video upload command

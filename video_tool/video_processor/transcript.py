@@ -11,7 +11,7 @@ from .shared import AudioSegment, VideoFileClip, logger
 class TranscriptMixin:
     """Audio extraction and transcript generation helpers."""
 
-    def generate_transcript(self, video_path: Optional[str] = None) -> str:
+    def generate_transcript(self, video_path: Optional[str] = None, output_path: Optional[str] = None) -> str:
         """Generate VTT transcript using Groq Whisper Large V3 Turbo."""
         if video_path is None:
             candidate_path = self._find_existing_output()
@@ -112,11 +112,12 @@ class TranscriptMixin:
 
                 transcript = self._merge_vtt_transcripts(transcripts)
 
-            output_path = self.output_dir / "transcript.vtt"
-            with open(output_path, "w") as file:
+            resolved_output_path = Path(output_path) if output_path else self.output_dir / "transcript.vtt"
+            resolved_output_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(resolved_output_path, "w") as file:
                 file.write(transcript)
 
-            return str(output_path)
+            return str(resolved_output_path)
         except Exception as exc:
             logger.error(f"Error generating transcript: {exc}")
             return ""
