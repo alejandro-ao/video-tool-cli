@@ -25,10 +25,11 @@ class VideoProcessorBase:
         input_dir: str,
         video_title: Optional[str] = None,
         show_external_logs: bool = False,
+        output_dir: Optional[str] = None,
     ):
         self.input_dir = Path(input_dir)
-        self.output_dir = self.input_dir / "output"
-        self.output_dir.mkdir(exist_ok=True)
+        self.output_dir = Path(output_dir) if output_dir else self.input_dir / "output"
+        self.output_dir.mkdir(parents=True, exist_ok=True)
         self.video_title = video_title.strip() if video_title else None
         self.groq = Groq()
         self.prompts = self._load_prompts()

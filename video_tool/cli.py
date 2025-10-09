@@ -23,11 +23,15 @@ console = Console()
 def normalize_path(raw: str) -> str:
     """Normalize shell-style input paths (quotes / escaped spaces)."""
     trimmed = raw.strip()
+    # Remove surrounding quotes if present
     if trimmed.startswith('"') and trimmed.endswith('"'):
         trimmed = trimmed[1:-1]
     elif trimmed.startswith("'") and trimmed.endswith("'"):
         trimmed = trimmed[1:-1]
-    return trimmed.replace("\\ ", " ")
+    # Handle escaped spaces (shell passes these literally)
+    trimmed = trimmed.replace("\\ ", " ")
+    # Expand user home directory and resolve to absolute path
+    return str(Path(trimmed).expanduser().resolve())
 
 
 def ask_required_path(prompt_text: str) -> str:
@@ -66,19 +70,24 @@ def cmd_silence_removal(args: argparse.Namespace) -> None:
     input_dir = args.input_dir
     if not input_dir:
         input_dir = ask_required_path("Input directory (containing videos)")
+    else:
+        input_dir = normalize_path(input_dir)
 
     input_path = Path(input_dir).expanduser().resolve()
     if not input_path.exists() or not input_path.is_dir():
         console.print(f"[bold red]Error:[/] Invalid input directory: {input_dir}")
         sys.exit(1)
 
-    output_dir = args.output_dir or str(input_path / "output")
+    # Handle output directory
+    output_dir = None
+    if args.output_dir:
+        output_dir = normalize_path(args.output_dir)
 
     console.print(f"[cyan]Running silence removal...[/]")
     console.print(f"  Input: {input_path}")
-    console.print(f"  Output: {output_dir}\n")
+    console.print(f"  Output: {output_dir or str(input_path / 'output')}\n")
 
-    processor = VideoProcessor(str(input_path))
+    processor = VideoProcessor(str(input_path), output_dir=output_dir)
     processed_dir = processor.remove_silences()
 
     console.print(f"[green]✓ Silence removal complete![/]")
@@ -90,21 +99,27 @@ def cmd_concat(args: argparse.Namespace) -> None:
     input_dir = args.input_dir
     if not input_dir:
         input_dir = ask_required_path("Input directory (containing videos to concatenate)")
+    else:
+        input_dir = normalize_path(input_dir)
 
     input_path = Path(input_dir).expanduser().resolve()
     if not input_path.exists() or not input_path.is_dir():
         console.print(f"[bold red]Error:[/] Invalid input directory: {input_dir}")
         sys.exit(1)
 
-    output_dir = args.output_dir or str(input_path / "output")
+    # Handle output directory
+    output_dir = None
+    if args.output_dir:
+        output_dir = normalize_path(args.output_dir)
+
     skip_reprocessing = args.fast_concat if args.fast_concat is not None else False
 
     console.print(f"[cyan]Running video concatenation...[/]")
     console.print(f"  Input: {input_path}")
-    console.print(f"  Output: {output_dir}")
+    console.print(f"  Output: {output_dir or str(input_path / 'output')}")
     console.print(f"  Fast mode: {'Yes' if skip_reprocessing else 'No'}\n")
 
-    processor = VideoProcessor(str(input_path))
+    processor = VideoProcessor(str(input_path), output_dir=output_dir)
     output_video = processor.concatenate_videos(skip_reprocessing=skip_reprocessing)
 
     console.print(f"[green]✓ Concatenation complete![/]")
@@ -116,23 +131,28 @@ def cmd_timestamps(args: argparse.Namespace) -> None:
     input_dir = args.input_dir
     if not input_dir:
         input_dir = ask_required_path("Input directory (containing videos)")
+    else:
+        input_dir = normalize_path(input_dir)
 
     input_path = Path(input_dir).expanduser().resolve()
     if not input_path.exists() or not input_path.is_dir():
         console.print(f"[bold red]Error:[/] Invalid input directory: {input_dir}")
         sys.exit(1)
 
-    output_dir = args.output_dir or str(input_path / "output")
+    # Handle output directory
+    output_dir = None
+    if args.output_dir:
+        output_dir = normalize_path(args.output_dir)
 
     console.print(f"[cyan]Generating timestamps...[/]")
     console.print(f"  Input: {input_path}")
-    console.print(f"  Output: {output_dir}\n")
+    console.print(f"  Output: {output_dir or str(input_path / 'output')}\n")
 
-    processor = VideoProcessor(str(input_path))
+    processor = VideoProcessor(str(input_path), output_dir=output_dir)
     timestamps_info = processor.generate_timestamps()
 
     console.print(f"[green]✓ Timestamps generated![/]")
-    console.print(f"  Timestamps file: {output_dir}/timestamps.json")
+    console.print(f"  Timestamps file: {processor.output_dir}/timestamps.json")
 
 
 def cmd_transcript(args: argparse.Namespace) -> None:
@@ -140,6 +160,8 @@ def cmd_transcript(args: argparse.Namespace) -> None:
     video_path = args.video_path
     if not video_path:
         video_path = ask_required_path("Path to video file")
+    else:
+        video_path = normalize_path(video_path)
 
     video_file = Path(video_path).expanduser().resolve()
     if not video_file.exists() or not video_file.is_file():
@@ -162,6 +184,8 @@ def cmd_context_cards(args: argparse.Namespace) -> None:
     video_path = args.video_path
     if not video_path:
         video_path = ask_required_path("Path to video file")
+    else:
+        video_path = normalize_path(video_path)
 
     video_file = Path(video_path).expanduser().resolve()
     if not video_file.exists() or not video_file.is_file():
@@ -174,7 +198,7 @@ def cmd_context_cards(args: argparse.Namespace) -> None:
     processor = VideoProcessor(str(video_file.parent))
 
     # First, check if transcript exists
-    transcript_path = video_file.parent / "output" / "transcript.vtt"
+    transcript_path = processor.output_dir / "transcript.vtt"
     if not transcript_path.exists():
         console.print(f"[yellow]Transcript not found. Generating transcript first...[/]")
         transcript_path_str = processor.generate_transcript(str(video_file))
@@ -191,6 +215,8 @@ def cmd_description(args: argparse.Namespace) -> None:
     transcript_path = args.transcript_path
     if not transcript_path:
         transcript_path = ask_required_path("Path to video transcript (.vtt file)")
+    else:
+        transcript_path = normalize_path(transcript_path)
 
     transcript_file = Path(transcript_path).expanduser().resolve()
     if not transcript_file.exists() or not transcript_file.is_file():
@@ -232,6 +258,8 @@ def cmd_seo(args: argparse.Namespace) -> None:
     transcript_path = args.transcript_path
     if not transcript_path:
         transcript_path = ask_required_path("Path to video transcript (.vtt file)")
+    else:
+        transcript_path = normalize_path(transcript_path)
 
     transcript_file = Path(transcript_path).expanduser().resolve()
     if not transcript_file.exists() or not transcript_file.is_file():
@@ -273,6 +301,8 @@ def cmd_linkedin(args: argparse.Namespace) -> None:
     transcript_path = args.transcript_path
     if not transcript_path:
         transcript_path = ask_required_path("Path to video transcript (.vtt file)")
+    else:
+        transcript_path = normalize_path(transcript_path)
 
     transcript_file = Path(transcript_path).expanduser().resolve()
     if not transcript_file.exists() or not transcript_file.is_file():
@@ -294,6 +324,8 @@ def cmd_twitter(args: argparse.Namespace) -> None:
     transcript_path = args.transcript_path
     if not transcript_path:
         transcript_path = ask_required_path("Path to video transcript (.vtt file)")
+    else:
+        transcript_path = normalize_path(transcript_path)
 
     transcript_file = Path(transcript_path).expanduser().resolve()
     if not transcript_file.exists() or not transcript_file.is_file():
@@ -315,6 +347,8 @@ def cmd_bunny_video(args: argparse.Namespace) -> None:
     video_path = args.video_path
     if not video_path:
         video_path = ask_required_path("Path to video file to upload")
+    else:
+        video_path = normalize_path(video_path)
 
     video_file = Path(video_path).expanduser().resolve()
     if not video_file.exists() or not video_file.is_file():
