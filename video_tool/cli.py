@@ -107,20 +107,26 @@ def cmd_concat(args: argparse.Namespace) -> None:
         console.print(f"[bold red]Error:[/] Invalid input directory: {input_dir}")
         sys.exit(1)
 
-    # Handle output directory
-    output_dir = None
-    if args.output_dir:
-        output_dir = normalize_path(args.output_dir)
+    # Handle output path for the concatenated video file
+    output_path = None
+    if args.output_path:
+        output_path = normalize_path(args.output_path)
+    else:
+        # Default: input_dir/output/concatenated.mp4
+        output_path = str(input_path / "output" / "concatenated.mp4")
 
     skip_reprocessing = args.fast_concat if args.fast_concat is not None else False
 
     console.print(f"[cyan]Running video concatenation...[/]")
     console.print(f"  Input: {input_path}")
-    console.print(f"  Output: {output_dir or str(input_path / 'output')}")
+    console.print(f"  Output file: {output_path}")
     console.print(f"  Fast mode: {'Yes' if skip_reprocessing else 'No'}\n")
 
-    processor = VideoProcessor(str(input_path), output_dir=output_dir)
-    output_video = processor.concatenate_videos(skip_reprocessing=skip_reprocessing)
+    processor = VideoProcessor(str(input_path))
+    output_video = processor.concatenate_videos(
+        skip_reprocessing=skip_reprocessing,
+        output_path=output_path
+    )
 
     console.print(f"[green]✓ Concatenation complete![/]")
     console.print(f"  Output video: {output_video}")
@@ -139,31 +145,23 @@ def cmd_timestamps(args: argparse.Namespace) -> None:
         console.print(f"[bold red]Error:[/] Invalid input directory: {input_dir}")
         sys.exit(1)
 
-    # Handle output directory
-    output_dir = None
-    if args.output_dir:
-        output_dir = normalize_path(args.output_dir)
-
     # Handle output path for the JSON file
     output_path = None
     if args.output_path:
         output_path = normalize_path(args.output_path)
+    else:
+        # Default: input_dir/output/timestamps.json
+        output_path = str(input_path / "output" / "timestamps.json")
 
     console.print(f"[cyan]Generating timestamps...[/]")
     console.print(f"  Input: {input_path}")
-    if output_path:
-        console.print(f"  Output file: {output_path}\n")
-    else:
-        console.print(f"  Output directory: {output_dir or str(input_path / 'output')}\n")
+    console.print(f"  Output file: {output_path}\n")
 
-    processor = VideoProcessor(str(input_path), output_dir=output_dir)
+    processor = VideoProcessor(str(input_path))
     timestamps_info = processor.generate_timestamps(output_path=output_path)
 
     console.print(f"[green]✓ Timestamps generated![/]")
-    if output_path:
-        console.print(f"  Timestamps file: {output_path}")
-    else:
-        console.print(f"  Timestamps file: {processor.output_dir}/timestamps.json")
+    console.print(f"  Timestamps file: {output_path}")
 
 
 def cmd_transcript(args: argparse.Namespace) -> None:
@@ -488,8 +486,8 @@ def create_parser() -> argparse.ArgumentParser:
         help="Input directory containing videos to concatenate"
     )
     concat_parser.add_argument(
-        "--output-dir",
-        help="Output directory (default: input_dir/output)"
+        "--output-path",
+        help="Full path for the output video file (default: input_dir/output/concatenated.mp4)"
     )
     concat_parser.add_argument(
         "--fast-concat",
@@ -507,12 +505,8 @@ def create_parser() -> argparse.ArgumentParser:
         help="Input directory containing videos"
     )
     timestamps_parser.add_argument(
-        "--output-dir",
-        help="Output directory (default: input_dir/output)"
-    )
-    timestamps_parser.add_argument(
         "--output-path",
-        help="Full path for the output JSON file (default: output_dir/timestamps.json)"
+        help="Full path for the output JSON file (default: input_dir/output/timestamps.json)"
     )
 
     # Transcript command

@@ -39,6 +39,7 @@ class ConcatenationMixin:
         self,
         output_filename: Optional[str] = None,
         skip_reprocessing: bool = False,
+        output_path: Optional[str] = None,
     ) -> str:
         """Concatenate multiple MP4 videos in alphabetical order using ffmpeg."""
         processed_dir = self.input_dir / "processed"
@@ -56,26 +57,22 @@ class ConcatenationMixin:
             logger.info(f"Using videos from input directory: {self.input_dir}")
 
         if not mp4_files:
-            logger.warning(
+            logger.error(
                 f"No MP4 files found in either the processed directory ({processed_dir}) "
                 f"or input directory ({self.input_dir})"
             )
-            video_info = {
-                "timestamps": [],
-                "metadata": {
-                    "creation_date": datetime.now().isoformat(),
-                },
-            }
-            resolved_output_path = Path(output_path) if output_path else self.output_dir / "timestamps.json"
-            resolved_output_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(resolved_output_path, "w") as file:
-                json.dump([video_info], file, indent=2)
-            return video_info
+            return ""
 
         logger.info(f"Found {len(mp4_files)} MP4 files to concatenate")
 
-        output_filename = self._determine_output_filename(output_filename)
-        output_path = self._resolve_unique_output_path(output_filename)
+        # Determine output path
+        if output_path:
+            resolved_output_path = Path(output_path)
+        else:
+            output_filename = self._determine_output_filename(output_filename)
+            resolved_output_path = self._resolve_unique_output_path(output_filename)
+
+        resolved_output_path.parent.mkdir(parents=True, exist_ok=True)
         temp_dir = self.input_dir / "temp_processed"
         temp_dir.mkdir(exist_ok=True)
 
@@ -99,7 +96,7 @@ class ConcatenationMixin:
                         str(concat_list),
                         "-c",
                         "copy",
-                        str(output_path),
+                        str(resolved_output_path),
                     ],
                     check=True,
                     **self._quiet_subprocess_kwargs(),
@@ -211,14 +208,14 @@ class ConcatenationMixin:
                         str(concat_list),
                         "-c",
                         "copy",
-                        str(output_path),
+                        str(resolved_output_path),
                     ],
                     check=True,
                     **self._quiet_subprocess_kwargs(),
                 )
 
-            self.last_output_path = output_path
-            return str(output_path)
+            self.last_output_path = resolved_output_path
+            return str(resolved_output_path)
         except subprocess.CalledProcessError as exc:
             logger.error(f"Error during video processing: {exc}")
             if exc.stderr:
@@ -232,6 +229,9 @@ class ConcatenationMixin:
 
     def generate_timestamps(self, output_path: Optional[str] = None) -> Dict:
         """Generate timestamp information for the video with chapters based on input videos."""
+        resolved_output_path = (
+            Path(output_path).expanduser() if output_path else self.output_dir / "timestamps.json"
+        )
         processed_dir = self.input_dir / "processed"
         mp4_files: List[Path] = []
 
@@ -261,7 +261,6 @@ class ConcatenationMixin:
                     "creation_date": datetime.now().isoformat(),
                 },
             }
-            resolved_output_path = Path(output_path) if output_path else self.output_dir / "timestamps.json"
             resolved_output_path.parent.mkdir(parents=True, exist_ok=True)
             with open(resolved_output_path, "w") as file:
                 json.dump([video_info], file, indent=2)
@@ -330,8 +329,8 @@ class ConcatenationMixin:
             },
         }
 
-        output_path = self.output_dir / "timestamps.json"
-        with open(output_path, "w") as file:
+        resolved_output_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(resolved_output_path, "w") as file:
             json.dump([video_info], file, indent=2)
 
         return video_info
@@ -638,7 +637,7 @@ class ConcatenationMixin:
         else:
             cmd.extend(["-an"])
 
-        cmd.append(str(output_path))
+        cmd.append(str(resolved_output_path))
 
         logger.info(
             f"Re-encoding {source_path.name} with parameters from {reference_path.name}"
@@ -648,7 +647,7 @@ class ConcatenationMixin:
         try:
             subprocess.run(cmd, check=True, capture_output=True, text=True)
             logger.info(f"Successfully re-encoded video to {output_path}")
-            return str(output_path)
+            return str(resolved_output_path)
         except subprocess.CalledProcessError as exc:
             logger.error(f"Failed to re-encode {source_path.name}")
             logger.error(f"FFmpeg command: {' '.join(cmd)}")
@@ -778,7 +777,7 @@ class ConcatenationMixin:
         )
 
         cmd.extend(["-map_metadata", "-1"])
-        cmd.append(str(output_path))
+        cmd.append(str(resolved_output_path))
 
         logger.info(f"Compressing with codec: {codec}, CRF: {crf}, preset: {preset}")
         logger.debug(f"FFmpeg command: {' '.join(cmd)}")
@@ -793,7 +792,7 @@ class ConcatenationMixin:
             logger.info(f"Compressed size: {compressed_size_mb:.2f} MB")
             logger.info(f"Size reduction: {compression_ratio:.1f}%")
 
-            return str(output_path)
+            return str(resolved_output_path)
         except subprocess.CalledProcessError as exc:
             logger.error(f"Failed to compress video: {input_file.name}")
             logger.error(f"FFmpeg command: {' '.join(cmd)}")

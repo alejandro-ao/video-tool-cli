@@ -29,7 +29,7 @@ class VideoProcessorBase:
     ):
         self.input_dir = Path(input_dir)
         self.output_dir = Path(output_dir) if output_dir else self.input_dir / "output"
-        self.output_dir.mkdir(parents=True, exist_ok=True)
+        # Note: output_dir is created lazily when needed, not in __init__
         self.video_title = video_title.strip() if video_title else None
         self.groq = Groq()
         self.prompts = self._load_prompts()

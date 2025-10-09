@@ -117,9 +117,23 @@ class TranscriptMixin:
             with open(resolved_output_path, "w") as file:
                 file.write(transcript)
 
+            # Clean up temporary audio file
+            try:
+                if audio_path.exists():
+                    os.remove(audio_path)
+                    logger.debug(f"Cleaned up temporary audio file: {audio_path}")
+            except Exception as cleanup_exc:
+                logger.warning(f"Could not remove temporary audio file {audio_path}: {cleanup_exc}")
+
             return str(resolved_output_path)
         except Exception as exc:
             logger.error(f"Error generating transcript: {exc}")
+            # Try to clean up audio file even on error
+            try:
+                if audio_path.exists():
+                    os.remove(audio_path)
+            except Exception:
+                pass
             return ""
 
     def _clean_vtt_transcript(self, vtt_content: str) -> str:
