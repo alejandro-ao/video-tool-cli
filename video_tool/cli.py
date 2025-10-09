@@ -6,10 +6,11 @@ If arguments are not provided, the user will be prompted interactively.
 """
 
 import argparse
+import json
 import os
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Dict, List, Optional, Sequence, cast
 
 from dotenv import load_dotenv
 from rich.console import Console
@@ -44,6 +45,18 @@ def ask_required_path(prompt_text: str) -> str:
         normalized = normalize_path(response)
         if normalized:
             return normalized
+        console.print("[yellow]Please provide a value.[/]")
+
+
+def ask_required_text(prompt_text: str) -> str:
+    """Prompt until a non-empty text value is provided."""
+    while True:
+        response = Prompt.ask(
+            f"[bold cyan]{prompt_text}[/]",
+            console=console,
+        ).strip()
+        if response:
+            return response
         console.print("[yellow]Please provide a value.[/]")
 
 
@@ -444,18 +457,14 @@ def cmd_bunny_video(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     collection_id = args.bunny_collection_id or os.getenv("BUNNY_COLLECTION_ID")
-    caption_language = args.bunny_caption_language or os.getenv("BUNNY_CAPTION_LANGUAGE") or "en"
 
     console.print(f"[cyan]Uploading video to Bunny.net...[/]")
     console.print(f"  Video: {video_file}")
     console.print(f"  Library ID: {library_id}\n")
 
     processor = VideoProcessor(str(video_file.parent))
-    result = processor.deploy_to_bunny(
+    result = processor.upload_bunny_video(
         video_path=str(video_file),
-        upload_video=True,
-        upload_chapters=False,
-        upload_transcript=False,
         library_id=library_id,
         access_key=access_key,
         collection_id=collection_id,
@@ -466,6 +475,146 @@ def cmd_bunny_video(args: argparse.Namespace) -> None:
         console.print(f"  Video ID: {result.get('video_id')}")
     else:
         console.print(f"[bold red]Error:[/] Failed to upload video to Bunny.net")
+        sys.exit(1)
+
+
+def cmd_bunny_transcript(args: argparse.Namespace) -> None:
+    """Upload transcript captions to an existing Bunny.net video."""
+    video_id = args.video_id or os.getenv("BUNNY_VIDEO_ID")
+    if not video_id:
+        video_id = ask_required_text("Bunny Video ID")
+
+    library_id = args.bunny_library_id or os.getenv("BUNNY_LIBRARY_ID")
+    if not library_id:
+        library_id = ask_optional_text("Bunny Library ID", None)
+
+    access_key = args.bunny_access_key or os.getenv("BUNNY_ACCESS_KEY")
+    if not access_key:
+        access_key = ask_optional_text("Bunny Access Key", None)
+
+    if not library_id or not access_key:
+        console.print(f"[bold red]Error:[/] BUNNY_LIBRARY_ID and BUNNY_ACCESS_KEY are required")
+        sys.exit(1)
+
+    transcript_path = args.transcript_path
+    if transcript_path:
+        transcript_path = normalize_path(transcript_path)
+    else:
+        transcript_path = ask_required_path("Path to transcript file (.vtt)")
+
+    transcript_file = Path(transcript_path).expanduser().resolve()
+    if not transcript_file.exists() or not transcript_file.is_file():
+        console.print(f"[bold red]Error:[/] Invalid transcript file: {transcript_path}")
+        sys.exit(1)
+
+    language = args.language or os.getenv("BUNNY_CAPTION_LANGUAGE") or "en"
+    language = language.strip() or "en"
+
+    console.print(f"[cyan]Uploading transcript to Bunny.net...[/]")
+    console.print(f"  Transcript: {transcript_file}")
+    console.print(f"  Video ID: {video_id}")
+    console.print(f"  Language: {language}\n")
+
+    processor = VideoProcessor(str(transcript_file.parent), output_dir=str(transcript_file.parent))
+    success = processor.update_bunny_transcript(
+        video_id=video_id,
+        library_id=library_id,
+        access_key=access_key,
+        transcript_path=str(transcript_file),
+        language=language,
+    )
+
+    if success:
+        console.print(f"[green]✓ Captions uploaded to Bunny.net![/]")
+    else:
+        console.print(f"[bold red]Error:[/] Failed to upload transcript to Bunny.net")
+        sys.exit(1)
+
+
+def cmd_bunny_chapters(args: argparse.Namespace) -> None:
+    """Upload chapter metadata to an existing Bunny.net video."""
+    video_id = args.video_id or os.getenv("BUNNY_VIDEO_ID")
+    if not video_id:
+        video_id = ask_required_text("Bunny Video ID")
+
+    library_id = args.bunny_library_id or os.getenv("BUNNY_LIBRARY_ID")
+    if not library_id:
+        library_id = ask_optional_text("Bunny Library ID", None)
+
+    access_key = args.bunny_access_key or os.getenv("BUNNY_ACCESS_KEY")
+    if not access_key:
+        access_key = ask_optional_text("Bunny Access Key", None)
+
+    if not library_id or not access_key:
+        console.print(f"[bold red]Error:[/] BUNNY_LIBRARY_ID and BUNNY_ACCESS_KEY are required")
+        sys.exit(1)
+
+    chapters_path = args.chapters_path
+    if chapters_path:
+        chapters_path = normalize_path(chapters_path)
+    else:
+        chapters_path = ask_required_path("Path to chapters JSON file")
+
+    chapters_file = Path(chapters_path).expanduser().resolve()
+    if not chapters_file.exists() or not chapters_file.is_file():
+        console.print(f"[bold red]Error:[/] Invalid chapters file: {chapters_path}")
+        sys.exit(1)
+
+    try:
+        with open(chapters_file, "r", encoding="utf-8") as handle:
+            raw_data = json.load(handle)
+    except (OSError, json.JSONDecodeError) as exc:
+        console.print(f"[bold red]Error:[/] Unable to read chapters file: {exc}")
+        sys.exit(1)
+
+    def _coerce_chapters(data: object) -> Optional[List[Dict[str, str]]]:
+        def _collect_dicts(items: Sequence[object]) -> List[Dict[str, str]]:
+            collected: List[Dict[str, str]] = []
+            for item in items:
+                if isinstance(item, dict):
+                    collected.append(cast(Dict[str, str], item))
+            return collected
+
+        if isinstance(data, list):
+            if data and isinstance(data[0], dict) and "timestamps" in data[0]:
+                timestamps = data[0].get("timestamps")
+                if isinstance(timestamps, list):
+                    filtered = _collect_dicts(timestamps)
+                    return filtered or None
+                return None
+            filtered = _collect_dicts(data)
+            return filtered or None
+        if isinstance(data, dict):
+            for key in ("chapters", "timestamps"):
+                value = data.get(key)
+                if isinstance(value, list):
+                    filtered = _collect_dicts(value)
+                    return filtered or None
+            if all(key in data for key in ("title", "start", "end")):
+                return [cast(Dict[str, str], data)]
+        return None
+
+    chapters_payload = _coerce_chapters(raw_data)
+    if not chapters_payload:
+        console.print("[bold red]Error:[/] Unable to determine chapter structure from file.")
+        sys.exit(1)
+
+    console.print(f"[cyan]Uploading chapters to Bunny.net...[/]")
+    console.print(f"  Chapters file: {chapters_file}")
+    console.print(f"  Video ID: {video_id}\n")
+
+    processor = VideoProcessor(str(chapters_file.parent))
+    success = processor.update_bunny_chapters(
+        video_id=video_id,
+        library_id=library_id,
+        access_key=access_key,
+        chapters=chapters_payload,
+    )
+
+    if success:
+        console.print(f"[green]✓ Chapters uploaded to Bunny.net![/]")
+    else:
+        console.print(f"[bold red]Error:[/] Failed to upload chapters to Bunny.net")
         sys.exit(1)
 
 
@@ -630,10 +779,53 @@ def create_parser() -> argparse.ArgumentParser:
         "--bunny-collection-id",
         help="Bunny.net collection ID (optional)"
     )
-    bunny_parser.add_argument(
-        "--bunny-caption-language",
-        default="en",
+
+    # Bunny transcript upload command
+    bunny_transcript_parser = subparsers.add_parser(
+        "bunny-transcript",
+        help="Upload transcript captions to Bunny.net"
+    )
+    bunny_transcript_parser.add_argument(
+        "--video-id",
+        help="Existing Bunny.net video ID"
+    )
+    bunny_transcript_parser.add_argument(
+        "--transcript-path",
+        help="Path to transcript file (.vtt)"
+    )
+    bunny_transcript_parser.add_argument(
+        "--language",
         help="Caption language code (default: en)"
+    )
+    bunny_transcript_parser.add_argument(
+        "--bunny-library-id",
+        help="Bunny.net library ID"
+    )
+    bunny_transcript_parser.add_argument(
+        "--bunny-access-key",
+        help="Bunny.net access key"
+    )
+
+    # Bunny chapters upload command
+    bunny_chapters_parser = subparsers.add_parser(
+        "bunny-chapters",
+        help="Upload chapters metadata to Bunny.net"
+    )
+    bunny_chapters_parser.add_argument(
+        "--video-id",
+        help="Existing Bunny.net video ID"
+    )
+    bunny_chapters_parser.add_argument(
+        "--chapters-path",
+        help="Path to chapters JSON file (e.g. timestamps.json)"
+    )
+    bunny_chapters_parser.add_argument(
+        "--bunny-library-id",
+        help="Bunny.net library ID"
+    )
+    bunny_chapters_parser.add_argument(
+        "--bunny-access-key",
+        help="Bunny.net access key"
     )
 
     return parser
@@ -651,7 +843,8 @@ def main() -> None:
         sys.exit(0)
 
     # Validate environment
-    if args.command != "bunny-video":
+    commands_without_ai = {"bunny-video", "bunny-transcript", "bunny-chapters"}
+    if args.command not in commands_without_ai:
         missing = [var for var in ("OPENAI_API_KEY", "GROQ_API_KEY") if not os.getenv(var)]
         if missing:
             missing_list = ", ".join(missing)
@@ -672,6 +865,8 @@ def main() -> None:
         "linkedin": cmd_linkedin,
         "twitter": cmd_twitter,
         "bunny-video": cmd_bunny_video,
+        "bunny-transcript": cmd_bunny_transcript,
+        "bunny-chapters": cmd_bunny_chapters,
     }
 
     handler = command_handlers.get(args.command)

@@ -202,3 +202,82 @@ def test_deploy_to_bunny_waits_for_processing(mock_video_processor):
         "pending": True,
     }
     assert mock_request.call_count == 1
+
+
+def test_upload_bunny_video_only(mock_video_processor, temp_dir):
+    """Uploading a video directly returns the expected identifier payload."""
+    video_path = temp_dir / "output" / "final.mp4"
+    video_path.write_bytes(b"\x00\x00test")
+
+    responses = [
+        _make_response({"videoId": "vid-123"}),
+        _make_response({}),
+    ]
+
+    with patch("video_tool.video_processor.requests.request", side_effect=responses) as mock_request:
+        result = mock_video_processor.upload_bunny_video(
+            video_path=str(video_path),
+            library_id="lib-1",
+            access_key="access-1",
+            collection_id="collection-9",
+            video_title="Demo Video",
+        )
+
+    assert result == {
+        "library_id": "lib-1",
+        "video_id": "vid-123",
+        "title": "Demo Video",
+    }
+    methods = [call.kwargs["method"] for call in mock_request.call_args_list]
+    assert methods == ["POST", "PUT"]
+
+
+def test_update_bunny_transcript_only(mock_video_processor, temp_dir):
+    """Uploading captions directly uses the srclang endpoint."""
+    transcript_path = temp_dir / "output" / "transcript.vtt"
+    transcript_path.write_text("WEBVTT\n\n00:00.000 --> 00:01.000\nHello\n", encoding="utf-8")
+
+    responses = [
+        _make_response({}),
+    ]
+
+    with patch("video_tool.video_processor.requests.request", side_effect=responses) as mock_request:
+        success = mock_video_processor.update_bunny_transcript(
+            video_id="vid-123",
+            library_id="lib-1",
+            access_key="access-1",
+            transcript_path=str(transcript_path),
+            language="en",
+        )
+
+    assert success is True
+    assert mock_request.call_count == 1
+    kwargs = mock_request.call_args_list[0].kwargs
+    assert kwargs["method"] == "POST"
+    assert kwargs["url"].endswith("/library/lib-1/videos/vid-123/captions/en")
+
+
+def test_update_bunny_chapters_only(mock_video_processor, temp_dir):
+    """Uploading chapters directly posts normalised payload."""
+    chapters = [
+        {"title": "Intro", "start": "00:00:00", "end": "00:01:00"},
+        {"title": "Middle", "start": "60", "end": "120"},
+    ]
+
+    responses = [
+        _make_response({}),
+    ]
+
+    with patch("video_tool.video_processor.requests.request", side_effect=responses) as mock_request:
+        success = mock_video_processor.update_bunny_chapters(
+            video_id="vid-123",
+            library_id="lib-1",
+            access_key="access-1",
+            chapters=chapters,
+        )
+
+    assert success is True
+    assert mock_request.call_count == 1
+    kwargs = mock_request.call_args_list[0].kwargs
+    assert kwargs["method"] == "POST"
+    assert kwargs["json"]["chapters"][0]["start"] == 0
