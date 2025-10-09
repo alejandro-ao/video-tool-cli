@@ -86,6 +86,9 @@ All step flags override `--skip-all` and force the associated stage to run. They
 - `--input-dir <path>`: provide the source directory. Required for non-interactive runs unless the active profile defines it. If omitted on a TTY, the CLI will prompt for the path.
 - `--profile <name>`: load a saved profile. Profiles are case insensitive. An error lists available profiles if the requested one is missing.
 - `--manual`: enter interactive mode (see above).
+- `--bunny-video-path <path>`: optionally supply an existing MP4 to upload to Bunny.net. Overrides the automatically selected final video. Ignored in manual mode.
+- `--bunny-transcript-path <path>`: optionally supply a VTT/SRT file to upload as Bunny captions. Overrides the default `output/transcript.vtt`. Ignored in manual mode.
+- `--bunny-chapters-path <path>`: optionally supply a JSON file containing chapter markers (title, start, end) for Bunny. Overrides the normalised chapters from `timestamps.json`. Ignored in manual mode.
 - When description generation is enabled without a stored URL, the CLI prompts for the repository (TTY) or exits with instructions.
 - Every run asks for a video title; provide it when prompted or via `--manual` responses.
 
@@ -96,6 +99,7 @@ Before execution, automatic mode prints a table showing:
 - Resolved input path and optional metadata (repository URL, video title).
 - Which processing stages will run or skip.
 - Bunny.net library/video identifiers if applicable.
+- Bunny override paths if provided (video, transcript, chapters).
 - Log verbosity.
 
 Use this summary to confirm that applied profiles and CLI flags match expectations before any processing begins.

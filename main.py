@@ -50,6 +50,9 @@ DEFAULT_PARAMS: Dict[str, Any] = {
     "input_dir": None,
     "repo_url": None,
     "video_title": None,
+    "bunny_video_path": None,
+    "bunny_transcript_path": None,
+    "bunny_chapters_path": None,
     "skip_silence_removal": False,
     "skip_concat": False,
     "skip_reprocessing": False,
@@ -176,6 +179,14 @@ def apply_cli_overrides(params: Dict[str, Any], args: argparse.Namespace) -> Dic
         if getattr(args, spec.attr, False):
             params[spec.skip_key] = False
 
+    # Bunny asset path overrides
+    if getattr(args, "bunny_video_path", None):
+        params["bunny_video_path"] = normalize_path(args.bunny_video_path)
+    if getattr(args, "bunny_transcript_path", None):
+        params["bunny_transcript_path"] = normalize_path(args.bunny_transcript_path)
+    if getattr(args, "bunny_chapters_path", None):
+        params["bunny_chapters_path"] = normalize_path(args.bunny_chapters_path)
+
     return params
 
 
@@ -301,6 +312,22 @@ def parse_cli_args() -> argparse.Namespace:
             action="store_true",
             help=spec.help_text + " Overrides --skip-all for this step.",
         )
+    # Optional Bunny asset paths
+    parser.add_argument(
+        "--bunny-video-path",
+        type=str,
+        help="Path to existing MP4 to upload to Bunny.net",
+    )
+    parser.add_argument(
+        "--bunny-transcript-path",
+        type=str,
+        help="Path to existing VTT/SRT transcript for Bunny captions",
+    )
+    parser.add_argument(
+        "--bunny-chapters-path",
+        type=str,
+        help="Path to JSON file with chapter markers for Bunny",
+    )
     return parser.parse_args()
 
 
@@ -388,12 +415,40 @@ def ask_required_text(prompt_text: str) -> str:
         console.print("[yellow]Please provide a value.[/]")
 
 
+def ask_optional_path(prompt_text: str) -> Optional[str]:
+    """Prompt for an optional filesystem path, normalizing shell-style input."""
+    response = Prompt.ask(
+        f"[bold cyan]{prompt_text}[/] ([dim]optional[/])",
+        default="",
+        show_default=False,
+        console=console,
+    )
+    normalized = normalize_path(response)
+    return normalized or None
+
+
 def summarize_configuration(data: Dict[str, Any]) -> None:
     """Show the user a quick overview of their selections."""
     summary = Table(box=box.ASCII, show_header=False, pad_edge=False)
-    summary.add_row("Input directory", str(Path(data["input_dir"]).expanduser()))
+    # Input directory may be absent for Bunny-only workflows
+    input_dir_display = (
+        str(Path(data["input_dir"]).expanduser())
+        if data.get("input_dir") else "—"
+    )
+    summary.add_row("Input directory", input_dir_display)
     summary.add_row("Repository URL", data["repo_url"] or "—")
     summary.add_row("Video title", data["video_title"] or "—")
+    bunny_overrides = any(
+        bool(data.get(key)) for key in (
+            "bunny_video_path",
+            "bunny_transcript_path",
+            "bunny_chapters_path",
+        )
+    )
+    if bunny_overrides:
+        summary.add_row("Bunny video path", data.get("bunny_video_path") or "—")
+        summary.add_row("Bunny transcript path", data.get("bunny_transcript_path") or "—")
+        summary.add_row("Bunny chapters path", data.get("bunny_chapters_path") or "—")
     summary.add_row("Silence removal", "run" if not data["skip_silence_removal"] else "skip")
     summary.add_row("Concatenation", "run" if not data["skip_concat"] else "skip")
     if not data["skip_concat"]:
@@ -470,6 +525,7 @@ def summarize_configuration(data: Dict[str, Any]) -> None:
 def get_user_input() -> Dict[str, Any]:
     """Collect configuration details interactively using explicit skip prompts."""
     console.print("[bold]Let's configure this session.[/]\n")
+    # Maintain prompt order expected by tests
     input_dir = ask_required_path("Input directory")
     repo_url = ask_optional_text("Repository URL")
     video_title = ask_optional_text("Video title")
@@ -561,12 +617,30 @@ def get_user_input() -> Dict[str, Any]:
     bunny_collection_id: Optional[str] = None
     bunny_caption_language = "en"
     bunny_video_id: Optional[str] = None
+    # Optional Bunny asset override paths (can be provided via CLI; no prompts here)
+    bunny_video_path: Optional[str] = None
+    bunny_transcript_path: Optional[str] = None
+    bunny_chapters_path: Optional[str] = None
 
     bunny_actions_enabled = not (
         skip_bunny_video_upload
         and skip_bunny_chapter_upload
         and skip_bunny_transcript_upload
     )
+
+    # Compute bunny-only mode (informational; input_dir still collected here)
+    non_bunny_modules_selected = (
+        not skip_silence_removal
+        or not skip_concat
+        or not skip_timestamps
+        or not skip_transcript
+        or not skip_context_cards
+        or not skip_description
+        or not skip_seo
+        or not skip_linkedin
+        or not skip_twitter
+    )
+    bunny_only_mode = bunny_actions_enabled and not non_bunny_modules_selected
 
     if bunny_actions_enabled:
         bunny_library_id = ask_optional_text(
@@ -696,11 +770,34 @@ def main() -> None:
         if manual_mode:
             params = get_user_input()
             params = apply_default_settings(params)
-            params["input_dir"] = normalize_path(str(params["input_dir"]))
-            if not ensure_video_title(params):
-                return
-            if not ensure_repo_url(params):
-                return
+            # Determine Bunny-only mode in manual params
+            upload_bunny_video = not params.get("skip_bunny_video_upload", True)
+            upload_bunny_chapters = not params.get("skip_bunny_chapter_upload", True)
+            upload_bunny_transcript = not params.get("skip_bunny_transcript_upload", True)
+            bunny_actions_enabled = upload_bunny_video or upload_bunny_chapters or upload_bunny_transcript
+            non_bunny_modules_selected = (
+                not params.get("skip_silence_removal", True)
+                or not params.get("skip_concat", True)
+                or not params.get("skip_timestamps", True)
+                or not params.get("skip_transcript", True)
+                or not params.get("skip_context_cards", True)
+                or not params.get("skip_description", True)
+                or not params.get("skip_seo", True)
+                or not params.get("skip_linkedin", True)
+                or not params.get("skip_twitter", True)
+            )
+            bunny_only_mode = bunny_actions_enabled and not non_bunny_modules_selected
+
+            # Normalize input_dir only when not Bunny-only and provided
+            if params.get("input_dir"):
+                params["input_dir"] = normalize_path(str(params["input_dir"]))
+
+            # Only require video title and repo url if relevant modules run
+            if not bunny_only_mode:
+                if not ensure_video_title(params):
+                    return
+                if not ensure_repo_url(params):
+                    return
         else:
             profile_data: Optional[Dict[str, Any]] = None
             if args.profile:
@@ -730,23 +827,42 @@ def main() -> None:
 
             params = apply_cli_overrides(params, args)
 
-            if not params.get("input_dir"):
-                if sys.stdin and sys.stdin.isatty():
-                    params["input_dir"] = ask_required_path("Input directory")
-                else:
-                    console.print(
-                        "[bold red]Input directory not provided. "
-                        "Set --input-dir or save it in the selected profile.[/]"
-                    )
-                    logger.error("Input directory missing for non-interactive run.")
-                    return
-            else:
-                params["input_dir"] = normalize_path(str(params["input_dir"]))
+            # Determine Bunny-only mode for non-manual runs
+            upload_bunny_video = not params.get("skip_bunny_video_upload", True)
+            upload_bunny_chapters = not params.get("skip_bunny_chapter_upload", True)
+            upload_bunny_transcript = not params.get("skip_bunny_transcript_upload", True)
+            bunny_actions_enabled = upload_bunny_video or upload_bunny_chapters or upload_bunny_transcript
+            non_bunny_modules_selected = (
+                not params.get("skip_silence_removal", True)
+                or not params.get("skip_concat", True)
+                or not params.get("skip_timestamps", True)
+                or not params.get("skip_transcript", True)
+                or not params.get("skip_context_cards", True)
+                or not params.get("skip_description", True)
+                or not params.get("skip_seo", True)
+                or not params.get("skip_linkedin", True)
+                or not params.get("skip_twitter", True)
+            )
+            bunny_only_mode = bunny_actions_enabled and not non_bunny_modules_selected
 
-            if not ensure_video_title(params):
-                return
-            if not ensure_repo_url(params):
-                return
+            if not bunny_only_mode:
+                if not params.get("input_dir"):
+                    if sys.stdin and sys.stdin.isatty():
+                        params["input_dir"] = ask_required_path("Input directory")
+                    else:
+                        console.print(
+                            "[bold red]Input directory not provided. "
+                            "Set --input-dir or save it in the selected profile.[/]"
+                        )
+                        logger.error("Input directory missing for non-interactive run.")
+                        return
+                else:
+                    params["input_dir"] = normalize_path(str(params["input_dir"]))
+
+                if not ensure_video_title(params):
+                    return
+                if not ensure_repo_url(params):
+                    return
 
             if profile_used:
                 console.print(f"[cyan]Using profile[/] -> {profile_used}")
@@ -758,26 +874,52 @@ def main() -> None:
 
         configure_logging(params.get("verbose_logging", False))
 
-        input_dir = Path(params["input_dir"]).expanduser().resolve()
-
-        if not input_dir.exists():
-            console.print(
-                f"[bold red]Input directory does not exist:[/] {input_dir}"
-            )
-            logger.error(f"Input directory does not exist: {input_dir}")
-            return
-        if not input_dir.is_dir():
-            console.print(f"[bold red]Path is not a directory:[/] {input_dir}")
-            logger.error(f"Path is not a directory: {input_dir}")
-            return
-
-        processor = VideoProcessor(
-            str(input_dir),
-            video_title=params["video_title"],
-            show_external_logs=params["verbose_logging"],
+        # Initialize processor only when not Bunny-only (depends on input_dir)
+        upload_bunny_video = not params.get("skip_bunny_video_upload", True)
+        upload_bunny_chapters = not params.get("skip_bunny_chapter_upload", True)
+        upload_bunny_transcript = not params.get("skip_bunny_transcript_upload", True)
+        bunny_actions_enabled = upload_bunny_video or upload_bunny_chapters or upload_bunny_transcript
+        non_bunny_modules_selected = (
+            not params.get("skip_silence_removal", True)
+            or not params.get("skip_concat", True)
+            or not params.get("skip_timestamps", True)
+            or not params.get("skip_transcript", True)
+            or not params.get("skip_context_cards", True)
+            or not params.get("skip_description", True)
+            or not params.get("skip_seo", True)
+            or not params.get("skip_linkedin", True)
+            or not params.get("skip_twitter", True)
         )
-        logger.info(f"Input directory path: {input_dir}")
-        logger.info(f"Output directory path: {processor.output_dir}")
+        bunny_only_mode = bunny_actions_enabled and not non_bunny_modules_selected
+
+        if not bunny_only_mode:
+            input_dir = Path(params["input_dir"]).expanduser().resolve()
+
+            if not input_dir.exists():
+                console.print(
+                    f"[bold red]Input directory does not exist:[/] {input_dir}"
+                )
+                logger.error(f"Input directory does not exist: {input_dir}")
+                return
+            if not input_dir.is_dir():
+                console.print(f"[bold red]Path is not a directory:[/] {input_dir}")
+                logger.error(f"Path is not a directory: {input_dir}")
+                return
+
+            processor = VideoProcessor(
+                str(input_dir),
+                video_title=params["video_title"],
+                show_external_logs=params["verbose_logging"],
+            )
+            logger.info(f"Input directory path: {input_dir}")
+            logger.info(f"Output directory path: {processor.output_dir}")
+        else:
+            # Bunny-only: create a lightweight processor without filesystem coupling
+            processor = VideoProcessor(
+                str(Path.cwd()),
+                video_title=params.get("video_title"),
+                show_external_logs=params.get("verbose_logging", False),
+            )
 
         artifacts: Dict[str, Any] = {}
         timestamps_info: Optional[Dict[str, Any]] = None
@@ -825,7 +967,7 @@ def main() -> None:
         logger.info("🎥 Selecting video file for content generation...")
         video_path = output_video
 
-        if not video_path:
+        if not video_path and not bunny_only_mode:
             mp4_files = list(processor.output_dir.glob("*.mp4"))
             if not mp4_files:
                 mp4_files = list(input_dir.glob("*.mp4"))
@@ -847,11 +989,15 @@ def main() -> None:
                 console.print("[yellow]No video files found for content generation[/]")
                 video_path = None
         else:
-            logger.info(f"📁 Using concatenated video: {Path(video_path).name}")
-            console.print(
-                f"[green]Using concatenated video[/] -> {Path(video_path).name}"
-            )
-            artifacts.setdefault("Candidate video", Path(video_path))
+            if video_path:
+                logger.info(f"📁 Using concatenated video: {Path(video_path).name}")
+                console.print(
+                    f"[green]Using concatenated video[/] -> {Path(video_path).name}"
+                )
+                artifacts.setdefault("Candidate video", Path(video_path))
+            else:
+                # Bunny-only with no concatenated video selected yet: defer selection
+                logger.info("No concatenated video available; will resolve for Bunny upload if needed.")
 
         transcript_path: Optional[str] = None
         if not params["skip_transcript"] and video_path:
@@ -897,12 +1043,41 @@ def main() -> None:
         upload_bunny_transcript = not params["skip_bunny_transcript_upload"]
 
         if upload_bunny_video or upload_bunny_chapters or upload_bunny_transcript:
+            # Apply optional Bunny video override provided via CLI/interactive config
+            bunny_video_override = params.get("bunny_video_path")
+            if bunny_video_override:
+                video_path = Path(bunny_video_override)
+                artifacts.setdefault("Final video", str(video_path))
             if upload_bunny_video and not video_path:
-                logger.warning("⚠️ Skipping Bunny video upload: no video file available")
-                console.print(
-                    "[yellow]Skipping Bunny video upload: no video file available[/]"
-                )
-            else:
+                # If running interactively, ask the user to provide a video path on the spot
+                if sys.stdin and sys.stdin.isatty():
+                    console.print(
+                        "[yellow]No video file found for upload.[/]"
+                    )
+                    while True:
+                        candidate = ask_required_path("Existing MP4 video path for Bunny upload")
+                        candidate_path = Path(candidate).expanduser().resolve()
+                        if candidate_path.exists() and candidate_path.is_file() and candidate_path.suffix.lower() == ".mp4":
+                            video_path = str(candidate_path)
+                            logger.info(f"📁 Using provided video for Bunny upload: {candidate_path.name}")
+                            console.print(
+                                f"[green]Using provided video[/] -> {candidate_path.name}"
+                            )
+                            artifacts.setdefault("Candidate video", candidate_path)
+                            break
+                        else:
+                            console.print(
+                                "[yellow]Path is not a valid .mp4 file. Please try again.[/]"
+                            )
+
+                # Non-interactive or still no valid path: warn and proceed without video upload
+                if not video_path:
+                    logger.warning("⚠️ Skipping Bunny video upload: no video file available")
+                    console.print(
+                        "[yellow]Skipping Bunny video upload: no video file available[/]"
+                    )
+
+            if not (upload_bunny_video and not video_path):
                 if upload_bunny_video and (upload_bunny_chapters or upload_bunny_transcript):
                     bunny_message = "🚀 Syncing Bunny.net video and metadata..."
                 elif upload_bunny_video:
@@ -913,6 +1088,18 @@ def main() -> None:
                 chapter_entries = None
                 if isinstance(timestamps_info, dict):
                     chapter_entries = timestamps_info.get("timestamps")
+                # Apply optional Bunny chapters override
+                bunny_chapters_override = params.get("bunny_chapters_path")
+                if bunny_chapters_override and Path(bunny_chapters_override).exists():
+                    try:
+                        with open(bunny_chapters_override, "r", encoding="utf-8") as f:
+                            chapter_entries = json.load(f)
+                    except Exception as e:
+                        logger.warning("Failed to load Bunny chapters JSON: %s", e)
+
+                # Apply optional Bunny transcript override
+                if params.get("bunny_transcript_path"):
+                    resolved_transcript = Path(params["bunny_transcript_path"]) if params["bunny_transcript_path"] else resolved_transcript
 
                 bunny_result = run_step(
                     bunny_message,
