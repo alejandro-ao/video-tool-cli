@@ -26,6 +26,9 @@ dependencies = [
     "pydantic>=2.11.4",
 ]
 
+[project.scripts]
+video-tool = "video_tool.cli:main"
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["video_tool*", "mcp_server*"]

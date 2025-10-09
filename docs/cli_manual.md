@@ -1,117 +1,474 @@
 # Video Tool CLI Manual
 
-This guide explains every option exposed by the video processing CLI. It covers command invocation, targeted and interactive modes, profile management, and where configuration data is stored.
+This guide explains how to use the video processing CLI. The tool provides independent commands for each processing step, making it easy to run individual tasks or chain them together.
 
-## Command Overview
+## Quick Start
+
+```bash
+# Show all available commands
+video-tool --help
+
+# Show help for a specific command
+video-tool concat --help
+
+# Run a command with arguments
+video-tool concat --input-dir ./clips --fast-concat
+
+# Run a command with interactive prompts (omit arguments)
+video-tool concat
+```
+
+## Installation
+
+After installing the package, the `video-tool` command becomes available:
+
+```bash
+pip install -e .
+# or
+uv pip install -e .
+```
+
+You can also run it directly via Python:
+
+```bash
+python main.py <command> [options]
+# or
+python -m video_tool.cli <command> [options]
+```
+
+## Environment Setup
+
+Required environment variables (set in `.env` or your shell):
+
+```bash
+OPENAI_API_KEY=your_openai_api_key
+GROQ_API_KEY=your_groq_api_key
+
+# Optional: For Bunny.net uploads
+BUNNY_LIBRARY_ID=your_library_id
+BUNNY_ACCESS_KEY=your_access_key
+BUNNY_COLLECTION_ID=your_collection_id  # optional
+BUNNY_CAPTION_LANGUAGE=en  # optional, defaults to 'en'
+```
+
+## Available Commands
+
+### Video Processing Commands
+
+#### `silence-removal`
+
+Remove silences from video clips.
+
+**Required inputs:**
+- Input directory (containing video files)
+
+**Optional inputs:**
+- Output directory (defaults to `input_dir/output`)
+
+**Example:**
+
+```bash
+# With arguments
+video-tool silence-removal --input-dir ./clips
+
+# Interactive (prompts for missing inputs)
+video-tool silence-removal
+```
+
+**Arguments:**
+- `--input-dir PATH`: Input directory containing videos
+- `--output-dir PATH`: Output directory (default: input_dir/output)
+
+---
+
+#### `concat`
+
+Concatenate multiple video clips into a single video.
+
+**Required inputs:**
+- Input directory (containing video files to concatenate)
+
+**Optional inputs:**
+- Output directory (defaults to `input_dir/output`)
+- Fast concatenation mode (true/false)
+
+**Example:**
+
+```bash
+# Standard concatenation
+video-tool concat --input-dir ./clips
+
+# Fast concatenation (skip reprocessing)
+video-tool concat --input-dir ./clips --fast-concat
+
+# Interactive
+video-tool concat
+```
+
+**Arguments:**
+- `--input-dir PATH`: Input directory containing videos to concatenate
+- `--output-dir PATH`: Output directory (default: input_dir/output)
+- `--fast-concat`: Use fast concatenation mode (skip reprocessing)
+
+---
+
+#### `timestamps`
+
+Generate timestamp information for videos (useful for YouTube chapters).
+
+**Required inputs:**
+- Input directory (containing video files)
+
+**Optional inputs:**
+- Output directory (defaults to `input_dir/output`)
+
+**Example:**
+
+```bash
+video-tool timestamps --input-dir ./clips
+```
+
+**Arguments:**
+- `--input-dir PATH`: Input directory containing videos
+- `--output-dir PATH`: Output directory (default: input_dir/output)
+
+**Output:** Creates `timestamps.json` in the output directory.
+
+---
+
+#### `transcript`
+
+Generate a transcript for a video using Groq Whisper.
+
+**Required inputs:**
+- Path to video file
+
+**Example:**
+
+```bash
+video-tool transcript --video-path ./my-video.mp4
+```
+
+**Arguments:**
+- `--video-path PATH`: Path to video file
+
+**Output:** Creates `transcript.vtt` in the video's parent output directory.
+
+---
+
+### Content Generation Commands
+
+#### `context-cards`
+
+Generate context cards and resource mentions from a video.
+
+**Required inputs:**
+- Path to video file
+
+**Example:**
+
+```bash
+video-tool context-cards --video-path ./my-video.mp4
+```
+
+**Arguments:**
+- `--video-path PATH`: Path to video file
+
+**Note:** If a transcript doesn't exist, it will be generated automatically.
+
+**Output:** Creates `context-cards.md` in the output directory.
+
+---
+
+#### `description`
+
+Generate a video description from a transcript.
+
+**Required inputs:**
+- Path to video transcript (.vtt file)
+
+**Optional inputs:**
+- Repository URL (for including code links)
+
+**Example:**
+
+```bash
+video-tool description --transcript-path ./output/transcript.vtt --repo-url https://github.com/user/repo
+```
+
+**Arguments:**
+- `--transcript-path PATH`: Path to video transcript (.vtt file)
+- `--repo-url URL`: Repository URL to include in description (optional)
+
+**Output:** Creates `description.md` in the output directory.
+
+---
+
+#### `seo`
+
+Generate SEO keywords from a transcript.
+
+**Required inputs:**
+- Path to video transcript (.vtt file)
+
+**Example:**
+
+```bash
+video-tool seo --transcript-path ./output/transcript.vtt
+```
+
+**Arguments:**
+- `--transcript-path PATH`: Path to video transcript (.vtt file)
+
+**Note:** If a description doesn't exist, it will be generated automatically.
+
+**Output:** Creates `keywords.txt` in the output directory.
+
+---
+
+#### `linkedin`
+
+Generate a LinkedIn post from a video transcript.
+
+**Required inputs:**
+- Path to video transcript (.vtt file)
+
+**Example:**
+
+```bash
+video-tool linkedin --transcript-path ./output/transcript.vtt
+```
+
+**Arguments:**
+- `--transcript-path PATH`: Path to video transcript (.vtt file)
+
+**Output:** Creates `linkedin_post.md` in the output directory.
+
+---
+
+#### `twitter`
+
+Generate a Twitter/X post from a video transcript.
+
+**Required inputs:**
+- Path to video transcript (.vtt file)
+
+**Example:**
+
+```bash
+video-tool twitter --transcript-path ./output/transcript.vtt
+```
+
+**Arguments:**
+- `--transcript-path PATH`: Path to video transcript (.vtt file)
+
+**Output:** Creates `twitter_post.md` in the output directory.
+
+---
+
+### Deployment Commands
+
+#### `bunny-video`
+
+Upload a video to Bunny.net CDN.
+
+**Required inputs:**
+- Path to video file
+- Bunny Library ID (or set `BUNNY_LIBRARY_ID` env var)
+- Bunny Access Key (or set `BUNNY_ACCESS_KEY` env var)
+
+**Optional inputs:**
+- Bunny Collection ID (or set `BUNNY_COLLECTION_ID` env var)
+- Caption language code (defaults to 'en')
+
+**Example:**
+
+```bash
+# With environment variables set
+video-tool bunny-video --video-path ./output/final-video.mp4
+
+# With explicit credentials
+video-tool bunny-video \
+  --video-path ./output/final-video.mp4 \
+  --bunny-library-id 12345 \
+  --bunny-access-key your_key \
+  --bunny-collection-id 67890
+```
+
+**Arguments:**
+- `--video-path PATH`: Path to video file to upload
+- `--bunny-library-id ID`: Bunny.net library ID
+- `--bunny-access-key KEY`: Bunny.net access key
+- `--bunny-collection-id ID`: Bunny.net collection ID (optional)
+- `--bunny-caption-language CODE`: Caption language code (default: en)
+
+---
+
+## Interactive Mode
+
+If you omit required arguments when running a command, the tool will prompt you interactively:
+
+```bash
+$ video-tool concat
+Input directory (containing videos to concatenate): ./clips
+```
+
+This makes it easy to use the tool without memorizing all the argument names.
+
+## Common Workflows
+
+### Complete Video Processing Pipeline
+
+Process raw clips into a final video with all content:
+
+```bash
+# 1. Remove silences from clips
+video-tool silence-removal --input-dir ./clips
+
+# 2. Concatenate into final video
+video-tool concat --input-dir ./clips --fast-concat
+
+# 3. Generate timestamps
+video-tool timestamps --input-dir ./clips
+
+# 4. Generate transcript
+video-tool transcript --video-path ./clips/output/final-video.mp4
+
+# 5. Generate context cards
+video-tool context-cards --video-path ./clips/output/final-video.mp4
+
+# 6. Generate description
+video-tool description \
+  --transcript-path ./clips/output/transcript.vtt \
+  --repo-url https://github.com/user/repo
+
+# 7. Generate SEO keywords
+video-tool seo --transcript-path ./clips/output/transcript.vtt
+
+# 8. Generate social media posts
+video-tool linkedin --transcript-path ./clips/output/transcript.vtt
+video-tool twitter --transcript-path ./clips/output/transcript.vtt
+
+# 9. Upload to Bunny.net
+video-tool bunny-video --video-path ./clips/output/final-video.mp4
+```
+
+### Quick Transcript Generation
+
+Just need a transcript for an existing video:
+
+```bash
+video-tool transcript --video-path ./my-video.mp4
+```
+
+### Social Media Content Only
+
+Generate social media posts from an existing transcript:
+
+```bash
+video-tool linkedin --transcript-path ./transcript.vtt
+video-tool twitter --transcript-path ./transcript.vtt
+```
+
+## Output Structure
+
+All generated files are stored in the `output/` directory within your input directory:
 
 ```
-video-tool [run] [options]
+clips/
+├── clip-01.mp4
+├── clip-02.mp4
+├── processed/              # After silence removal
+│   ├── clip-01.mp4
+│   └── clip-02.mp4
+└── output/                 # All generated content
+    ├── final-video.mp4     # After concatenation
+    ├── transcript.vtt      # Video transcript
+    ├── timestamps.json     # Chapter timestamps
+    ├── context-cards.md    # Context cards
+    ├── description.md      # Video description
+    ├── keywords.txt        # SEO keywords
+    ├── linkedin_post.md    # LinkedIn post
+    └── twitter_post.md     # Twitter post
 ```
 
-- `video-tool` is the recommended executable (an alias to `python main.py`).
-- The optional `run` subcommand is accepted for readability. `video-tool --transcript` and `video-tool run --transcript` behave the same.
-- Every invocation must opt into at least one processing step (via CLI flag or loaded profile); otherwise the CLI exits without work.
+## Logging
 
-Environment requirements (API keys, ffmpeg availability, etc.) are unchanged from `README.md`.
+- Console output shows progress and results
+- Detailed logs are written to `video_processor.log` in the working directory
+- Error messages include helpful troubleshooting information
 
-## Processing Modes
+## Troubleshooting
 
-### Targeted Mode (default)
+### "Missing required environment variables"
 
-- Runs only the steps that are explicitly enabled through CLI flags or profile configuration.
-- Prompts for any missing inputs that the selected steps require (TTY only). For example, `--transcript` will request an input directory if one is not provided via `--input-dir` or the active profile.
-- When concatenation runs without an explicit mode flag, the CLI asks whether to use fast (skip reprocessing) or standard concatenation.
-- Prints a configuration summary—showing enabled stages, resolved paths, and metadata—before execution.
-- Use `--all` to opt into the full pipeline when you want every stage to run.
+Make sure you have set `OPENAI_API_KEY` and `GROQ_API_KEY` in your `.env` file or environment.
 
-### Manual Mode (`--manual`)
+### "Invalid input directory"
 
-- Replays the interactive questionnaire that existed in previous versions.
-- At completion, you can save the answers to a named profile for future runs.
-- Non-interactive flags (such as `--all` or `--transcript`) are ignored in this mode and a warning is shown.
+Check that the path exists and is a directory. Use absolute paths or paths relative to your current working directory.
 
-## Profiles
+### "No video file found"
 
-Profiles capture a complete set of answers from manual mode.
+Ensure your input directory contains `.mp4` files. The tool looks for MP4 files specifically.
 
-- Save: run `video-tool --manual`, finish the prompts, then accept the save prompt and provide a profile name.
-- Load: `video-tool --profile <name>`.
-- Default fallback: if no `--profile` flag is supplied, the CLI checks for a profile named `default` and uses it automatically.
-- Profiles remember which stages should execute along with supporting metadata, except for the input directory, repository URL, and video title. Provide those per run via prompts or flags.
-- CLI step flags override the stage selection stored in a profile; when you pass flags, only the flagged stages execute (unless `--all` is also set).
+### Bunny.net upload failures
 
-### Profile Storage
+- Verify your `BUNNY_LIBRARY_ID` and `BUNNY_ACCESS_KEY` are correct
+- Check that the video file exists and is a valid MP4
+- Ensure you have network connectivity to Bunny.net
 
-Profiles live in `profiles.json` inside the platform-specific config directory:
+## Advanced Usage
 
-- macOS: `~/Library/Application Support/video-tool/profiles.json`
-- Linux: `${XDG_CONFIG_HOME:-~/.config}/video-tool/profiles.json`
-- Windows: `%APPDATA%\video-tool\profiles.json`
+### Using Different Input/Output Directories
 
-Delete or edit this JSON file to manage saved profiles manually.
+Each command that processes files from a directory follows the pattern:
 
-## Selecting Steps
+```bash
+video-tool <command> --input-dir ./source --output-dir ./destination
+```
 
-### All Steps
+The output directory defaults to `input_dir/output` if not specified.
 
-- `--all`: enable every available processing step in one flag.
-- Combine with manual mode if you want to opt out of specific stages during the questionnaire.
+### Chaining Commands with Shell Scripts
 
-### Individual Steps
+Create a shell script to automate your workflow:
 
-- Step flags explicitly select the stages to run. When any flags are provided, the CLI limits execution to those stages (unless `--all` is also set).
-- Example:
+```bash
+#!/bin/bash
+set -e
 
-  ```
-  video-tool --transcript --input-dir ./clips
-  ```
+INPUT_DIR="./clips"
+VIDEO_PATH="$INPUT_DIR/output/final-video.mp4"
+TRANSCRIPT_PATH="$INPUT_DIR/output/transcript.vtt"
+REPO_URL="https://github.com/user/repo"
 
-  This command only generates the transcript for the provided input directory.
+echo "Starting video processing pipeline..."
 
-| Flag | Effect |
-| ---- | ------ |
-| `--silence-removal` | Remove silence from clips. *(requires input directory)* |
-| `--concat` | Concatenate clips into a final MP4. *(requires input directory)* |
-| `--timestamps` | Produce timestamp metadata. *(requires input directory)* |
-| `--transcript` | Generate a transcript for the selected video. *(requires input directory)* |
-| `--context-cards` | Identify context cards and resource mentions. *(requires input directory)* |
-| `--description` | Draft the video description. *(requires input directory & repository URL)* |
-| `--seo` | Generate SEO keywords. *(requires input directory & repository URL)* |
-| `--linkedin` | Create LinkedIn copy. *(requires input directory)* |
-| `--twitter` | Create Twitter/X copy. *(requires input directory)* |
-| `--bunny-video` | Upload or re-upload the video to Bunny.net. |
-| `--bunny-chapters` | Push chapter markers to Bunny.net. |
-| `--bunny-transcript` | Upload transcript captions to Bunny.net. |
+video-tool silence-removal --input-dir "$INPUT_DIR"
+video-tool concat --input-dir "$INPUT_DIR" --fast-concat
+video-tool timestamps --input-dir "$INPUT_DIR"
+video-tool transcript --video-path "$VIDEO_PATH"
+video-tool description --transcript-path "$TRANSCRIPT_PATH" --repo-url "$REPO_URL"
+video-tool seo --transcript-path "$TRANSCRIPT_PATH"
+video-tool linkedin --transcript-path "$TRANSCRIPT_PATH"
+video-tool twitter --transcript-path "$TRANSCRIPT_PATH"
 
-> Note: Social copy and Bunny uploads rely on previously generated assets (video file, transcript, timestamps). Enable the prerequisite steps or supply the required override paths before running these stages.
+echo "Pipeline complete!"
+```
 
-## Additional Options
+## Migration from Old CLI
 
-- `--input-dir <path>`: provide the source directory. Required for non-interactive runs when any selected step touches the filesystem. If omitted on a TTY, the CLI will prompt for the path.
-- `--profile <name>`: load a saved profile. Profiles are case insensitive. An error lists available profiles if the requested one is missing.
-- `--manual`: enter interactive mode (see above).
-- `--all`: shorthand to activate every processing step without naming them individually.
-- `--fast-concat`: skip the reprocessing step during concatenation (fast mode). When omitted in an interactive shell, the CLI will prompt for the preferred mode.
-- `--standard-concat`: force reprocessing during concatenation regardless of saved defaults.
-- `--bunny-video-path <path>`: optionally supply an existing MP4 to upload to Bunny.net. Overrides the automatically selected final video. Ignored in manual mode.
-- `--bunny-transcript-path <path>`: optionally supply a VTT/SRT file to upload as Bunny captions. Overrides the default `output/transcript.vtt`. Ignored in manual mode.
-- `--bunny-chapters-path <path>`: optionally supply a JSON file containing chapter markers (title, start, end) for Bunny. Overrides the normalised chapters from `timestamps.json`. Ignored in manual mode.
-- The CLI prompts for any metadata (repository URL, video title, etc.) that the selected steps need when running in a TTY. In non-interactive contexts, missing data causes the run to exit with instructions.
+The previous version had a monolithic CLI with `--manual` mode and profiles. The new version provides:
 
-## Configuration Summary
+- **Simpler**: Each tool is independent with clear inputs/outputs
+- **Scriptable**: Easy to chain commands together
+- **Faster**: Run only what you need without configuration overhead
 
-Before execution, targeted mode prints a table showing:
+To migrate:
 
-- Resolved input path and optional metadata (repository URL, video title).
-- Which processing stages will run.
-- Bunny.net library/video identifiers if applicable.
-- Bunny override paths if provided (video, transcript, chapters).
-- Log verbosity.
+- Old: `video-tool --manual` → New: Run individual commands as needed
+- Old: `video-tool --all` → New: Run commands in sequence (see workflows above)
+- Old: `video-tool --concat` → New: `video-tool concat`
 
-Use this summary to confirm that applied profiles and CLI flags match expectations before any processing begins.
-
-## Logging and Output
-
-- Logs stream to the console and `video_processor.log`.
-- All generated artifacts land inside the `output/` folder within the chosen input directory.
-- Bunny uploads rely on environment variables (`BUNNY_LIBRARY_ID`, `BUNNY_ACCESS_KEY`, etc.) when optional IDs are not provided through prompts, profiles, or CLI overrides.
+The old `main_old.py` file contains the legacy implementation for reference.
