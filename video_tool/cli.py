@@ -241,14 +241,17 @@ def cmd_description(args: argparse.Namespace) -> None:
         console.print(f"[bold red]Error:[/] Invalid transcript file: {transcript_path}")
         sys.exit(1)
 
+    transcript_dir = transcript_file.parent
+
     repo_url = args.repo_url
     if not repo_url:
         repo_url = ask_optional_text("Repository URL", None)
 
     # Handle output path for the description file
-    output_path = None
     if args.output_path:
         output_path = normalize_path(args.output_path)
+    else:
+        output_path = str(transcript_dir / "description.md")
 
     # Handle timestamps path
     timestamps_path = None
@@ -265,22 +268,26 @@ def cmd_description(args: argparse.Namespace) -> None:
     console.print(f"  Repository: {repo_url or 'None'}")
     if timestamps_path:
         console.print(f"  Timestamps: {timestamps_path}")
-    if output_path:
-        console.print(f"  Output file: {output_path}\n")
-    else:
-        console.print(f"  Output file: {transcript_file.parent}/description.md\n")
+    console.print(f"  Output file: {output_path}\n")
 
-    processor = VideoProcessor(str(transcript_file.parent.parent))
+    search_dirs = [transcript_dir]
+    parent_dir = transcript_dir.parent
+    if parent_dir != transcript_dir:
+        search_dirs.append(parent_dir)
 
-    # Find the video file (assume it's in the parent directory or output directory)
-    video_candidates = list(transcript_file.parent.parent.glob("*.mp4"))
-    video_candidates += list(transcript_file.parent.glob("*.mp4"))
+    # Find the video file (assume it's in the transcript directory or its parent)
+    video_candidates = []
+    for candidate_dir in search_dirs:
+        video_candidates.extend(sorted(candidate_dir.glob("*.mp4")))
 
     if not video_candidates:
         console.print(f"[bold red]Error:[/] No video file found near transcript")
         sys.exit(1)
 
     video_path = str(video_candidates[0])
+    video_dir = Path(video_path).parent
+
+    processor = VideoProcessor(str(video_dir), output_dir=str(transcript_dir))
 
     description_path = processor.generate_description(
         video_path=video_path,
@@ -307,28 +314,39 @@ def cmd_seo(args: argparse.Namespace) -> None:
         console.print(f"[bold red]Error:[/] Invalid transcript file: {transcript_path}")
         sys.exit(1)
 
+    transcript_dir = transcript_file.parent
+    search_dirs = [transcript_dir]
+    parent_dir = transcript_dir.parent
+    if parent_dir != transcript_dir:
+        search_dirs.append(parent_dir)
+
     console.print(f"[cyan]Generating SEO keywords...[/]")
     console.print(f"  Transcript: {transcript_file}\n")
 
-    processor = VideoProcessor(str(transcript_file.parent.parent))
+    processor: VideoProcessor = VideoProcessor(str(transcript_dir), output_dir=str(transcript_dir))
 
     # First generate description if it doesn't exist
-    description_path = transcript_file.parent / "description.md"
+    description_path = transcript_dir / "description.md"
     if not description_path.exists():
         console.print(f"[yellow]Description not found. Generating description first...[/]")
 
         # Find video file
-        video_candidates = list(transcript_file.parent.parent.glob("*.mp4"))
-        video_candidates += list(transcript_file.parent.glob("*.mp4"))
+        video_candidates = []
+        for candidate_dir in search_dirs:
+            video_candidates.extend(sorted(candidate_dir.glob("*.mp4")))
 
         if not video_candidates:
             console.print(f"[bold red]Error:[/] No video file found near transcript")
             sys.exit(1)
 
         video_path = str(video_candidates[0])
+        video_dir = Path(video_path).parent
+
+        processor = VideoProcessor(str(video_dir), output_dir=str(transcript_dir))
         description_path = processor.generate_description(
             video_path=video_path,
-            transcript_path=str(transcript_file)
+            transcript_path=str(transcript_file),
+            output_path=str(description_path),
         )
 
     keywords_path = processor.generate_seo_keywords(str(description_path))
@@ -351,18 +369,17 @@ def cmd_linkedin(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     # Handle output path for the LinkedIn post file
-    output_path = None
+    transcript_dir = transcript_file.parent
     if args.output_path:
         output_path = normalize_path(args.output_path)
+    else:
+        output_path = str(transcript_dir / "linkedin_post.md")
 
     console.print(f"[cyan]Generating LinkedIn post...[/]")
     console.print(f"  Transcript: {transcript_file}")
-    if output_path:
-        console.print(f"  Output file: {output_path}\n")
-    else:
-        console.print(f"  Output file: {transcript_file.parent}/linkedin_post.md\n")
+    console.print(f"  Output file: {output_path}\n")
 
-    processor = VideoProcessor(str(transcript_file.parent.parent))
+    processor = VideoProcessor(str(transcript_dir), output_dir=str(transcript_dir))
     linkedin_path = processor.generate_linkedin_post(str(transcript_file), output_path=output_path)
 
     console.print(f"[green]✓ LinkedIn post generated![/]")
@@ -383,18 +400,17 @@ def cmd_twitter(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     # Handle output path for the Twitter post file
-    output_path = None
+    transcript_dir = transcript_file.parent
     if args.output_path:
         output_path = normalize_path(args.output_path)
+    else:
+        output_path = str(transcript_dir / "twitter_post.md")
 
     console.print(f"[cyan]Generating Twitter post...[/]")
     console.print(f"  Transcript: {transcript_file}")
-    if output_path:
-        console.print(f"  Output file: {output_path}\n")
-    else:
-        console.print(f"  Output file: {transcript_file.parent}/twitter_post.md\n")
+    console.print(f"  Output file: {output_path}\n")
 
-    processor = VideoProcessor(str(transcript_file.parent.parent))
+    processor = VideoProcessor(str(transcript_dir), output_dir=str(transcript_dir))
     twitter_path = processor.generate_twitter_post(str(transcript_file), output_path=output_path)
 
     console.print(f"[green]✓ Twitter post generated![/]")
