@@ -1,9 +1,10 @@
 """Orchestrate the full video-tool workflow for a directory of clips.
 
 Usage:
-    python scripts/run_full_pipeline.py /path/to/input_dir
+    python scripts/run_full_pipeline.py
 
-The script mirrors the prior shell helper while providing better portability
+The script will prompt you for the input directory containing your video clips.
+It mirrors the prior shell helper while providing better portability
 and error handling. It expects the video-tool CLI to be installed and
 discoverable on PATH (override via the --cli-bin flag or VIDEO_TOOL_CLI env).
 """
@@ -34,6 +35,38 @@ def require_env_vars() -> None:
     if missing:
         formatted = ", ".join(missing)
         raise SystemExit(f"Missing required environment variables: {formatted}")
+
+
+def prompt_input_directory() -> Path:
+    """Prompt the user for the input directory containing video clips."""
+    while True:
+        try:
+            answer = input("Enter the path to the directory containing your video clips: ").strip()
+        except EOFError:
+            raise SystemExit("No input directory provided.")
+        
+        if not answer:
+            print("Please provide a valid directory path.")
+            continue
+        
+        # Remove quotes if present (handles both single and double quotes)
+        if (answer.startswith('"') and answer.endswith('"')) or (answer.startswith("'") and answer.endswith("'")):
+            answer = answer[1:-1]
+        
+        # Handle shell-style escaping by replacing escaped spaces
+        answer = answer.replace('\\ ', ' ')
+            
+        input_dir = Path(answer).expanduser().resolve()
+        if not input_dir.exists():
+            print(f"Directory '{input_dir}' does not exist. Please try again.")
+            print("Tip: You can use quotes around the path or escape spaces with backslashes.")
+            continue
+        
+        if not input_dir.is_dir():
+            print(f"'{input_dir}' is not a directory. Please try again.")
+            continue
+            
+        return input_dir
 
 
 def prompt_fast_concat() -> bool:
@@ -77,10 +110,6 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         description="Run the full video-tool pipeline for a directory of clips.",
     )
     parser.add_argument(
-        "input_dir",
-        help="Directory containing the source .mp4 clips",
-    )
-    parser.add_argument(
         "--cli-bin",
         help="Override the video-tool executable (defaults to VIDEO_TOOL_CLI env or 'video-tool')",
     )
@@ -91,9 +120,7 @@ def main(argv: list[str] | None = None) -> None:
     
     args = parse_args(argv or sys.argv[1:])
 
-    input_dir = Path(args.input_dir).expanduser().resolve()
-    if not input_dir.is_dir():
-        raise SystemExit(f"Input directory '{input_dir}' does not exist or is not a directory.")
+    input_dir = prompt_input_directory()
 
     require_env_vars()
     cli_bin = build_cli(args)
