@@ -18,7 +18,7 @@ import sys
 from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv('.env')
+load_dotenv('../.env')
 
 REQUIRED_ENV_VARS = (
     "OPENAI_API_KEY",
