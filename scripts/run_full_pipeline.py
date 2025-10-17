@@ -78,6 +78,15 @@ def prompt_fast_concat() -> bool:
     return answer.lower().startswith("y")
 
 
+def prompt_bunny_deployment() -> bool:
+    """Ask the user whether to deploy the video to Bunny.net."""
+    try:
+        answer = input("Deploy video to Bunny.net? [y/N]: ").strip()
+    except EOFError:
+        return False
+    return answer.lower().startswith("y")
+
+
 def run_cli_step(description: str, command: list[str]) -> None:
     """Run a CLI step with a friendly description."""
     print(f"==> {description}...")
@@ -132,6 +141,7 @@ def main(argv: list[str] | None = None) -> None:
     print(f"Output directory: {output_dir}")
 
     fast_concat = prompt_fast_concat()
+    deploy_to_bunny = prompt_bunny_deployment()
 
     concat_command = [cli_bin, "concat", "--input-dir", str(input_dir)]
     if fast_concat:
@@ -139,6 +149,11 @@ def main(argv: list[str] | None = None) -> None:
         print("Fast concatenation enabled.")
     else:
         print("Fast concatenation disabled.")
+    
+    if deploy_to_bunny:
+        print("Bunny.net deployment enabled.")
+    else:
+        print("Bunny.net deployment disabled.")
 
     run_cli_step("Concatenating clips", concat_command)
 
@@ -206,21 +221,22 @@ def main(argv: list[str] | None = None) -> None:
         ],
     )
 
-    bunny_command = [
-        cli_bin,
-        "bunny-video",
-        "--video-path",
-        str(concatenated_video),
-        "--bunny-library-id",
-        os.environ["BUNNY_LIBRARY_ID"],
-        "--bunny-access-key",
-        os.environ["BUNNY_ACCESS_KEY"],
-    ]
-    bunny_collection = os.getenv("BUNNY_COLLECTION_ID")
-    if bunny_collection:
-        bunny_command.extend(["--bunny-collection-id", bunny_collection])
+    if deploy_to_bunny:
+        bunny_command = [
+            cli_bin,
+            "bunny-video",
+            "--video-path",
+            str(concatenated_video),
+            "--bunny-library-id",
+            os.environ["BUNNY_LIBRARY_ID"],
+            "--bunny-access-key",
+            os.environ["BUNNY_ACCESS_KEY"],
+        ]
+        bunny_collection = os.getenv("BUNNY_COLLECTION_ID")
+        if bunny_collection:
+            bunny_command.extend(["--bunny-collection-id", bunny_collection])
 
-    run_cli_step("Uploading video to Bunny.net", bunny_command)
+        run_cli_step("Uploading video to Bunny.net", bunny_command)
 
     print("\nPipeline complete! Generated assets are located in:")
     print(f"  {output_dir}")
