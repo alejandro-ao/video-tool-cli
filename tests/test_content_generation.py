@@ -1,5 +1,6 @@
 """Unit tests for VideoProcessor content generation methods."""
 
+import base64
 import pytest
 import json
 from pathlib import Path
@@ -922,7 +923,7 @@ class TestGenerateLinkedInPost:
 
 class TestGenerateTwitterPost:
     """Test generate_twitter_post method."""
-    
+
     def test_generate_twitter_post_success(self, temp_dir, mock_video_processor):
         """Test successful Twitter post generation."""
         # Create transcript file
@@ -963,3 +964,51 @@ class TestGenerateTwitterPost:
         with patch.object(mock_video_processor, '_invoke_openai_chat', side_effect=Exception("API Error")):
             with pytest.raises(Exception, match="API Error"):
                 mock_video_processor.generate_twitter_post(str(transcript_file))
+
+
+class TestGenerateThumbnail:
+    """Test generate_thumbnail method."""
+
+    def test_generate_thumbnail_success(self, temp_dir, mock_video_processor):
+        """Generate a thumbnail and persist it to disk."""
+        image_bytes = b"fake-image-bytes"
+        encoded_image = base64.b64encode(image_bytes).decode("utf-8")
+
+        with patch("video_tool.video_processor.content.openai.responses.create") as mock_create:
+            mock_create.return_value = SimpleNamespace(
+                output=[SimpleNamespace(type="image_generation_call", result=encoded_image)]
+            )
+            result = mock_video_processor.generate_thumbnail(
+                prompt="Bright thumbnail with bold title",
+                size="640x360",
+            )
+
+        output_file = Path(result)
+        assert output_file.exists()
+        assert output_file.read_bytes() == image_bytes
+        assert output_file == temp_dir / "output" / "thumbnail.png"
+
+        mock_create.assert_called_once_with(
+            model="gpt-5",
+            input="Bright thumbnail with bold title",
+            tools=[
+                {
+                    "type": "image_generation",
+                    "size": "1536x1024",
+                    "quality": "high",
+                    "background": "transparent",
+                }
+            ],
+        )
+
+    def test_generate_thumbnail_invalid_size(self, mock_video_processor):
+        """Reject invalid size formatting."""
+        with pytest.raises(ValueError, match="format WIDTHxHEIGHT or 'auto'"):
+            mock_video_processor.generate_thumbnail(prompt="Test", size="800")
+
+    def test_generate_thumbnail_no_image_data(self, mock_video_processor):
+        """Raise an error when OpenAI returns no image payload."""
+        with patch("video_tool.video_processor.content.openai.responses.create") as mock_create:
+            mock_create.return_value = SimpleNamespace(output=[])
+            with pytest.raises(RuntimeError, match="No image data"):
+                mock_video_processor.generate_thumbnail(prompt="Test prompt")

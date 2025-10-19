@@ -272,6 +272,34 @@ video-tool twitter --transcript-path ./output/transcript.vtt
 
 ---
 
+#### `thumbnail`
+
+Generate a thumbnail image for the video using OpenAI's GPT image generation endpoint.
+
+**Required inputs:**
+- Thumbnail description (used as the prompt)
+
+**Optional inputs:**
+- Input directory (defaults to the current working directory)
+- Output directory or explicit output path
+- Image size (e.g. `1280x720`, defaults to `1280x720`)
+- OpenAI image model (defaults to `gpt-5`)
+- Note: OpenAI's image tool currently accepts `1024x1024`, `1536x1024`, `1024x1536`, or `auto`; other dimensions are mapped to the closest supported option.
+
+**Example:**
+
+```bash
+# Non-interactive usage
+video-tool thumbnail --prompt "Bold text about AI agent demo" --size 1280x720
+
+# Save to a specific location
+video-tool thumbnail --prompt "Minimalist neon gradient" --output-path ./assets/thumbnail.png
+```
+
+**Output:** Creates `thumbnail.png` in the output directory (or at the specified path).
+
+---
+
 ### Deployment Commands
 
 #### `bunny-video`

@@ -7,6 +7,7 @@ Automate Alejandro's YouTube production workflow end to end. Given a directory o
 - MP4 concatenation with `ffmpeg`, including optional fast-path when reprocessing is unnecessary.
 - Automatic chapter map (`timestamps.json`) with ISO-formatted timecode.
 - Whisper transcription (`transcript.vtt`) via `OPENAI_API_KEY`.
+- Thumbnail artwork generation via OpenAI's responses API (gpt-5 + image generation tool) using your prompt, automatically mapped to OpenAI's supported image sizes.
 - Markdown description, SEO keywords, and social posts derived from `prompts.yaml`.
 - Optional Bunny.net deployment with independent toggles for uploading the final cut, chapters, and transcript captions.
 - Optional duration CSV export for analytics.
