@@ -1,126 +1,16 @@
 from __future__ import annotations
 
-import base64
 import json
 from pathlib import Path
 from string import Template
 from textwrap import dedent
 from typing import Optional
 
-import openai
-
 from .shared import logger
 
 
 class ContentGenerationMixin:
     """LLM-backed content generation helpers."""
-
-    @staticmethod
-    def _coerce_image_tool_size(size: str) -> str:
-        """Map user-provided dimensions to supported OpenAI image tool sizes."""
-        normalized = size.strip().lower()
-        if normalized == "":
-            raise ValueError("Image size must be specified in the format WIDTHxHEIGHT or 'auto'.")
-
-        allowed_sizes = {"1024x1024", "1024x1536", "1536x1024", "auto"}
-        if normalized in allowed_sizes:
-            return normalized
-
-        if "x" not in normalized:
-            raise ValueError("Image size must be specified in the format WIDTHxHEIGHT or 'auto'.")
-
-        try:
-            width_str, height_str = normalized.split("x", 1)
-            width = int(width_str)
-            height = int(height_str)
-        except (ValueError, TypeError):
-            raise ValueError("Image size must be specified in the format WIDTHxHEIGHT or 'auto'.")
-
-        if width <= 0 or height <= 0:
-            raise ValueError("Image dimensions must be positive integers.")
-
-        if width == height:
-            mapped = "1024x1024"
-        elif width > height:
-            mapped = "1536x1024"
-        else:
-            mapped = "1024x1536"
-
-        logger.info(
-            f"Requested size '{size}' not supported; using '{mapped}' to match OpenAI constraints."
-        )
-        return mapped
-
-    def generate_thumbnail(
-        self,
-        *,
-        prompt: str,
-        size: str = "1280x720",
-        output_path: Optional[str] = None,
-        model: str = "gpt-5",
-    ) -> str:
-        """Generate a thumbnail image using the OpenAI image generation endpoint."""
-        if not prompt or not prompt.strip():
-            raise ValueError("Prompt is required to generate a thumbnail.")
-        
-        json_prompt = dedent("""
-        prompt: "{prompt}",
-        style: "cartoon, vector art, clean lines, bright colors, modern UI aesthetic",
-        lighting: "soft and even lighting, slightly glowing highlights for depth",
-        composition: "balanced, central focus on the map layout with space for title text at the top or center"
-        background: "smooth gradient transitioning from deep black to a slightly bright, complementary color (such as cyan, blue, or teal)"
-        """).format(prompt=prompt).strip()
-
-        normalized_size = size.strip().lower()
-        coerced_size = self._coerce_image_tool_size(normalized_size)
-        try:
-            response = openai.responses.create(
-                model=model,
-                input=json_prompt.strip(),
-                tools=[
-                    {
-                        "type": "image_generation",
-                        "size": coerced_size,
-                        "quality": "high",
-                        "background": "transparent",
-                    }
-                ],
-            )
-        except Exception as exc:
-            logger.error(f"Error generating thumbnail with OpenAI: {exc}")
-            raise
-
-        image_chunks = []
-        for output in getattr(response, "output", []) or []:
-            if getattr(output, "type", None) == "image_generation_call":
-                image_chunks.append(getattr(output, "result", None))
-
-        if not image_chunks or not image_chunks[0]:
-            logger.error("OpenAI image generation response did not include image data.")
-            raise RuntimeError("No image data returned for thumbnail generation.")
-
-        try:
-            image_bytes = base64.b64decode(image_chunks[0])
-        except Exception as exc:
-            logger.error(f"Failed to decode thumbnail image data: {exc}")
-            raise
-
-        if output_path:
-            resolved_output = Path(output_path).expanduser().resolve()
-        else:
-            self.output_dir.mkdir(parents=True, exist_ok=True)
-            resolved_output = self._resolve_unique_output_path("thumbnail.png")
-
-        resolved_output.parent.mkdir(parents=True, exist_ok=True)
-
-        if not resolved_output.suffix:
-            resolved_output = resolved_output.with_suffix(".png")
-
-        with open(resolved_output, "wb") as file:
-            file.write(image_bytes)
-
-        logger.info(f"Thumbnail generated successfully: {resolved_output}")
-        return str(resolved_output)
 
     def generate_description(
         self,

@@ -442,56 +442,6 @@ def cmd_twitter(args: argparse.Namespace) -> None:
     console.print(f"  Twitter post: {twitter_path}")
 
 
-def cmd_thumbnail(args: argparse.Namespace) -> None:
-    """Generate a thumbnail image using OpenAI's image generation endpoint."""
-    prompt = args.prompt
-    if not prompt:
-        prompt = ask_required_text("Describe the YouTube thumbnail you want to generate")
-
-    size = args.size.strip() if args.size else "1280x720"
-    model = args.model.strip() if args.model else "gpt-5"
-
-    input_dir = args.input_dir
-    if input_dir:
-        input_dir = normalize_path(input_dir)
-    else:
-        input_dir = str(Path.cwd())
-
-    output_dir = normalize_path(args.output_dir) if args.output_dir else None
-    output_path = normalize_path(args.output_path) if args.output_path else None
-
-    try:
-        api_size = VideoProcessor._coerce_image_tool_size(size)
-    except ValueError as exc:
-        console.print(f"[bold red]Error:[/] {exc}")
-        sys.exit(1)
-
-    console.print(f"[cyan]Generating thumbnail...[/]")
-    console.print(f"  Prompt: {prompt}")
-    console.print(f"  Model: {model}")
-    console.print(f"  Requested size: {size}")
-    console.print(f"  API size: {api_size}")
-
-    if output_path:
-        console.print(f"  Output file: {output_path}\n")
-    elif output_dir:
-        console.print(f"  Output directory: {output_dir}\n")
-    else:
-        console.print(f"  Output directory: {Path(input_dir) / 'output'}\n")
-
-    processor = VideoProcessor(input_dir, output_dir=output_dir)
-
-    thumbnail_path = processor.generate_thumbnail(
-        prompt=prompt,
-        size=size,
-        output_path=output_path,
-        model=model,
-    )
-
-    console.print(f"[green]✓ Thumbnail generated![/]")
-    console.print(f"  Thumbnail: {thumbnail_path}")
-
-
 def cmd_bunny_video(args: argparse.Namespace) -> None:
     """Upload video to Bunny.net."""
     video_path = args.video_path
@@ -824,36 +774,6 @@ def create_parser() -> argparse.ArgumentParser:
         help="Full path for the output Twitter post file (default: transcript_dir/twitter_post.md)"
     )
 
-    # Thumbnail command
-    thumbnail_parser = subparsers.add_parser(
-        "thumbnail",
-        help="Generate a thumbnail image using OpenAI's image generation endpoint"
-    )
-    thumbnail_parser.add_argument(
-        "--prompt",
-        help="Description of the thumbnail to generate"
-    )
-    thumbnail_parser.add_argument(
-        "--input-dir",
-        help="Base directory for reading assets (default: current working directory)"
-    )
-    thumbnail_parser.add_argument(
-        "--output-dir",
-        help="Directory where generated assets are created (default: input_dir/output)"
-    )
-    thumbnail_parser.add_argument(
-        "--output-path",
-        help="Full path for the thumbnail image (overrides --output-dir)"
-    )
-    thumbnail_parser.add_argument(
-        "--size",
-        help="Image dimensions, e.g. 1280x720 (default: 1280x720)"
-    )
-    thumbnail_parser.add_argument(
-        "--model",
-        help="OpenAI image model to use (default: gpt-5)"
-    )
-
     # Bunny video upload command
     bunny_parser = subparsers.add_parser(
         "bunny-video",
@@ -960,7 +880,6 @@ def main() -> None:
         "seo": cmd_seo,
         "linkedin": cmd_linkedin,
         "twitter": cmd_twitter,
-        "thumbnail": cmd_thumbnail,
         "bunny-video": cmd_bunny_video,
         "bunny-transcript": cmd_bunny_transcript,
         "bunny-chapters": cmd_bunny_chapters,

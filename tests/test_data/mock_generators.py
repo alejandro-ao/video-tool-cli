@@ -3,7 +3,6 @@ import json
 from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Optional
-from PIL import Image, ImageDraw
 import tempfile
 import numpy as np
 
