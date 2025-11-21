@@ -122,6 +122,8 @@ Generate timestamp information for videos (useful for YouTube chapters).
 **Optional inputs:**
 - Output directory (defaults to `input_dir/output`)
 - Transcript-driven chapters: `--stamps-from-transcript [PATH]` (provide a transcript path or omit the path to auto-generate one)
+- Granularity selection (low/medium/high)
+- Additional timestamp instructions specific to the video
 
 **Example:**
 
@@ -138,6 +140,8 @@ video-tool timestamps --input-dir ./clips/output/concatenated.mp4
 - `--input-dir PATH`: Input directory containing videos or a single MP4 video path
 - `--output-dir PATH`: Output directory (default: input_dir/output)
 - `--stamps-from-transcript [PATH]`: Generate timestamps directly from a transcript (optionally supply the transcript path; leave blank to auto-generate)
+- `--granularity {low|medium|high}`: Control how fine-grained the generated chapters should be
+- `--timestamp-notes TEXT`: Extra instructions to guide chapter generation for this video
 
 **Output:** Creates `timestamps.json` in the output directory.
 

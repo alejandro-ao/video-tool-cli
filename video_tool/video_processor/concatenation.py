@@ -57,9 +57,11 @@ DEFAULT_TRANSCRIPT_CHAPTER_PROMPT = dedent(
     Requirements:
     - Use the transcript timeline below to anchor start times.
     - Start with "0:00" for the intro.
-    - Keep 4-12 chapters with medium granularity (not every sentence, not overly broad).
+    - Keep 4-12 chapters.
     - Ensure times stay within the video duration ({video_duration}).
     - Titles should be concise, specific, and action-oriented.
+    - Granularity: {granularity_note}
+    - Extra guidance: {extra_instructions}
 
     Transcript timeline:
     {transcript}
@@ -267,6 +269,8 @@ class ConcatenationMixin:
         output_path: Optional[str] = None,
         transcript_path: Optional[str] = None,
         stamps_from_transcript: bool = False,
+        granularity: Optional[str] = None,
+        timestamp_notes: Optional[str] = None,
     ) -> Dict:
         """Generate timestamp information for the video with chapters based on input videos or transcript."""
         resolved_output_path = (
@@ -280,7 +284,11 @@ class ConcatenationMixin:
 
             if transcript_file:
                 try:
-                    timestamps = self._generate_timestamps_from_transcript_file(transcript_file)
+                    timestamps = self._generate_timestamps_from_transcript_file(
+                        transcript_file,
+                        granularity=granularity,
+                        timestamp_notes=timestamp_notes,
+                    )
                     video_info = {
                         "timestamps": timestamps,
                         "metadata": {
@@ -288,6 +296,8 @@ class ConcatenationMixin:
                             "chapter_source": "transcript",
                             "transcript_path": str(transcript_file),
                             "transcript_generated": transcript_generated,
+                            "granularity": granularity or "medium",
+                            "timestamp_notes": timestamp_notes or "",
                         },
                     }
                     resolved_output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -399,6 +409,8 @@ class ConcatenationMixin:
             "metadata": {
                 "creation_date": datetime.now().isoformat(),
                 "chapter_source": "clip-durations",
+                "granularity": granularity or "medium",
+                "timestamp_notes": timestamp_notes or "",
             },
         }
 
@@ -434,7 +446,12 @@ class ConcatenationMixin:
         logger.warning("Transcript generation failed; cannot generate timestamps from transcript.")
         return None, False
 
-    def _generate_timestamps_from_transcript_file(self, transcript_file: Path) -> List[Dict[str, str]]:
+    def _generate_timestamps_from_transcript_file(
+        self,
+        transcript_file: Path,
+        granularity: Optional[str] = None,
+        timestamp_notes: Optional[str] = None,
+    ) -> List[Dict[str, str]]:
         """Generate chapters by prompting against a transcript timeline."""
         segments = self._load_transcript_segments(transcript_file)
         if not segments:
@@ -450,6 +467,8 @@ class ConcatenationMixin:
         chapter_response = self._request_chapters_from_transcript_timeline(
             transcript_timeline=transcript_timeline,
             video_duration=self._format_seconds_as_hms(video_duration_seconds),
+            granularity=granularity,
+            timestamp_notes=timestamp_notes,
         )
 
         if not chapter_response or not getattr(chapter_response, "chapters", None):
@@ -533,16 +552,30 @@ class ConcatenationMixin:
         *,
         transcript_timeline: str,
         video_duration: str,
+        granularity: Optional[str] = None,
+        timestamp_notes: Optional[str] = None,
     ) -> Optional[TranscriptChapterResponse]:
         prompt_template = self.prompts.get(
             "generate-timestamps-from-transcript",
             DEFAULT_TRANSCRIPT_CHAPTER_PROMPT,
         )
 
+        granularity_map = {
+            "low": "Make timestamps sparse, focusing only on the largest sections and chapter pivots.",
+            "medium": "Use medium granularity; group related ideas and avoid every small sentence.",
+            "high": "Be very granular: capture each meaningful topic shift or demo segment, with chapters every few minutes.",
+        }
+        normalized_granularity = (granularity or "medium").lower()
+        granularity_note = granularity_map.get(normalized_granularity, granularity_map["medium"])
+
+        extra_instructions = timestamp_notes.strip() if timestamp_notes else "None."
+
         user_prompt = prompt_template.format(
             transcript=transcript_timeline,
             video_title=self.video_title or self.input_dir.name,
             video_duration=video_duration,
+            granularity_note=granularity_note,
+            extra_instructions=extra_instructions,
         )
 
         messages: List[Dict[str, str]] = [

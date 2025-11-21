@@ -196,6 +196,8 @@ def cmd_timestamps(args: argparse.Namespace) -> None:
 
     transcript_path = None
     use_transcript = False
+    granularity = args.granularity
+    timestamp_notes = args.timestamp_notes
 
     if is_video_input:
         use_transcript = True
@@ -244,6 +246,23 @@ def cmd_timestamps(args: argparse.Namespace) -> None:
                     "[yellow]No transcript path provided. A transcript will be generated automatically for timestamps.[/]"
                 )
 
+    if not granularity:
+        granularity = ask_optional_text(
+            "Granularity for timestamps (low/medium/high)", default="medium"
+        )
+    if granularity:
+        granularity = granularity.lower().strip()
+        if granularity not in {"low", "medium", "high"}:
+            console.print("[yellow]Invalid granularity; defaulting to 'medium'.[/]")
+            granularity = "medium"
+    else:
+        granularity = "medium"
+
+    if timestamp_notes is None:
+        timestamp_notes = ask_optional_text(
+            "Additional instructions for timestamps (optional)", default=""
+        )
+
     console.print(f"[cyan]Generating timestamps...[/]")
     console.print(f"  Input: {input_path}")
     console.print(f"  Output file: {output_path}\n")
@@ -253,6 +272,8 @@ def cmd_timestamps(args: argparse.Namespace) -> None:
         output_path=output_path,
         transcript_path=transcript_path,
         stamps_from_transcript=use_transcript,
+        granularity=granularity,
+        timestamp_notes=timestamp_notes,
     )
 
     console.print(f"[green]✓ Timestamps generated![/]")
@@ -781,6 +802,15 @@ def create_parser() -> argparse.ArgumentParser:
         nargs="?",
         const="",
         help="Generate timestamps from a transcript (optionally provide the transcript path; omit to auto-generate)",
+    )
+    timestamps_parser.add_argument(
+        "--granularity",
+        choices=["low", "medium", "high"],
+        help="Granularity of generated chapters (low/medium/high)",
+    )
+    timestamps_parser.add_argument(
+        "--timestamp-notes",
+        help="Additional instructions for timestamp generation",
     )
 
     # Transcript command

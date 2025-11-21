@@ -69,6 +69,8 @@ generate-timestamps-from-transcript: |
   - Use 4-12 chapters with medium granularity (group related ideas, avoid one chapter per sentence).
   - Keep titles crisp (under ~60 characters) and action-oriented.
   - Only use start times that appear in the transcript timeline and stay within {video_duration}.
+  - Granularity guidance: {granularity_note}
+  - Additional instructions: {extra_instructions}
 
   Transcript timeline:
   {transcript}
