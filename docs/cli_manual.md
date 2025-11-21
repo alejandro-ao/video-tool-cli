@@ -117,20 +117,27 @@ video-tool concat
 Generate timestamp information for videos (useful for YouTube chapters).
 
 **Required inputs:**
-- Input directory (containing video files)
+- Input directory (containing video files) **or** a single MP4 video path
 
 **Optional inputs:**
 - Output directory (defaults to `input_dir/output`)
+- Transcript-driven chapters: `--stamps-from-transcript [PATH]` (provide a transcript path or omit the path to auto-generate one)
 
 **Example:**
 
 ```bash
+# Directory: prompt whether to use one chapter per clip
 video-tool timestamps --input-dir ./clips
+# Generate chapters from an existing transcript
+video-tool timestamps --input-dir ./clips --stamps-from-transcript ./clips/output/transcript.vtt
+# Single video: will prompt for (or auto-generate) transcript
+video-tool timestamps --input-dir ./clips/output/concatenated.mp4
 ```
 
 **Arguments:**
-- `--input-dir PATH`: Input directory containing videos
+- `--input-dir PATH`: Input directory containing videos or a single MP4 video path
 - `--output-dir PATH`: Output directory (default: input_dir/output)
+- `--stamps-from-transcript [PATH]`: Generate timestamps directly from a transcript (optionally supply the transcript path; leave blank to auto-generate)
 
 **Output:** Creates `timestamps.json` in the output directory.
 

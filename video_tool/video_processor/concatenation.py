@@ -22,12 +22,47 @@ class ChapterUpdateResponse(BaseModel):
     chapters: List[ChapterUpdate]
 
 
+class TranscriptChapter(BaseModel):
+    start: str
+    title: str
+
+
+class TranscriptChapterResponse(BaseModel):
+    chapters: List[TranscriptChapter]
+
+
 CHAPTER_SYSTEM_PROMPT = dedent(
     """
     You generate polished YouTube chapter titles.
     Match each chapter's start and end timestamp exactly as provided.
     Titles must be concise, descriptive, and reflect the transcript excerpt.
     Return structured data using the supplied schema only.
+    """
+).strip()
+
+TRANSCRIPT_CHAPTER_SYSTEM_PROMPT = dedent(
+    """
+    You design YouTube chapter lists directly from timecoded transcripts.
+    Keep chapters ordered, evenly spaced, and limited to the key inflection points.
+    Format start times as H:MM:SS with zero-padded hours.
+    Start the first chapter at 0:00 with an intro title.
+    Return structured data using the provided schema only.
+    """
+).strip()
+
+DEFAULT_TRANSCRIPT_CHAPTER_PROMPT = dedent(
+    """
+    Generate YouTube chapters for the video "{video_title}".
+
+    Requirements:
+    - Use the transcript timeline below to anchor start times.
+    - Start with "0:00" for the intro.
+    - Keep 4-12 chapters with medium granularity (not every sentence, not overly broad).
+    - Ensure times stay within the video duration ({video_duration}).
+    - Titles should be concise, specific, and action-oriented.
+
+    Transcript timeline:
+    {transcript}
     """
 ).strip()
 
@@ -227,11 +262,48 @@ class ConcatenationMixin:
                     temp_file.unlink()
                 temp_dir.rmdir()
 
-    def generate_timestamps(self, output_path: Optional[str] = None) -> Dict:
-        """Generate timestamp information for the video with chapters based on input videos."""
+    def generate_timestamps(
+        self,
+        output_path: Optional[str] = None,
+        transcript_path: Optional[str] = None,
+        stamps_from_transcript: bool = False,
+    ) -> Dict:
+        """Generate timestamp information for the video with chapters based on input videos or transcript."""
         resolved_output_path = (
             Path(output_path).expanduser() if output_path else self.output_dir / "timestamps.json"
         )
+
+        if stamps_from_transcript:
+            transcript_file, transcript_generated = self._resolve_transcript_for_timestamps(
+                transcript_path
+            )
+
+            if transcript_file:
+                try:
+                    timestamps = self._generate_timestamps_from_transcript_file(transcript_file)
+                    video_info = {
+                        "timestamps": timestamps,
+                        "metadata": {
+                            "creation_date": datetime.now().isoformat(),
+                            "chapter_source": "transcript",
+                            "transcript_path": str(transcript_file),
+                            "transcript_generated": transcript_generated,
+                        },
+                    }
+                    resolved_output_path.parent.mkdir(parents=True, exist_ok=True)
+                    with open(resolved_output_path, "w") as file:
+                        json.dump([video_info], file, indent=2)
+                    return video_info
+                except Exception as exc:
+                    logger.warning(
+                        f"Transcript-driven timestamp generation failed: {exc}. Falling back to clip-based chapters."
+                    )
+            else:
+                logger.warning(
+                    "Transcript-driven timestamps requested but no transcript was provided or generated. "
+                    "Falling back to clip-based chapters."
+                )
+
         processed_dir = self.input_dir / "processed"
         mp4_files: List[Path] = []
 
@@ -326,6 +398,7 @@ class ConcatenationMixin:
             "timestamps": timestamps,
             "metadata": {
                 "creation_date": datetime.now().isoformat(),
+                "chapter_source": "clip-durations",
             },
         }
 
@@ -334,6 +407,168 @@ class ConcatenationMixin:
             json.dump([video_info], file, indent=2)
 
         return video_info
+
+    def _resolve_transcript_for_timestamps(
+        self, transcript_path: Optional[str]
+    ) -> Tuple[Optional[Path], bool]:
+        """Resolve or generate a transcript for transcript-driven timestamp creation."""
+        if transcript_path:
+            candidate = Path(transcript_path).expanduser()
+            if candidate.exists():
+                logger.info(f"Using provided transcript for timestamps: {candidate}")
+                return candidate, False
+            logger.warning(f"Provided transcript not found at {candidate}, attempting to generate one.")
+
+        default_transcript = self.output_dir / "transcript.vtt"
+        if default_transcript.exists():
+            logger.info(f"Using existing transcript for timestamps: {default_transcript}")
+            return default_transcript, False
+
+        logger.info("No transcript supplied; generating transcript on the fly for timestamps.")
+        generated_path = self.generate_transcript(output_path=str(default_transcript))
+        if generated_path:
+            candidate = Path(generated_path)
+            if candidate.exists():
+                return candidate, True
+
+        logger.warning("Transcript generation failed; cannot generate timestamps from transcript.")
+        return None, False
+
+    def _generate_timestamps_from_transcript_file(self, transcript_file: Path) -> List[Dict[str, str]]:
+        """Generate chapters by prompting against a transcript timeline."""
+        segments = self._load_transcript_segments(transcript_file)
+        if not segments:
+            raise ValueError("Transcript contained no segments for timestamp generation.")
+
+        transcript_timeline = self._build_transcript_timeline_for_prompt(segments)
+        try:
+            video_duration_seconds = max(
+                float(segment["end"]) for segment in segments if segment.get("end") is not None
+            )
+        except ValueError:
+            video_duration_seconds = max(float(segment.get("start", 0)) for segment in segments)
+        chapter_response = self._request_chapters_from_transcript_timeline(
+            transcript_timeline=transcript_timeline,
+            video_duration=self._format_seconds_as_hms(video_duration_seconds),
+        )
+
+        if not chapter_response or not getattr(chapter_response, "chapters", None):
+            raise ValueError("No chapters were returned from the transcript-driven prompt.")
+
+        ordered_chapters: List[Tuple[float, str]] = []
+        for chapter in chapter_response.chapters:
+            try:
+                start_seconds = self._parse_vtt_timestamp(
+                    self._normalize_timestamp_for_seconds(chapter.start)
+                )
+            except Exception as exc:
+                logger.warning(f"Skipping chapter with unparsable start '{chapter.start}': {exc}")
+                continue
+
+            title = chapter.title.strip() if isinstance(chapter.title, str) else ""
+            ordered_chapters.append((start_seconds, title or "Chapter"))
+
+        if not ordered_chapters:
+            raise ValueError("Structured chapter response did not include usable chapters.")
+
+        ordered_chapters.sort(key=lambda item: item[0])
+
+        deduped_chapters: List[Tuple[float, str]] = []
+        last_start: Optional[float] = None
+        for start_seconds, title in ordered_chapters:
+            if last_start is not None and start_seconds <= last_start:
+                logger.warning(
+                    f"Skipping out-of-order or duplicate chapter start ({start_seconds}) after {last_start}."
+                )
+                continue
+            deduped_chapters.append((start_seconds, title))
+            last_start = start_seconds
+
+        timestamps: List[Dict[str, str]] = []
+        for index, (start_seconds, title) in enumerate(deduped_chapters):
+            next_start = (
+                deduped_chapters[index + 1][0]
+                if index + 1 < len(deduped_chapters)
+                else video_duration_seconds
+            )
+
+            if next_start < start_seconds:
+                logger.warning(
+                    f"Chapter start time {start_seconds} is after next chapter start {next_start}; skipping."
+                )
+                continue
+
+            timestamps.append(
+                {
+                    "start": self._format_seconds_as_hms(start_seconds),
+                    "end": self._format_seconds_as_hms(next_start),
+                    "title": title,
+                }
+            )
+
+        if not timestamps:
+            raise ValueError("Transcript-driven timestamps could not be constructed from chapter data.")
+
+        return timestamps
+
+    def _build_transcript_timeline_for_prompt(
+        self, segments: List[Dict[str, object]], max_chars: int = 12000
+    ) -> str:
+        """Flatten transcript segments into a prompt-friendly timeline."""
+        lines: List[str] = []
+        for segment in segments:
+            start = float(segment.get("start", 0))
+            text = str(segment.get("text", "")).strip()
+            if not text:
+                continue
+            lines.append(f"{self._format_seconds_as_hms(start)} — {text}")
+
+        combined = "\n".join(lines)
+        if len(combined) > max_chars:
+            combined = combined[:max_chars] + "\n..."
+        return combined
+
+    def _request_chapters_from_transcript_timeline(
+        self,
+        *,
+        transcript_timeline: str,
+        video_duration: str,
+    ) -> Optional[TranscriptChapterResponse]:
+        prompt_template = self.prompts.get(
+            "generate-timestamps-from-transcript",
+            DEFAULT_TRANSCRIPT_CHAPTER_PROMPT,
+        )
+
+        user_prompt = prompt_template.format(
+            transcript=transcript_timeline,
+            video_title=self.video_title or self.input_dir.name,
+            video_duration=video_duration,
+        )
+
+        messages: List[Dict[str, str]] = [
+            {"role": "system", "content": TRANSCRIPT_CHAPTER_SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt},
+        ]
+
+        try:
+            return self._invoke_openai_chat_structured_output(
+                model="gpt-4o-mini",
+                messages=messages,
+                schema=TranscriptChapterResponse,
+                temperature=0.35,
+                max_tokens=550,
+            )
+        except Exception as exc:
+            logger.warning(f"Transcript chapter request failed: {exc}")
+            return None
+
+    def _format_seconds_as_hms(self, seconds: float) -> str:
+        """Format seconds into HH:MM:SS (zero-padded)."""
+        total_seconds = max(0, int(seconds))
+        hours = total_seconds // 3600
+        minutes = (total_seconds % 3600) // 60
+        secs = total_seconds % 60
+        return f"{hours:02d}:{minutes:02d}:{secs:02d}"
 
     def _parse_vtt_timestamp(self, timestamp: str) -> float:
         """Convert a VTT timestamp (HH:MM:SS.mmm) to seconds."""

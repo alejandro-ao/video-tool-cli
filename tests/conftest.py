@@ -37,6 +37,7 @@ def mock_video_processor(temp_dir):
             'generate_seo_keywords': 'SEO prompt: {description}',
             'generate_linkedin_post': 'Test LinkedIn prompt: {transcript}',
             'generate_twitter_post': 'Test Twitter prompt: {transcript}',
+            'generate-timestamps-from-transcript': 'Transcript prompt: {transcript}',
         }
         
         with patch('video_tool.video_processor.VideoProcessor._load_prompts', return_value=mock_prompts):

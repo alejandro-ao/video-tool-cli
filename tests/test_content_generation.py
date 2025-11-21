@@ -217,6 +217,88 @@ class TestGenerateTimestamps:
         assert data[0]['timestamps'][1]['title'] == "Deep Dive Topic"
         assert mock_structured.call_count == 3
 
+    def test_generate_timestamps_from_provided_transcript(
+        self, temp_dir, mock_video_processor
+    ):
+        """Transcript flag should use the provided transcript and structured output."""
+        transcript_file = temp_dir / "output" / "transcript.vtt"
+        MockTranscriptGenerator.create_vtt_transcript(
+            transcript_file,
+            segments=[
+                {"start": 0.0, "end": 120.0, "text": "Intro and context."},
+                {"start": 120.0, "end": 420.0, "text": "Main content block with details."},
+                {"start": 420.0, "end": 600.0, "text": "Wrap up and conclusion."},
+            ],
+        )
+
+        with patch.object(mock_video_processor, "_invoke_openai_chat_structured_output") as mock_structured:
+            mock_structured.return_value = SimpleNamespace(
+                chapters=[
+                    SimpleNamespace(start="0:00", title="Intro and Goals"),
+                    SimpleNamespace(start="2:00", title="Deep Dive Section"),
+                    SimpleNamespace(start="7:00", title="Recap and Next Steps"),
+                ]
+            )
+
+            result = mock_video_processor.generate_timestamps(
+                output_path=str(temp_dir / "output" / "timestamps.json"),
+                transcript_path=str(transcript_file),
+                stamps_from_transcript=True,
+            )
+
+        timestamps_file = temp_dir / "output" / "timestamps.json"
+        assert timestamps_file.exists()
+
+        data = json.loads(timestamps_file.read_text())
+        timestamps = data[0]["timestamps"]
+        assert timestamps[0]["start"] == "00:00:00"
+        assert timestamps[1]["start"] == "00:02:00"
+        assert timestamps[-1]["end"] == "00:10:00"
+        assert data[0]["metadata"]["chapter_source"] == "transcript"
+        assert data[0]["metadata"]["transcript_path"] == str(transcript_file)
+        assert result["metadata"]["transcript_generated"] is False
+        mock_structured.assert_called_once()
+
+    def test_generate_timestamps_generates_transcript_when_missing(
+        self, temp_dir, mock_video_processor
+    ):
+        """If no transcript path is supplied, the CLI flag triggers transcript creation."""
+        transcript_file = temp_dir / "output" / "transcript.vtt"
+
+        def _write_transcript(*args, **kwargs):
+            MockTranscriptGenerator.create_vtt_transcript(
+                transcript_file,
+                segments=[
+                    {"start": 0.0, "end": 180.0, "text": "Opening and overview."},
+                    {"start": 180.0, "end": 420.0, "text": "Main topic discussion."},
+                ],
+            )
+            return str(transcript_file)
+
+        with patch.object(mock_video_processor, "generate_transcript", side_effect=_write_transcript) as mock_generate, patch.object(
+            mock_video_processor, "_invoke_openai_chat_structured_output"
+        ) as mock_structured:
+            mock_structured.return_value = SimpleNamespace(
+                chapters=[
+                    SimpleNamespace(start="0:00", title="Introduction"),
+                    SimpleNamespace(start="3:00", title="Main Topic"),
+                ]
+            )
+
+            result = mock_video_processor.generate_timestamps(
+                stamps_from_transcript=True,
+            )
+
+        timestamps_file = temp_dir / "output" / "timestamps.json"
+        assert timestamps_file.exists()
+
+        data = json.loads(timestamps_file.read_text())
+        assert data[0]["timestamps"][1]["start"] == "00:03:00"
+        assert data[0]["metadata"]["transcript_path"] == str(transcript_file)
+        assert data[0]["metadata"]["transcript_generated"] is True
+        mock_generate.assert_called_once()
+        mock_structured.assert_called_once()
+
 
 class TestGenerateTranscript:
     """Test generate_transcript method."""
@@ -964,4 +1046,3 @@ class TestGenerateTwitterPost:
         with patch.object(mock_video_processor, '_invoke_openai_chat', side_effect=Exception("API Error")):
             with pytest.raises(Exception, match="API Error"):
                 mock_video_processor.generate_twitter_post(str(transcript_file))
-

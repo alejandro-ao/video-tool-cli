@@ -62,6 +62,17 @@ polish_description: |
 
   <ORIGINAL DESCRIPTION>{description}</ORIGINAL DESCRIPTION>
 
+generate-timestamps-from-transcript: |
+  You are an editor creating YouTube chapter timestamps from a transcript.
+  Produce well-balanced chapters for "{video_title}" following these rules:
+  - Start with "0:00 Intro" and keep all chapters in chronological order.
+  - Use 4-12 chapters with medium granularity (group related ideas, avoid one chapter per sentence).
+  - Keep titles crisp (under ~60 characters) and action-oriented.
+  - Only use start times that appear in the transcript timeline and stay within {video_duration}.
+
+  Transcript timeline:
+  {transcript}
+
 generate_seo_keywords: |
   Based on this video description, generate a comma-separated list of relevant SEO keywords 
   that would help with video discoverability. Focus on technical and specific terms.
