@@ -274,6 +274,7 @@ def cmd_timestamps(args: argparse.Namespace) -> None:
         stamps_from_transcript=use_transcript,
         granularity=granularity,
         timestamp_notes=timestamp_notes,
+        video_path=str(input_path) if is_video_input else None,
     )
 
     console.print(f"[green]✓ Timestamps generated![/]")

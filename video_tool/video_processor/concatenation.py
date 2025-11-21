@@ -271,6 +271,7 @@ class ConcatenationMixin:
         stamps_from_transcript: bool = False,
         granularity: Optional[str] = None,
         timestamp_notes: Optional[str] = None,
+        video_path: Optional[str] = None,
     ) -> Dict:
         """Generate timestamp information for the video with chapters based on input videos or transcript."""
         resolved_output_path = (
@@ -279,7 +280,8 @@ class ConcatenationMixin:
 
         if stamps_from_transcript:
             transcript_file, transcript_generated = self._resolve_transcript_for_timestamps(
-                transcript_path
+                transcript_path,
+                video_path=video_path,
             )
 
             if transcript_file:
@@ -421,7 +423,7 @@ class ConcatenationMixin:
         return video_info
 
     def _resolve_transcript_for_timestamps(
-        self, transcript_path: Optional[str]
+        self, transcript_path: Optional[str], video_path: Optional[str] = None
     ) -> Tuple[Optional[Path], bool]:
         """Resolve or generate a transcript for transcript-driven timestamp creation."""
         if transcript_path:
@@ -437,7 +439,10 @@ class ConcatenationMixin:
             return default_transcript, False
 
         logger.info("No transcript supplied; generating transcript on the fly for timestamps.")
-        generated_path = self.generate_transcript(output_path=str(default_transcript))
+        generated_path = self.generate_transcript(
+            video_path=video_path,
+            output_path=str(default_transcript),
+        )
         if generated_path:
             candidate = Path(generated_path)
             if candidate.exists():

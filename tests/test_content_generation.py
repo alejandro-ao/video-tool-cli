@@ -299,6 +299,48 @@ class TestGenerateTimestamps:
         mock_generate.assert_called_once()
         mock_structured.assert_called_once()
 
+    def test_generate_timestamps_single_video_uses_provided_video_path(
+        self, temp_dir, mock_video_processor
+    ):
+        """Ensure transcript generation uses the requested video when a single MP4 is provided."""
+        video_file = temp_dir / "single.mp4"
+        video_file.write_bytes(b"\x00\x00mockmp4")
+        transcript_file = temp_dir / "output" / "transcript.vtt"
+
+        def _write_transcript(video_path=None, output_path=None, **kwargs):
+            assert video_path == str(video_file)
+            MockTranscriptGenerator.create_vtt_transcript(
+                Path(output_path),
+                segments=[
+                    {"start": 0.0, "end": 120.0, "text": "Intro content"},
+                    {"start": 120.0, "end": 240.0, "text": "Main content"},
+                ],
+            )
+            return str(output_path)
+
+        with patch.object(mock_video_processor, "generate_transcript", side_effect=_write_transcript) as mock_generate, patch.object(
+            mock_video_processor, "_invoke_openai_chat_structured_output"
+        ) as mock_structured:
+            mock_structured.return_value = SimpleNamespace(
+                chapters=[
+                    SimpleNamespace(start="0:00", title="Intro"),
+                    SimpleNamespace(start="2:00", title="Main Section"),
+                ]
+            )
+
+            result = mock_video_processor.generate_timestamps(
+                video_path=str(video_file),
+                stamps_from_transcript=True,
+            )
+
+        timestamps_file = temp_dir / "output" / "timestamps.json"
+        assert timestamps_file.exists()
+        data = json.loads(timestamps_file.read_text())
+        assert data[0]["metadata"]["transcript_path"] == str(transcript_file)
+        assert result["metadata"]["transcript_generated"] is True
+        mock_generate.assert_called_once()
+        mock_structured.assert_called_once()
+
 
 class TestGenerateTranscript:
     """Test generate_transcript method."""
