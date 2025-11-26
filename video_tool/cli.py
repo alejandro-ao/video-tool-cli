@@ -78,6 +78,27 @@ def ask_optional_text(prompt_text: str, default: Optional[str] = None) -> Option
     return response or default
 
 
+def ask_yes_no(prompt_text: str, default: bool = False) -> bool:
+    """Prompt the user for a yes/no response."""
+    default_str = "y" if default else "n"
+    while True:
+        response = (
+            Prompt.ask(
+                f"[bold cyan]{prompt_text}[/] (y/n)",
+                default=default_str,
+                show_default=True,
+                console=console,
+            )
+            .strip()
+            .lower()
+        )
+        if response in ("y", "yes"):
+            return True
+        if response in ("n", "no"):
+            return False
+        console.print("[yellow]Please enter 'y' or 'n'.[/]")
+
+
 def cmd_silence_removal(args: argparse.Namespace) -> None:
     """Run silence removal on videos."""
     input_dir = args.input_dir
@@ -149,31 +170,123 @@ def cmd_timestamps(args: argparse.Namespace) -> None:
     """Generate timestamps for videos."""
     input_dir = args.input_dir
     if not input_dir:
-        input_dir = ask_required_path("Input directory (containing videos)")
+        input_dir = ask_required_path("Input directory (containing videos) or path to a video file")
     else:
         input_dir = normalize_path(input_dir)
 
     input_path = Path(input_dir).expanduser().resolve()
-    if not input_path.exists() or not input_path.is_dir():
-        console.print(f"[bold red]Error:[/] Invalid input directory: {input_dir}")
+    if not input_path.exists():
+        console.print(f"[bold red]Error:[/] Invalid input path: {input_dir}")
         sys.exit(1)
+
+    is_video_input = input_path.is_file()
+    if is_video_input and input_path.suffix.lower() != ".mp4":
+        console.print(f"[bold red]Error:[/] Input file must be an MP4 video: {input_dir}")
+        sys.exit(1)
+
+    base_dir = input_path.parent if is_video_input else input_path
 
     # Handle output path for the JSON file
     output_path = None
     if args.output_path:
         output_path = normalize_path(args.output_path)
     else:
-        # Default: input_dir/output/timestamps.json
-        output_path = str(input_path / "output" / "timestamps.json")
+        # Default: base_dir/output/timestamps.json
+        output_path = str(base_dir / "output" / "timestamps.json")
+
+    transcript_path = None
+    use_transcript = False
+    granularity = args.granularity
+    timestamp_notes = args.timestamp_notes
+
+    if is_video_input:
+        use_transcript = True
+        transcript_input = args.stamps_from_transcript
+        if transcript_input is None:
+            transcript_input = ask_optional_text(
+                "Path to transcript for this video (leave blank to auto-generate)",
+                default="",
+            )
+        if transcript_input:
+            transcript_path = normalize_path(transcript_input)
+            transcript_file = Path(transcript_path)
+            if not transcript_file.exists():
+                console.print(
+                    f"[yellow]Transcript not found at {transcript_path}. A new transcript will be generated automatically.[/]"
+                )
+                transcript_path = None
+        else:
+            console.print(
+                "[yellow]No transcript path provided. A transcript will be generated automatically for timestamps.[/]"
+            )
+    else:
+        if args.stamps_from_transcript is None:
+            per_clip = ask_yes_no("Do you want one chapter per clip?", default=True)
+            use_transcript = not per_clip
+        else:
+            use_transcript = True
+
+        if use_transcript:
+            transcript_input = args.stamps_from_transcript
+            if transcript_input == "":
+                transcript_input = ask_optional_text(
+                    "Path to transcript for timestamps (leave blank to auto-generate)",
+                    default="",
+                )
+            if transcript_input:
+                transcript_path = normalize_path(transcript_input)
+                transcript_file = Path(transcript_path)
+                if not transcript_file.exists():
+                    console.print(
+                        f"[yellow]Transcript not found at {transcript_path}. A new transcript will be generated automatically.[/]"
+                    )
+                    transcript_path = None
+            else:
+                console.print(
+                    "[yellow]No transcript path provided. A transcript will be generated automatically for timestamps.[/]"
+                )
+
+    if not granularity:
+        granularity = ask_optional_text(
+            "Granularity for timestamps (low/medium/high)", default="medium"
+        )
+    if granularity:
+        granularity = granularity.lower().strip()
+        if granularity not in {"low", "medium", "high"}:
+            console.print("[yellow]Invalid granularity; defaulting to 'medium'.[/]")
+            granularity = "medium"
+    else:
+        granularity = "medium"
+
+    if timestamp_notes is None:
+        timestamp_notes = ask_optional_text(
+            "Additional instructions for timestamps (optional)", default=""
+        )
 
     console.print(f"[cyan]Generating timestamps...[/]")
     console.print(f"  Input: {input_path}")
     console.print(f"  Output file: {output_path}\n")
 
-    processor = VideoProcessor(str(input_path))
-    timestamps_info = processor.generate_timestamps(output_path=output_path)
+    processor = VideoProcessor(str(base_dir))
+    timestamps_info = processor.generate_timestamps(
+        output_path=output_path,
+        transcript_path=transcript_path,
+        stamps_from_transcript=use_transcript,
+        granularity=granularity,
+        timestamp_notes=timestamp_notes,
+        video_path=str(input_path) if is_video_input else None,
+    )
 
     console.print(f"[green]✓ Timestamps generated![/]")
+    metadata = timestamps_info.get("metadata", {}) if isinstance(timestamps_info, dict) else {}
+    transcript_used = metadata.get("transcript_path")
+    if use_transcript:
+        if transcript_used:
+            console.print(f"  Transcript used: {transcript_used}")
+            if metadata.get("transcript_generated"):
+                console.print("  Transcript was generated automatically.")
+        else:
+            console.print("  Transcript: fallback to clip-based chapter timing.")
     console.print(f"  Timestamps file: {output_path}")
 
 
@@ -754,11 +867,26 @@ def create_parser() -> argparse.ArgumentParser:
     )
     timestamps_parser.add_argument(
         "--input-dir",
-        help="Input directory containing videos"
+        help="Input directory containing videos or a single MP4 video path"
     )
     timestamps_parser.add_argument(
         "--output-path",
         help="Full path for the output JSON file (default: input_dir/output/timestamps.json)"
+    )
+    timestamps_parser.add_argument(
+        "--stamps-from-transcript",
+        nargs="?",
+        const="",
+        help="Generate timestamps from a transcript (optionally provide the transcript path; omit to auto-generate)",
+    )
+    timestamps_parser.add_argument(
+        "--granularity",
+        choices=["low", "medium", "high"],
+        help="Granularity of generated chapters (low/medium/high)",
+    )
+    timestamps_parser.add_argument(
+        "--timestamp-notes",
+        help="Additional instructions for timestamp generation",
     )
 
     # Transcript command
