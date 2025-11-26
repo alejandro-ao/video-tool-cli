@@ -307,12 +307,13 @@ video-tool thumbnail --prompt "Minimalist neon gradient" --output-path ./assets/
 Upload a video to Bunny.net CDN.
 
 **Required inputs:**
-- Path to video file
+- Path to video file (or a directory when using `--batch-dir`)
 - Bunny Library ID (or set `BUNNY_LIBRARY_ID` env var)
 - Bunny Access Key (or set `BUNNY_ACCESS_KEY` env var)
 
 **Optional inputs:**
 - Bunny Collection ID (or set `BUNNY_COLLECTION_ID` env var)
+- Batch upload directory (`--batch-dir`) to upload every `.mp4` in a folder
 
 **Example:**
 
@@ -326,10 +327,17 @@ video-tool bunny-video \
   --bunny-library-id 12345 \
   --bunny-access-key your_key \
   --bunny-collection-id 67890
+
+# Batch upload every MP4 in a directory
+video-tool bunny-video \
+  --batch-dir ./output/videos \
+  --bunny-library-id 12345 \
+  --bunny-access-key your_key
 ```
 
 **Arguments:**
 - `--video-path PATH`: Path to video file to upload
+- `--batch-dir PATH`: Directory containing MP4 files to upload
 - `--bunny-library-id ID`: Bunny.net library ID
 - `--bunny-access-key KEY`: Bunny.net access key
 - `--bunny-collection-id ID`: Bunny.net collection ID (optional)

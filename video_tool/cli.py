@@ -444,31 +444,106 @@ def cmd_twitter(args: argparse.Namespace) -> None:
 
 def cmd_bunny_video(args: argparse.Namespace) -> None:
     """Upload video to Bunny.net."""
+    def _resolve_bunny_credentials() -> tuple[str, str]:
+        """Resolve Bunny credentials from args/env and prompt if missing."""
+        library = (args.bunny_library_id or os.getenv("BUNNY_LIBRARY_ID") or "").strip()
+        access = (args.bunny_access_key or os.getenv("BUNNY_ACCESS_KEY") or "").strip()
+
+        if not library:
+            library = (ask_optional_text("Bunny Library ID", None) or "").strip()
+        if not access:
+            access = (ask_optional_text("Bunny Access Key", None) or "").strip()
+
+        if not library or not access:
+            console.print(f"[bold red]Error:[/] BUNNY_LIBRARY_ID and BUNNY_ACCESS_KEY are required")
+            sys.exit(1)
+
+        return library, access
+
+    if args.video_path and args.batch_dir:
+        console.print(
+            "[bold red]Error:[/] Please provide either --video-path or --batch-dir, not both."
+        )
+        sys.exit(1)
+
+    batch_dir = args.batch_dir
+    batch_path: Optional[Path] = None
+    if batch_dir:
+        batch_dir = normalize_path(batch_dir)
+        batch_path = Path(batch_dir).expanduser().resolve()
+        if not batch_path.exists() or not batch_path.is_dir():
+            console.print(f"[bold red]Error:[/] Invalid batch directory: {batch_dir}")
+            sys.exit(1)
+
     video_path = args.video_path
-    if not video_path:
+    if not video_path and not batch_dir:
         video_path = ask_required_path("Path to video file to upload")
-    else:
+    elif video_path:
         video_path = normalize_path(video_path)
 
-    video_file = Path(video_path).expanduser().resolve()
-    if not video_file.exists() or not video_file.is_file():
-        console.print(f"[bold red]Error:[/] Invalid video file: {video_path}")
+    video_file: Optional[Path] = None
+    if video_path:
+        video_file = Path(video_path).expanduser().resolve()
+        if not video_file.exists() or not video_file.is_file():
+            console.print(f"[bold red]Error:[/] Invalid video file: {video_path}")
         sys.exit(1)
 
     # Get required Bunny credentials
-    library_id = args.bunny_library_id or os.getenv("BUNNY_LIBRARY_ID")
-    if not library_id:
-        library_id = ask_optional_text("Bunny Library ID", None)
+    library_id, access_key = _resolve_bunny_credentials()
 
-    access_key = args.bunny_access_key or os.getenv("BUNNY_ACCESS_KEY")
-    if not access_key:
-        access_key = ask_optional_text("Bunny Access Key", None)
+    collection_id = (args.bunny_collection_id or os.getenv("BUNNY_COLLECTION_ID") or "").strip() or None
 
-    if not library_id or not access_key:
-        console.print(f"[bold red]Error:[/] BUNNY_LIBRARY_ID and BUNNY_ACCESS_KEY are required")
-        sys.exit(1)
+    if batch_path:
+        console.print(f"[cyan]Uploading videos to Bunny.net...[/]")
+        console.print(f"  Directory: {batch_path}")
+        console.print(f"  Library ID: {library_id}\n")
 
-    collection_id = args.bunny_collection_id or os.getenv("BUNNY_COLLECTION_ID")
+        processor = VideoProcessor(str(batch_path))
+        try:
+            video_files = processor.get_mp4_files(str(batch_path))
+        except Exception as exc:
+            console.print(f"[bold red]Error:[/] Unable to read directory: {exc}")
+            sys.exit(1)
+
+        if not video_files:
+            console.print(f"[bold red]Error:[/] No MP4 files found in {batch_path}")
+            sys.exit(1)
+
+        successes = []
+        failures = []
+        for file_path in video_files:
+            console.print(f"[cyan]- Uploading {file_path.name}[/]")
+            try:
+                result = processor.upload_bunny_video(
+                    video_path=str(file_path),
+                    library_id=library_id,
+                    access_key=access_key,
+                    collection_id=collection_id,
+                )
+            except Exception as exc:  # pragma: no cover - surfaced to user
+                console.print(f"[bold red]  Error:[/] {exc}")
+                failures.append(file_path.name)
+                continue
+
+            if result:
+                video_id = result.get("video_id")
+                successes.append((file_path.name, video_id))
+                console.print(f"[green]  ✓ Uploaded[/] {file_path.name} (ID: {video_id})")
+            else:
+                failures.append(file_path.name)
+                console.print(f"[bold red]  ✗ Failed to upload[/] {file_path.name}")
+
+        if not successes:
+            console.print("[bold red]Error:[/] All uploads failed.")
+            sys.exit(1)
+
+        if failures:
+            console.print(
+                f"[yellow]Completed with issues:[/] failed uploads -> {', '.join(failures)}"
+            )
+        else:
+            console.print("[green]All videos uploaded successfully![/]")
+        return
 
     console.print(f"[cyan]Uploading video to Bunny.net...[/]")
     console.print(f"  Video: {video_file}")
@@ -782,6 +857,10 @@ def create_parser() -> argparse.ArgumentParser:
     bunny_parser.add_argument(
         "--video-path",
         help="Path to video file to upload"
+    )
+    bunny_parser.add_argument(
+        "--batch-dir",
+        help="Directory containing MP4 files to upload (uploads all videos)"
     )
     bunny_parser.add_argument(
         "--bunny-library-id",
