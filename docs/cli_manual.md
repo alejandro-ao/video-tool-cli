@@ -111,7 +111,7 @@ video-tool concat
 - `--title TEXT`: Title for the final video (required; also used for filename)
 - `--output-path PATH`: Full path for the output file (defaults to `input_dir/output/<title>.mp4`)
 - `--fast-concat`: Use fast concatenation mode (skip reprocessing)
-- Writes a `<output_name>_metadata.json` file alongside the concatenated video with basic details (title, duration, file size)
+- Writes a `metadata.json` file alongside the concatenated video with basic details (title, duration, file size)
 
 ---
 

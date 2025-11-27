@@ -181,7 +181,7 @@ def cmd_concat(args: argparse.Namespace) -> None:
 
     # Emit metadata JSON alongside the final video
     output_video_path = Path(output_video)
-    metadata_path = output_video_path.with_name(f"{output_video_path.stem}_metadata.json")
+    metadata_path = output_video_path.with_name("metadata.json")
 
     creation_date, detected_title, duration_minutes = processor._get_video_metadata(
         str(output_video_path)
