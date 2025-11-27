@@ -595,24 +595,40 @@ def cmd_context_cards(args: argparse.Namespace) -> None:
 
 def cmd_description(args: argparse.Namespace) -> None:
     """Generate video description from transcript."""
-    transcript_path = args.transcript_path
-    if not transcript_path:
-        transcript_path = ask_required_path("Path to video transcript (.vtt file)")
+    transcript_input = args.transcript_path
+    video_input = args.video_path
+
+    transcript_file: Optional[Path] = None
+    video_file: Optional[Path] = None
+    transcript_generated = False
+
+    if not transcript_input:
+        transcript_input = ask_optional_text(
+            "Path to video transcript (.vtt file) (leave blank to generate from video)",
+            default="",
+        )
+
+    if transcript_input:
+        transcript_path = normalize_path(transcript_input)
+        transcript_file = Path(transcript_path).expanduser().resolve()
+        if not transcript_file.exists() or not transcript_file.is_file():
+            console.print(f"[bold red]Error:[/] Invalid transcript file: {transcript_path}")
+            sys.exit(1)
+        default_output_dir = transcript_file.parent
     else:
-        transcript_path = normalize_path(transcript_path)
+        if video_input:
+            video_path = normalize_path(video_input)
+        else:
+            video_path = ask_required_path("Path to video file (MP4) to describe")
+        video_file = Path(video_path).expanduser().resolve()
+        if not video_file.exists() or not video_file.is_file():
+            console.print(f"[bold red]Error:[/] Invalid video file: {video_path}")
+            sys.exit(1)
+        if video_file.suffix.lower() != ".mp4":
+            console.print(f"[bold red]Error:[/] Video file must be an MP4: {video_path}")
+            sys.exit(1)
+        default_output_dir = video_file.parent / "output"
 
-    transcript_file = Path(transcript_path).expanduser().resolve()
-    if not transcript_file.exists() or not transcript_file.is_file():
-        console.print(f"[bold red]Error:[/] Invalid transcript file: {transcript_path}")
-        sys.exit(1)
-
-    transcript_dir = transcript_file.parent
-
-    repo_url = args.repo_url
-    if not repo_url:
-        repo_url = ask_optional_text("Repository URL", None)
-
-    default_output_dir = transcript_dir
     output_dir_arg = args.output_dir
     if output_dir_arg is None:
         output_dir_arg = ask_optional_text(
@@ -621,6 +637,22 @@ def cmd_description(args: argparse.Namespace) -> None:
         )
     output_dir = normalize_path(output_dir_arg) if output_dir_arg else None
     output_dir_path = Path(output_dir).expanduser().resolve() if output_dir else default_output_dir
+
+    processor: Optional[VideoProcessor] = None
+    if transcript_file:
+        transcript_dir = transcript_file.parent
+    else:
+        transcript_dir = output_dir_path
+        processor = VideoProcessor(str(video_file.parent), output_dir=str(output_dir_path))
+        transcript_path = str(transcript_dir / "transcript.vtt")
+        console.print(f"[cyan]No transcript provided. Generating transcript at {transcript_path}...[/]")
+        transcript_path = processor.generate_transcript(str(video_file), output_path=transcript_path)
+        transcript_file = Path(transcript_path).expanduser().resolve()
+        transcript_generated = True
+
+    repo_url = args.repo_url
+    if not repo_url:
+        repo_url = ask_optional_text("Repository URL", None)
 
     # Handle output path for the description file
     if args.output_path:
@@ -645,24 +677,29 @@ def cmd_description(args: argparse.Namespace) -> None:
         console.print(f"  Timestamps: {timestamps_path}")
     console.print(f"  Output file: {output_path}\n")
 
-    search_dirs = [transcript_dir]
-    parent_dir = transcript_dir.parent
-    if parent_dir != transcript_dir:
-        search_dirs.append(parent_dir)
+    if not video_file:
+        search_dirs = [transcript_dir]
+        parent_dir = transcript_dir.parent
+        if parent_dir != transcript_dir:
+            search_dirs.append(parent_dir)
 
-    # Find the video file (assume it's in the transcript directory or its parent)
-    video_candidates = []
-    for candidate_dir in search_dirs:
-        video_candidates.extend(sorted(candidate_dir.glob("*.mp4")))
+        # Find the video file (assume it's in the transcript directory or its parent)
+        video_candidates = []
+        for candidate_dir in search_dirs:
+            video_candidates.extend(sorted(candidate_dir.glob("*.mp4")))
 
-    if not video_candidates:
-        console.print(f"[bold red]Error:[/] No video file found near transcript")
-        sys.exit(1)
+        if not video_candidates:
+            console.print(f"[bold red]Error:[/] No video file found near transcript")
+            sys.exit(1)
 
-    video_path = str(video_candidates[0])
-    video_dir = Path(video_path).parent
-
-    processor = VideoProcessor(str(video_dir), output_dir=str(output_dir_path))
+        video_path = str(video_candidates[0])
+        video_dir = Path(video_path).parent
+        processor = VideoProcessor(str(video_dir), output_dir=str(output_dir_path))
+    else:
+        video_path = str(video_file)
+        video_dir = video_file.parent
+        if processor is None:
+            processor = VideoProcessor(str(video_dir), output_dir=str(output_dir_path))
 
     description_path = processor.generate_description(
         video_path=video_path,
@@ -688,6 +725,14 @@ def cmd_description(args: argparse.Namespace) -> None:
             )
 
     merged_metadata = existing_metadata if isinstance(existing_metadata, dict) else {}
+    if transcript_generated and transcript_file:
+        try:
+            transcript_content = transcript_file.read_text(encoding="utf-8")
+            merged_metadata["transcript"] = transcript_content
+            merged_metadata["transcript_format"] = transcript_file.suffix.lstrip(".").lower()
+        except OSError as exc:  # pragma: no cover
+            console.print(f"[yellow]Warning:[/] Unable to read transcript for metadata: {exc}")
+
     try:
         description_content = Path(description_path).read_text(encoding="utf-8")
         merged_metadata["description"] = description_content
@@ -1393,6 +1438,10 @@ def create_parser() -> argparse.ArgumentParser:
     desc_parser.add_argument(
         "--transcript-path",
         help="Path to video transcript (.vtt file)"
+    )
+    desc_parser.add_argument(
+        "--video-path",
+        help="Path to video file (used to auto-generate transcript if transcript is omitted)"
     )
     desc_parser.add_argument(
         "--output-dir",

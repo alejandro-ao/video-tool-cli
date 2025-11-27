@@ -226,19 +226,24 @@ Generate a video description from a transcript.
 - Path to video transcript (.vtt file)
 
 **Optional inputs:**
+- Video path (MP4) if a transcript isn't provided; will auto-generate transcript.vtt
 - Repository URL (for including code links)
 - Output directory (defaults to `transcript_dir`)
 - Output path (defaults to `transcript_dir/description.md`)
 - Updates/creates `metadata.json` with the full description text
+  - If transcript is auto-generated from video, the full transcript is also stored in `metadata.json`
 
 **Example:**
 
 ```bash
 video-tool description --transcript-path ./output/transcript.vtt --repo-url https://github.com/user/repo
+# Auto-generate transcript from video if transcript is missing
+video-tool description --video-path ./output/final-video.mp4 --repo-url https://github.com/user/repo
 ```
 
 **Arguments:**
 - `--transcript-path PATH`: Path to video transcript (.vtt file)
+- `--video-path PATH`: Path to video file (auto-generates transcript if transcript is omitted)
 - `--repo-url URL`: Repository URL to include in description (optional)
 - `--output-dir PATH`: Directory for description output (default: transcript_dir)
 - `--output-path PATH`: Full path for the output description file (default: transcript_dir/description.md)
