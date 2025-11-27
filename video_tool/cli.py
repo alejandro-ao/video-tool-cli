@@ -447,24 +447,63 @@ def cmd_transcript(args: argparse.Namespace) -> None:
         console.print(f"[bold red]Error:[/] Invalid video file: {video_path}")
         sys.exit(1)
 
+    output_dir_arg = args.output_dir
+    default_transcript_dir = video_file.parent / "output"
+    if output_dir_arg is None:
+        output_dir_arg = ask_optional_text(
+            f"Output directory for transcript (leave blank for {default_transcript_dir})",
+            default="",
+        )
+    output_dir = normalize_path(output_dir_arg) if output_dir_arg else None
+    output_dir_path = Path(output_dir).expanduser().resolve() if output_dir else default_transcript_dir
+
     # Handle output path for the transcript file
     output_path = None
     if args.output_path:
         output_path = normalize_path(args.output_path)
+    else:
+        output_path = str(output_dir_path / "transcript.vtt")
 
     console.print(f"[cyan]Generating transcript...[/]")
     console.print(f"  Video: {video_file}")
-    if output_path:
-        console.print(f"  Output file: {output_path}\n")
-    else:
-        console.print(f"  Output file: {video_file.parent}/output/transcript.vtt\n")
+    console.print(f"  Output file: {output_path}\n")
 
     # Use the video's parent directory as input_dir
-    processor = VideoProcessor(str(video_file.parent))
+    processor = VideoProcessor(str(video_file.parent), output_dir=str(output_dir_path))
     transcript_path = processor.generate_transcript(str(video_file), output_path=output_path)
 
     console.print(f"[green]✓ Transcript generated![/]")
     console.print(f"  Transcript: {transcript_path}")
+
+    # Update or create metadata.json with transcript info
+    transcript_file = Path(transcript_path).expanduser().resolve()
+    metadata_path = transcript_file.parent / "metadata.json"
+
+    existing_metadata: Optional[Dict] = None
+    if metadata_path.exists():
+        try:
+            with open(metadata_path, "r", encoding="utf-8") as handle:
+                existing_metadata = json.load(handle)
+        except (OSError, json.JSONDecodeError) as exc:  # pragma: no cover - surfaced via console
+            console.print(
+                f"[yellow]Warning:[/] Unable to read existing metadata.json; will recreate it: {exc}"
+            )
+
+    merged_metadata = existing_metadata if isinstance(existing_metadata, dict) else {}
+    merged_metadata.update(
+        {
+            "transcript_path": str(transcript_file),
+            "transcript_format": transcript_file.suffix.lstrip(".").lower(),
+        }
+    )
+
+    try:
+        metadata_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(metadata_path, "w", encoding="utf-8") as handle:
+            json.dump(merged_metadata, handle, indent=2)
+        console.print(f"  Metadata file: {metadata_path}")
+    except OSError as exc:  # pragma: no cover - surfaced via console
+        console.print(f"[yellow]Warning:[/] Unable to write metadata JSON: {exc}")
 
 
 def cmd_context_cards(args: argparse.Namespace) -> None:
@@ -1053,6 +1092,10 @@ def create_parser() -> argparse.ArgumentParser:
     transcript_parser.add_argument(
         "--video-path",
         help="Path to video file"
+    )
+    transcript_parser.add_argument(
+        "--output-dir",
+        help="Directory for transcript outputs (default: video_dir/output)"
     )
     transcript_parser.add_argument(
         "--output-path",

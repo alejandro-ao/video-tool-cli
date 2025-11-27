@@ -160,6 +160,12 @@ Generate a transcript for a video using Groq Whisper.
 **Required inputs:**
 - Path to video file
 
+**Optional inputs:**
+- Output directory (defaults to `video_dir/output`)
+- Output path (defaults to `video_dir/output/transcript.vtt`)
+- Language (defaults to English)
+- Writes/updates `metadata.json` next to the transcript with transcript details
+
 **Example:**
 
 ```bash
@@ -168,8 +174,11 @@ video-tool transcript --video-path ./my-video.mp4
 
 **Arguments:**
 - `--video-path PATH`: Path to video file
+- `--output-dir PATH`: Directory for transcript outputs (default: video_dir/output)
+- `--output-path PATH`: Full path for the output VTT file (default: video_dir/output/transcript.vtt)
+- `--language LANG`: Language code (default: en)
 
-**Output:** Creates `transcript.vtt` in the video's parent output directory.
+**Output:** Creates `transcript.vtt` in the chosen output directory and updates/creates `metadata.json`.
 
 ---
 
