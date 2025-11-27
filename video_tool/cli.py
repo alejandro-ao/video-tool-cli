@@ -340,6 +340,36 @@ def cmd_timestamps(args: argparse.Namespace) -> None:
             console.print("  Transcript: fallback to clip-based chapter timing.")
     console.print(f"  Timestamps file: {output_path}")
 
+    # Update metadata.json with generated timestamps if present
+    metadata_path = Path(output_path).expanduser().resolve().parent / "metadata.json"
+    timestamps_payload = (
+        timestamps_info.get("timestamps", []) if isinstance(timestamps_info, dict) else []
+    )
+
+    if metadata_path.exists():
+        try:
+            with open(metadata_path, "r", encoding="utf-8") as handle:
+                existing_metadata = json.load(handle)
+        except (OSError, json.JSONDecodeError) as exc:
+            console.print(
+                f"[yellow]Warning:[/] Unable to read existing metadata.json for timestamp update: {exc}"
+            )
+        else:
+            if isinstance(existing_metadata, dict):
+                existing_metadata["timestamps"] = timestamps_payload
+                try:
+                    with open(metadata_path, "w", encoding="utf-8") as handle:
+                        json.dump(existing_metadata, handle, indent=2)
+                    console.print(f"  Updated metadata file: {metadata_path}")
+                except OSError as exc:  # pragma: no cover - surfaced via console
+                    console.print(
+                        f"[yellow]Warning:[/] Unable to update metadata.json with timestamps: {exc}"
+                    )
+            else:
+                console.print(
+                    "[yellow]Warning:[/] metadata.json is not an object; skipping timestamp injection."
+                )
+
 
 def cmd_transcript(args: argparse.Namespace) -> None:
     """Generate transcript for a video."""

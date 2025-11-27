@@ -127,6 +127,7 @@ Generate timestamp information for videos (useful for YouTube chapters).
 - Transcript-driven chapters: `--stamps-from-transcript [PATH]` (provide a transcript path or omit the path to auto-generate one)
 - Granularity selection (low/medium/high)
 - Additional timestamp instructions specific to the video
+- If `metadata.json` already exists in the output directory, the generated timestamps are also stored under its `timestamps` key
 
 **Example:**
 
