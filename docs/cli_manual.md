@@ -333,6 +333,24 @@ video-tool twitter --transcript-path ./output/transcript.vtt
 
 ---
 
+#### `pipeline`
+
+Run the full video-tool pipeline (silence removal not included) for an input directory of clips. Prompts for input directory, fast concat choice, and Bunny upload choice.
+
+**Optional inputs:**
+- Override CLI binary (defaults to `video-tool` or `VIDEO_TOOL_CLI` env)
+
+**Example:**
+
+```bash
+video-tool pipeline
+video-tool pipeline --cli-bin ./venv/bin/video-tool
+```
+
+**Output:** Executes concat, timestamps, transcript, context cards, SEO, LinkedIn, Twitter, and optional Bunny upload in sequence using defaults from the individual commands.
+
+---
+
 #### `thumbnail`
 
 Generate a thumbnail image for the video using OpenAI's GPT image generation endpoint.

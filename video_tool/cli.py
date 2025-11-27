@@ -6,6 +6,7 @@ If arguments are not provided, the user will be prompted interactively.
 """
 
 import argparse
+import importlib.util
 import json
 import os
 import sys
@@ -973,6 +974,37 @@ def cmd_twitter(args: argparse.Namespace) -> None:
         console.print(f"[yellow]Warning:[/] Unable to write metadata JSON: {exc}")
 
 
+def cmd_pipeline(args: argparse.Namespace) -> None:
+    """Run the full video-tool pipeline via scripts/run_full_pipeline.py."""
+    script_path = Path(__file__).resolve().parent.parent / "scripts" / "run_full_pipeline.py"
+    if not script_path.exists():
+        console.print(f"[bold red]Error:[/] Pipeline runner not found at {script_path}")
+        sys.exit(1)
+
+    spec = importlib.util.spec_from_file_location("video_tool_run_full_pipeline", script_path)
+    if spec is None or spec.loader is None:
+        console.print(f"[bold red]Error:[/] Unable to load pipeline runner from {script_path}")
+        sys.exit(1)
+
+    run_full_pipeline = importlib.util.module_from_spec(spec)
+    try:
+        spec.loader.exec_module(run_full_pipeline)
+    except Exception as exc:  # pragma: no cover - surfaced to user
+        console.print(f"[bold red]Error:[/] Unable to import pipeline runner: {exc}")
+        sys.exit(1)
+
+    argv = []
+    if args.cli_bin:
+        argv.extend(["--cli-bin", args.cli_bin])
+
+    try:
+        run_full_pipeline.main(argv)
+    except SystemExit:
+        raise
+    except Exception as exc:  # pragma: no cover - surfaced to user
+        console.print(f"[bold red]Error:[/] Pipeline execution failed: {exc}")
+        sys.exit(1)
+
 def cmd_bunny_video(args: argparse.Namespace) -> None:
     """Upload video to Bunny.net."""
     def _resolve_bunny_credentials() -> tuple[str, str]:
@@ -1510,6 +1542,16 @@ def create_parser() -> argparse.ArgumentParser:
         help="Full path for the output Twitter post file (default: transcript_dir/twitter_post.md)"
     )
 
+    # Full pipeline command
+    pipeline_parser = subparsers.add_parser(
+        "pipeline",
+        help="Run the full video-tool pipeline"
+    )
+    pipeline_parser.add_argument(
+        "--cli-bin",
+        help="Override the video-tool executable (defaults to VIDEO_TOOL_CLI env or 'video-tool')"
+    )
+
     # Bunny video upload command
     bunny_parser = subparsers.add_parser(
         "bunny-upload",
@@ -1624,6 +1666,7 @@ def main() -> None:
         "seo": cmd_seo,
         "linkedin": cmd_linkedin,
         "twitter": cmd_twitter,
+        "pipeline": cmd_pipeline,
         "bunny-upload": cmd_bunny_video,
         "bunny-transcript": cmd_bunny_transcript,
         "bunny-chapters": cmd_bunny_chapters,

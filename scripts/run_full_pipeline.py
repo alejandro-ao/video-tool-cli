@@ -12,6 +12,7 @@ discoverable on PATH (override via the --cli-bin flag or VIDEO_TOOL_CLI env).
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shutil
 import subprocess
@@ -104,6 +105,32 @@ def ensure_file(path: Path, description: str) -> None:
         raise SystemExit(f"Expected {description} at '{path}', but it was not found.")
 
 
+def _resolve_concatenated_video(output_dir: Path) -> Path:
+    """Determine the concatenated video path using metadata.json or best effort."""
+    metadata_path = output_dir / "metadata.json"
+    if metadata_path.exists():
+        try:
+            with open(metadata_path, "r", encoding="utf-8") as handle:
+                data = json.load(handle)
+            if isinstance(data, dict):
+                output_path = data.get("output_path")
+                if output_path:
+                    candidate = Path(output_path).expanduser().resolve()
+                    if candidate.exists():
+                        return candidate
+        except (OSError, json.JSONDecodeError):
+            # Fall back to best-effort scanning
+            pass
+
+    # Fallback: pick the newest MP4 in output_dir
+    mp4_candidates = sorted(output_dir.glob("*.mp4"), key=lambda p: p.stat().st_mtime)
+    if mp4_candidates:
+        return mp4_candidates[-1]
+
+    # Final fallback: the legacy default name
+    return output_dir / "concatenated.mp4"
+
+
 def build_cli(args: argparse.Namespace) -> str:
     """Determine the CLI executable to invoke."""
     cli_bin = args.cli_bin or os.getenv("VIDEO_TOOL_CLI") or "video-tool"
@@ -126,8 +153,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> None:
-    
-    args = parse_args(argv or sys.argv[1:])
+    args = parse_args(argv if argv is not None else sys.argv[1:])
 
     input_dir = prompt_input_directory()
 
@@ -162,7 +188,7 @@ def main(argv: list[str] | None = None) -> None:
         [cli_bin, "timestamps", "--input-dir", str(input_dir)],
     )
 
-    concatenated_video = output_dir / "concatenated.mp4"
+    concatenated_video = _resolve_concatenated_video(output_dir)
     ensure_file(concatenated_video, "concatenated video")
 
     transcript_path = output_dir / "transcript.vtt"
