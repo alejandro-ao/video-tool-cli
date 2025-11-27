@@ -528,12 +528,21 @@ def cmd_context_cards(args: argparse.Namespace) -> None:
         console.print(f"[bold red]Error:[/] Invalid transcript file: {transcript_path}")
         sys.exit(1)
 
+    default_output_dir = transcript_file.parent
+    output_dir_arg = args.output_dir
+    if output_dir_arg is None:
+        output_dir_arg = ask_optional_text(
+            f"Output directory for context cards (leave blank for {default_output_dir})",
+            default="",
+        )
+    output_dir = normalize_path(output_dir_arg) if output_dir_arg else None
+    output_dir_path = Path(output_dir).expanduser().resolve() if output_dir else default_output_dir
+
     output_path = None
     if args.output_path:
         output_path = normalize_path(args.output_path)
-        output_file = Path(output_path).expanduser()
-        output_file.parent.mkdir(parents=True, exist_ok=True)
-        output_path = str(output_file)
+    else:
+        output_path = str(output_dir_path / "context-cards.md")
 
     console.print(f"[cyan]Generating context cards...[/]")
     console.print(f"  Transcript: {transcript_file}")
@@ -543,7 +552,7 @@ def cmd_context_cards(args: argparse.Namespace) -> None:
         console.print("\n")
 
     transcript_dir = transcript_file.parent
-    processor = VideoProcessor(str(transcript_dir), output_dir=str(transcript_dir))
+    processor = VideoProcessor(str(transcript_dir), output_dir=str(output_dir_path))
 
     cards_path = processor.generate_context_cards(
         str(transcript_file),
@@ -553,6 +562,32 @@ def cmd_context_cards(args: argparse.Namespace) -> None:
     if cards_path:
         console.print(f"[green]✓ Context cards generated![/]")
         console.print(f"  Context cards: {cards_path}")
+
+        metadata_path = Path(output_dir_path) / "metadata.json"
+        existing_metadata: Optional[Dict] = None
+        if metadata_path.exists():
+            try:
+                with open(metadata_path, "r", encoding="utf-8") as handle:
+                    existing_metadata = json.load(handle)
+            except (OSError, json.JSONDecodeError) as exc:  # pragma: no cover
+                console.print(
+                    f"[yellow]Warning:[/] Unable to read existing metadata.json; will recreate it: {exc}"
+                )
+
+        merged_metadata = existing_metadata if isinstance(existing_metadata, dict) else {}
+        try:
+            context_content = Path(cards_path).read_text(encoding="utf-8")
+            merged_metadata["context_cards"] = context_content
+        except OSError as exc:  # pragma: no cover
+            console.print(f"[yellow]Warning:[/] Unable to read context cards for metadata: {exc}")
+
+        try:
+            metadata_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(metadata_path, "w", encoding="utf-8") as handle:
+                json.dump(merged_metadata, handle, indent=2)
+            console.print(f"  Metadata file: {metadata_path}")
+        except OSError as exc:  # pragma: no cover
+            console.print(f"[yellow]Warning:[/] Unable to write metadata JSON: {exc}")
     else:
         console.print(f"[bold red]Error:[/] Failed to generate context cards")
         sys.exit(1)
@@ -577,11 +612,21 @@ def cmd_description(args: argparse.Namespace) -> None:
     if not repo_url:
         repo_url = ask_optional_text("Repository URL", None)
 
+    default_output_dir = transcript_dir
+    output_dir_arg = args.output_dir
+    if output_dir_arg is None:
+        output_dir_arg = ask_optional_text(
+            f"Output directory for description (leave blank for {default_output_dir})",
+            default="",
+        )
+    output_dir = normalize_path(output_dir_arg) if output_dir_arg else None
+    output_dir_path = Path(output_dir).expanduser().resolve() if output_dir else default_output_dir
+
     # Handle output path for the description file
     if args.output_path:
         output_path = normalize_path(args.output_path)
     else:
-        output_path = str(transcript_dir / "description.md")
+        output_path = str(output_dir_path / "description.md")
 
     # Handle timestamps path
     timestamps_path = None
@@ -617,7 +662,7 @@ def cmd_description(args: argparse.Namespace) -> None:
     video_path = str(video_candidates[0])
     video_dir = Path(video_path).parent
 
-    processor = VideoProcessor(str(video_dir), output_dir=str(transcript_dir))
+    processor = VideoProcessor(str(video_dir), output_dir=str(output_dir_path))
 
     description_path = processor.generate_description(
         video_path=video_path,
@@ -629,6 +674,33 @@ def cmd_description(args: argparse.Namespace) -> None:
 
     console.print(f"[green]✓ Description generated![/]")
     console.print(f"  Description: {description_path}")
+
+    # Update metadata.json with description content
+    metadata_path = Path(output_dir_path) / "metadata.json"
+    existing_metadata: Optional[Dict] = None
+    if metadata_path.exists():
+        try:
+            with open(metadata_path, "r", encoding="utf-8") as handle:
+                existing_metadata = json.load(handle)
+        except (OSError, json.JSONDecodeError) as exc:  # pragma: no cover
+            console.print(
+                f"[yellow]Warning:[/] Unable to read existing metadata.json; will recreate it: {exc}"
+            )
+
+    merged_metadata = existing_metadata if isinstance(existing_metadata, dict) else {}
+    try:
+        description_content = Path(description_path).read_text(encoding="utf-8")
+        merged_metadata["description"] = description_content
+    except OSError as exc:  # pragma: no cover
+        console.print(f"[yellow]Warning:[/] Unable to read description for metadata: {exc}")
+
+    try:
+        metadata_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(metadata_path, "w", encoding="utf-8") as handle:
+            json.dump(merged_metadata, handle, indent=2)
+        console.print(f"  Metadata file: {metadata_path}")
+    except OSError as exc:  # pragma: no cover
+        console.print(f"[yellow]Warning:[/] Unable to write metadata JSON: {exc}")
 
 
 def cmd_seo(args: argparse.Namespace) -> None:
@@ -650,10 +722,20 @@ def cmd_seo(args: argparse.Namespace) -> None:
     if parent_dir != transcript_dir:
         search_dirs.append(parent_dir)
 
+    default_output_dir = transcript_dir
+    output_dir_arg = args.output_dir
+    if output_dir_arg is None:
+        output_dir_arg = ask_optional_text(
+            f"Output directory for SEO keywords (leave blank for {default_output_dir})",
+            default="",
+        )
+    output_dir = normalize_path(output_dir_arg) if output_dir_arg else None
+    output_dir_path = Path(output_dir).expanduser().resolve() if output_dir else default_output_dir
+
     console.print(f"[cyan]Generating SEO keywords...[/]")
     console.print(f"  Transcript: {transcript_file}\n")
 
-    processor: VideoProcessor = VideoProcessor(str(transcript_dir), output_dir=str(transcript_dir))
+    processor: VideoProcessor = VideoProcessor(str(transcript_dir), output_dir=str(output_dir_path))
 
     # First generate description if it doesn't exist
     description_path = transcript_dir / "description.md"
@@ -672,17 +754,44 @@ def cmd_seo(args: argparse.Namespace) -> None:
         video_path = str(video_candidates[0])
         video_dir = Path(video_path).parent
 
-        processor = VideoProcessor(str(video_dir), output_dir=str(transcript_dir))
+        processor = VideoProcessor(str(video_dir), output_dir=str(output_dir_path))
         description_path = processor.generate_description(
             video_path=video_path,
             transcript_path=str(transcript_file),
-            output_path=str(description_path),
+            output_path=str(output_dir_path / "description.md"),
         )
 
     keywords_path = processor.generate_seo_keywords(str(description_path))
 
     console.print(f"[green]✓ SEO keywords generated![/]")
     console.print(f"  Keywords: {keywords_path}")
+
+    # Update metadata.json with SEO keywords content
+    metadata_path = Path(output_dir_path) / "metadata.json"
+    existing_metadata: Optional[Dict] = None
+    if metadata_path.exists():
+        try:
+            with open(metadata_path, "r", encoding="utf-8") as handle:
+                existing_metadata = json.load(handle)
+        except (OSError, json.JSONDecodeError) as exc:  # pragma: no cover
+            console.print(
+                f"[yellow]Warning:[/] Unable to read existing metadata.json; will recreate it: {exc}"
+            )
+
+    merged_metadata = existing_metadata if isinstance(existing_metadata, dict) else {}
+    try:
+        keywords_content = Path(keywords_path).read_text(encoding="utf-8")
+        merged_metadata["seo_keywords"] = keywords_content
+    except OSError as exc:  # pragma: no cover
+        console.print(f"[yellow]Warning:[/] Unable to read SEO keywords for metadata: {exc}")
+
+    try:
+        metadata_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(metadata_path, "w", encoding="utf-8") as handle:
+            json.dump(merged_metadata, handle, indent=2)
+        console.print(f"  Metadata file: {metadata_path}")
+    except OSError as exc:  # pragma: no cover
+        console.print(f"[yellow]Warning:[/] Unable to write metadata JSON: {exc}")
 
 
 def cmd_linkedin(args: argparse.Namespace) -> None:
@@ -698,22 +807,58 @@ def cmd_linkedin(args: argparse.Namespace) -> None:
         console.print(f"[bold red]Error:[/] Invalid transcript file: {transcript_path}")
         sys.exit(1)
 
+    default_output_dir = transcript_file.parent
+    output_dir_arg = getattr(args, "output_dir", None)
+    if output_dir_arg is None:
+        output_dir_arg = ask_optional_text(
+            f"Output directory for LinkedIn post (leave blank for {default_output_dir})",
+            default="",
+        )
+    output_dir = normalize_path(output_dir_arg) if output_dir_arg else None
+    output_dir_path = Path(output_dir).expanduser().resolve() if output_dir else default_output_dir
+
     # Handle output path for the LinkedIn post file
     transcript_dir = transcript_file.parent
     if args.output_path:
         output_path = normalize_path(args.output_path)
     else:
-        output_path = str(transcript_dir / "linkedin_post.md")
+        output_path = str(output_dir_path / "linkedin_post.md")
 
     console.print(f"[cyan]Generating LinkedIn post...[/]")
     console.print(f"  Transcript: {transcript_file}")
     console.print(f"  Output file: {output_path}\n")
 
-    processor = VideoProcessor(str(transcript_dir), output_dir=str(transcript_dir))
+    processor = VideoProcessor(str(transcript_dir), output_dir=str(output_dir_path))
     linkedin_path = processor.generate_linkedin_post(str(transcript_file), output_path=output_path)
 
     console.print(f"[green]✓ LinkedIn post generated![/]")
     console.print(f"  LinkedIn post: {linkedin_path}")
+
+    metadata_path = Path(output_dir_path) / "metadata.json"
+    existing_metadata: Optional[Dict] = None
+    if metadata_path.exists():
+        try:
+            with open(metadata_path, "r", encoding="utf-8") as handle:
+                existing_metadata = json.load(handle)
+        except (OSError, json.JSONDecodeError) as exc:  # pragma: no cover
+            console.print(
+                f"[yellow]Warning:[/] Unable to read existing metadata.json; will recreate it: {exc}"
+            )
+
+    merged_metadata = existing_metadata if isinstance(existing_metadata, dict) else {}
+    try:
+        linkedin_content = Path(linkedin_path).read_text(encoding="utf-8")
+        merged_metadata["linkedin_post"] = linkedin_content
+    except OSError as exc:  # pragma: no cover
+        console.print(f"[yellow]Warning:[/] Unable to read LinkedIn post for metadata: {exc}")
+
+    try:
+        metadata_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(metadata_path, "w", encoding="utf-8") as handle:
+            json.dump(merged_metadata, handle, indent=2)
+        console.print(f"  Metadata file: {metadata_path}")
+    except OSError as exc:  # pragma: no cover
+        console.print(f"[yellow]Warning:[/] Unable to write metadata JSON: {exc}")
 
 
 def cmd_twitter(args: argparse.Namespace) -> None:
@@ -729,22 +874,58 @@ def cmd_twitter(args: argparse.Namespace) -> None:
         console.print(f"[bold red]Error:[/] Invalid transcript file: {transcript_path}")
         sys.exit(1)
 
+    default_output_dir = transcript_file.parent
+    output_dir_arg = getattr(args, "output_dir", None)
+    if output_dir_arg is None:
+        output_dir_arg = ask_optional_text(
+            f"Output directory for Twitter post (leave blank for {default_output_dir})",
+            default="",
+        )
+    output_dir = normalize_path(output_dir_arg) if output_dir_arg else None
+    output_dir_path = Path(output_dir).expanduser().resolve() if output_dir else default_output_dir
+
     # Handle output path for the Twitter post file
     transcript_dir = transcript_file.parent
     if args.output_path:
         output_path = normalize_path(args.output_path)
     else:
-        output_path = str(transcript_dir / "twitter_post.md")
+        output_path = str(output_dir_path / "twitter_post.md")
 
     console.print(f"[cyan]Generating Twitter post...[/]")
     console.print(f"  Transcript: {transcript_file}")
     console.print(f"  Output file: {output_path}\n")
 
-    processor = VideoProcessor(str(transcript_dir), output_dir=str(transcript_dir))
+    processor = VideoProcessor(str(transcript_dir), output_dir=str(output_dir_path))
     twitter_path = processor.generate_twitter_post(str(transcript_file), output_path=output_path)
 
     console.print(f"[green]✓ Twitter post generated![/]")
     console.print(f"  Twitter post: {twitter_path}")
+
+    metadata_path = Path(output_dir_path) / "metadata.json"
+    existing_metadata: Optional[Dict] = None
+    if metadata_path.exists():
+        try:
+            with open(metadata_path, "r", encoding="utf-8") as handle:
+                existing_metadata = json.load(handle)
+        except (OSError, json.JSONDecodeError) as exc:  # pragma: no cover
+            console.print(
+                f"[yellow]Warning:[/] Unable to read existing metadata.json; will recreate it: {exc}"
+            )
+
+    merged_metadata = existing_metadata if isinstance(existing_metadata, dict) else {}
+    try:
+        twitter_content = Path(twitter_path).read_text(encoding="utf-8")
+        merged_metadata["twitter_post"] = twitter_content
+    except OSError as exc:  # pragma: no cover
+        console.print(f"[yellow]Warning:[/] Unable to read Twitter post for metadata: {exc}")
+
+    try:
+        metadata_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(metadata_path, "w", encoding="utf-8") as handle:
+            json.dump(merged_metadata, handle, indent=2)
+        console.print(f"  Metadata file: {metadata_path}")
+    except OSError as exc:  # pragma: no cover
+        console.print(f"[yellow]Warning:[/] Unable to write metadata JSON: {exc}")
 
 
 def cmd_bunny_video(args: argparse.Namespace) -> None:
@@ -791,7 +972,7 @@ def cmd_bunny_video(args: argparse.Namespace) -> None:
         video_file = Path(video_path).expanduser().resolve()
         if not video_file.exists() or not video_file.is_file():
             console.print(f"[bold red]Error:[/] Invalid video file: {video_path}")
-        sys.exit(1)
+            sys.exit(1)
 
     # Get required Bunny credentials
     library_id, access_key = _resolve_bunny_credentials()
@@ -848,6 +1029,31 @@ def cmd_bunny_video(args: argparse.Namespace) -> None:
             )
         else:
             console.print("[green]All videos uploaded successfully![/]")
+
+        metadata_path = (batch_path / "output" / "metadata.json") if batch_path else None
+        if metadata_path:
+            existing_metadata: Optional[Dict] = None
+            if metadata_path.exists():
+                try:
+                    with open(metadata_path, "r", encoding="utf-8") as handle:
+                        existing_metadata = json.load(handle)
+                except (OSError, json.JSONDecodeError) as exc:  # pragma: no cover
+                    console.print(
+                        f"[yellow]Warning:[/] Unable to read existing metadata.json; will recreate it: {exc}"
+                    )
+
+            merged_metadata = existing_metadata if isinstance(existing_metadata, dict) else {}
+            merged_metadata["bunny_videos"] = [
+                {"file": name, "video_id": vid} for name, vid in successes
+            ]
+
+            try:
+                metadata_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(metadata_path, "w", encoding="utf-8") as handle:
+                    json.dump(merged_metadata, handle, indent=2)
+                console.print(f"  Metadata file: {metadata_path}")
+            except OSError as exc:  # pragma: no cover
+                console.print(f"[yellow]Warning:[/] Unable to write metadata JSON: {exc}")
         return
 
     console.print(f"[cyan]Uploading video to Bunny.net...[/]")
@@ -865,6 +1071,28 @@ def cmd_bunny_video(args: argparse.Namespace) -> None:
     if result:
         console.print(f"[green]✓ Video uploaded to Bunny.net![/]")
         console.print(f"  Video ID: {result.get('video_id')}")
+
+        metadata_path = video_file.parent / "output" / "metadata.json"
+        existing_metadata: Optional[Dict] = None
+        if metadata_path.exists():
+            try:
+                with open(metadata_path, "r", encoding="utf-8") as handle:
+                    existing_metadata = json.load(handle)
+            except (OSError, json.JSONDecodeError) as exc:  # pragma: no cover
+                console.print(
+                    f"[yellow]Warning:[/] Unable to read existing metadata.json; will recreate it: {exc}"
+                )
+
+        merged_metadata = existing_metadata if isinstance(existing_metadata, dict) else {}
+        merged_metadata["bunny_video_id"] = result.get("video_id")
+
+        try:
+            metadata_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(metadata_path, "w", encoding="utf-8") as handle:
+                json.dump(merged_metadata, handle, indent=2)
+            console.print(f"  Metadata file: {metadata_path}")
+        except OSError as exc:  # pragma: no cover
+            console.print(f"[yellow]Warning:[/] Unable to write metadata JSON: {exc}")
     else:
         console.print(f"[bold red]Error:[/] Failed to upload video to Bunny.net")
         sys.exit(1)
@@ -1121,6 +1349,10 @@ def create_parser() -> argparse.ArgumentParser:
         help="Path to transcript file (.vtt)"
     )
     context_parser.add_argument(
+        "--output-dir",
+        help="Directory for context cards output (default: transcript_dir)"
+    )
+    context_parser.add_argument(
         "--output-path",
         help="Full path for the output context cards file (default: transcript_dir/context-cards.md)"
     )
@@ -1133,6 +1365,10 @@ def create_parser() -> argparse.ArgumentParser:
     desc_parser.add_argument(
         "--transcript-path",
         help="Path to video transcript (.vtt file)"
+    )
+    desc_parser.add_argument(
+        "--output-dir",
+        help="Directory for description output (default: transcript_dir)"
     )
     desc_parser.add_argument(
         "--repo-url",
@@ -1156,6 +1392,10 @@ def create_parser() -> argparse.ArgumentParser:
         "--transcript-path",
         help="Path to video transcript (.vtt file)"
     )
+    seo_parser.add_argument(
+        "--output-dir",
+        help="Directory for SEO output (default: transcript_dir)"
+    )
 
     # LinkedIn command
     linkedin_parser = subparsers.add_parser(
@@ -1165,6 +1405,10 @@ def create_parser() -> argparse.ArgumentParser:
     linkedin_parser.add_argument(
         "--transcript-path",
         help="Path to video transcript (.vtt file)"
+    )
+    linkedin_parser.add_argument(
+        "--output-dir",
+        help="Directory for LinkedIn output (default: transcript_dir)"
     )
     linkedin_parser.add_argument(
         "--output-path",
@@ -1179,6 +1423,10 @@ def create_parser() -> argparse.ArgumentParser:
     twitter_parser.add_argument(
         "--transcript-path",
         help="Path to video transcript (.vtt file)"
+    )
+    twitter_parser.add_argument(
+        "--output-dir",
+        help="Directory for Twitter output (default: transcript_dir)"
     )
     twitter_parser.add_argument(
         "--output-path",

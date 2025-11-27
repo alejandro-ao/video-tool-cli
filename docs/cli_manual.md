@@ -191,6 +191,11 @@ Generate context cards and resource mentions from a transcript.
 **Required inputs:**
 - Path to transcript file (.vtt)
 
+**Optional inputs:**
+- Output directory (defaults to `transcript_dir`)
+- Output path (defaults to `transcript_dir/context-cards.md`)
+- Updates/creates `metadata.json` with the full context cards content
+
 **Example:**
 
 ```bash
@@ -204,11 +209,12 @@ video-tool context-cards \
 
 **Arguments:**
 - `--input-transcript PATH`: Path to transcript file (.vtt)
-- `--output-path PATH`: Full path for the generated context cards file (optional)
+- `--output-dir PATH`: Directory for context cards output (default: transcript_dir)
+- `--output-path PATH`: Full path for the generated context cards file (default: transcript_dir/context-cards.md)
 
 **Note:** The transcript must already exist; generate it first using the `transcript` command.
 
-**Output:** Creates `context-cards.md` in the output directory.
+**Output:** Creates `context-cards.md` in the chosen output directory and updates/creates `metadata.json`.
 
 ---
 
@@ -221,6 +227,9 @@ Generate a video description from a transcript.
 
 **Optional inputs:**
 - Repository URL (for including code links)
+- Output directory (defaults to `transcript_dir`)
+- Output path (defaults to `transcript_dir/description.md`)
+- Updates/creates `metadata.json` with the full description text
 
 **Example:**
 
@@ -231,8 +240,10 @@ video-tool description --transcript-path ./output/transcript.vtt --repo-url http
 **Arguments:**
 - `--transcript-path PATH`: Path to video transcript (.vtt file)
 - `--repo-url URL`: Repository URL to include in description (optional)
+- `--output-dir PATH`: Directory for description output (default: transcript_dir)
+- `--output-path PATH`: Full path for the output description file (default: transcript_dir/description.md)
 
-**Output:** Creates `description.md` in the output directory.
+**Output:** Creates `description.md` in the chosen output directory and updates/creates `metadata.json`.
 
 ---
 
@@ -243,6 +254,10 @@ Generate SEO keywords from a transcript.
 **Required inputs:**
 - Path to video transcript (.vtt file)
 
+**Optional inputs:**
+- Output directory (defaults to `transcript_dir`)
+- Updates/creates `metadata.json` with the SEO keywords content
+
 **Example:**
 
 ```bash
@@ -251,10 +266,11 @@ video-tool seo --transcript-path ./output/transcript.vtt
 
 **Arguments:**
 - `--transcript-path PATH`: Path to video transcript (.vtt file)
+- `--output-dir PATH`: Directory for SEO output (default: transcript_dir)
 
 **Note:** If a description doesn't exist, it will be generated automatically.
 
-**Output:** Creates `keywords.txt` in the output directory.
+**Output:** Creates `keywords.txt` in the chosen output directory and updates/creates `metadata.json`.
 
 ---
 
@@ -265,6 +281,11 @@ Generate a LinkedIn post from a video transcript.
 **Required inputs:**
 - Path to video transcript (.vtt file)
 
+**Optional inputs:**
+- Output directory (defaults to `transcript_dir`)
+- Output path (defaults to `transcript_dir/linkedin_post.md`)
+- Updates/creates `metadata.json` with the LinkedIn post content
+
 **Example:**
 
 ```bash
@@ -273,8 +294,10 @@ video-tool linkedin --transcript-path ./output/transcript.vtt
 
 **Arguments:**
 - `--transcript-path PATH`: Path to video transcript (.vtt file)
+- `--output-dir PATH`: Directory for LinkedIn output (default: transcript_dir)
+- `--output-path PATH`: Full path for the output LinkedIn post file (default: transcript_dir/linkedin_post.md)
 
-**Output:** Creates `linkedin_post.md` in the output directory.
+**Output:** Creates `linkedin_post.md` in the chosen output directory and updates/creates `metadata.json`.
 
 ---
 
@@ -285,6 +308,11 @@ Generate a Twitter/X post from a video transcript.
 **Required inputs:**
 - Path to video transcript (.vtt file)
 
+**Optional inputs:**
+- Output directory (defaults to `transcript_dir`)
+- Output path (defaults to `transcript_dir/twitter_post.md`)
+- Updates/creates `metadata.json` with the Twitter post content
+
 **Example:**
 
 ```bash
@@ -293,8 +321,10 @@ video-tool twitter --transcript-path ./output/transcript.vtt
 
 **Arguments:**
 - `--transcript-path PATH`: Path to video transcript (.vtt file)
+- `--output-dir PATH`: Directory for Twitter output (default: transcript_dir)
+- `--output-path PATH`: Full path for the output Twitter post file (default: transcript_dir/twitter_post.md)
 
-**Output:** Creates `twitter_post.md` in the output directory.
+**Output:** Creates `twitter_post.md` in the chosen output directory and updates/creates `metadata.json`.
 
 ---
 
