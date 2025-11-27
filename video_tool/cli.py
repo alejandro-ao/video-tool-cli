@@ -489,13 +489,22 @@ def cmd_transcript(args: argparse.Namespace) -> None:
                 f"[yellow]Warning:[/] Unable to read existing metadata.json; will recreate it: {exc}"
             )
 
+    transcript_content: Optional[str] = None
+    try:
+        transcript_content = transcript_file.read_text(encoding="utf-8")
+    except OSError as exc:  # pragma: no cover - surfaced via console
+        console.print(
+            f"[yellow]Warning:[/] Unable to read transcript content for metadata.json: {exc}"
+        )
+
     merged_metadata = existing_metadata if isinstance(existing_metadata, dict) else {}
-    merged_metadata.update(
-        {
-            "transcript_path": str(transcript_file),
-            "transcript_format": transcript_file.suffix.lstrip(".").lower(),
-        }
-    )
+    if transcript_content is not None:
+        merged_metadata.update(
+            {
+                "transcript": transcript_content,
+                "transcript_format": transcript_file.suffix.lstrip(".").lower(),
+            }
+        )
 
     try:
         metadata_path.parent.mkdir(parents=True, exist_ok=True)

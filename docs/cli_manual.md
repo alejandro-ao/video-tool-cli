@@ -164,7 +164,7 @@ Generate a transcript for a video using Groq Whisper.
 - Output directory (defaults to `video_dir/output`)
 - Output path (defaults to `video_dir/output/transcript.vtt`)
 - Language (defaults to English)
-- Writes/updates `metadata.json` next to the transcript with transcript details
+- Writes/updates `metadata.json` next to the transcript with the full transcript text
 
 **Example:**
 
