@@ -974,6 +974,26 @@ def cmd_bunny_video(args: argparse.Namespace) -> None:
             console.print(f"[bold red]Error:[/] Invalid video file: {video_path}")
             sys.exit(1)
 
+    # Resolve metadata.json path
+    if batch_path:
+        default_metadata_path = batch_path / "output" / "metadata.json"
+    elif video_file:
+        default_metadata_path = video_file.parent / "output" / "metadata.json"
+    else:
+        default_metadata_path = Path.cwd() / "metadata.json"
+
+    metadata_path_arg = args.metadata_path
+    if metadata_path_arg is None:
+        metadata_path_arg = ask_optional_text(
+            f"Path to metadata.json (leave blank for {default_metadata_path})",
+            default="",
+        )
+    metadata_path = (
+        Path(normalize_path(metadata_path_arg)).expanduser().resolve()
+        if metadata_path_arg
+        else default_metadata_path
+    )
+
     # Get required Bunny credentials
     library_id, access_key = _resolve_bunny_credentials()
 
@@ -1030,30 +1050,34 @@ def cmd_bunny_video(args: argparse.Namespace) -> None:
         else:
             console.print("[green]All videos uploaded successfully![/]")
 
-        metadata_path = (batch_path / "output" / "metadata.json") if batch_path else None
-        if metadata_path:
-            existing_metadata: Optional[Dict] = None
-            if metadata_path.exists():
-                try:
-                    with open(metadata_path, "r", encoding="utf-8") as handle:
-                        existing_metadata = json.load(handle)
-                except (OSError, json.JSONDecodeError) as exc:  # pragma: no cover
-                    console.print(
-                        f"[yellow]Warning:[/] Unable to read existing metadata.json; will recreate it: {exc}"
-                    )
-
-            merged_metadata = existing_metadata if isinstance(existing_metadata, dict) else {}
-            merged_metadata["bunny_videos"] = [
-                {"file": name, "video_id": vid} for name, vid in successes
-            ]
-
+        existing_metadata: Optional[Dict] = None
+        if metadata_path.exists():
             try:
-                metadata_path.parent.mkdir(parents=True, exist_ok=True)
-                with open(metadata_path, "w", encoding="utf-8") as handle:
-                    json.dump(merged_metadata, handle, indent=2)
-                console.print(f"  Metadata file: {metadata_path}")
-            except OSError as exc:  # pragma: no cover
-                console.print(f"[yellow]Warning:[/] Unable to write metadata JSON: {exc}")
+                with open(metadata_path, "r", encoding="utf-8") as handle:
+                    existing_metadata = json.load(handle)
+            except (OSError, json.JSONDecodeError) as exc:  # pragma: no cover
+                console.print(
+                    f"[yellow]Warning:[/] Unable to read existing metadata.json; will recreate it: {exc}"
+                )
+
+        merged_metadata = existing_metadata if isinstance(existing_metadata, dict) else {}
+        merged_metadata["bunny_batch_uploads"] = [
+            {
+                "file": name,
+                "video_id": vid,
+                "library_id": library_id,
+                "collection_id": collection_id,
+            }
+            for name, vid in successes
+        ]
+
+        try:
+            metadata_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(metadata_path, "w", encoding="utf-8") as handle:
+                json.dump(merged_metadata, handle, indent=2)
+            console.print(f"  Metadata file: {metadata_path}")
+        except OSError as exc:  # pragma: no cover
+            console.print(f"[yellow]Warning:[/] Unable to write metadata JSON: {exc}")
         return
 
     console.print(f"[cyan]Uploading video to Bunny.net...[/]")
@@ -1072,7 +1096,6 @@ def cmd_bunny_video(args: argparse.Namespace) -> None:
         console.print(f"[green]✓ Video uploaded to Bunny.net![/]")
         console.print(f"  Video ID: {result.get('video_id')}")
 
-        metadata_path = video_file.parent / "output" / "metadata.json"
         existing_metadata: Optional[Dict] = None
         if metadata_path.exists():
             try:
@@ -1084,7 +1107,12 @@ def cmd_bunny_video(args: argparse.Namespace) -> None:
                 )
 
         merged_metadata = existing_metadata if isinstance(existing_metadata, dict) else {}
-        merged_metadata["bunny_video_id"] = result.get("video_id")
+        merged_metadata["bunny_video"] = {
+            "video_id": result.get("video_id"),
+            "library_id": library_id,
+            "collection_id": collection_id,
+            "file": video_file.name,
+        }
 
         try:
             metadata_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1445,6 +1473,10 @@ def create_parser() -> argparse.ArgumentParser:
     bunny_parser.add_argument(
         "--batch-dir",
         help="Directory containing MP4 files to upload (uploads all videos)"
+    )
+    bunny_parser.add_argument(
+        "--metadata-path",
+        help="Full path to metadata.json (default: <output-dir>/metadata.json)"
     )
     bunny_parser.add_argument(
         "--bunny-library-id",
