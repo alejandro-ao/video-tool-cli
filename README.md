@@ -26,11 +26,45 @@ Automate Alejandro's YouTube production workflow end to end. Given a directory o
     - `BUNNY_CAPTION_LANGUAGE` (defaults to `en`)
     - `BUNNY_VIDEO_ID` (for metadata-only updates)
 
+## Installation
+- Using uv (editable, best for development):
+  ```bash
+  uv tool install --editable .
+  # ensure uv tools are on PATH
+  echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zprofile && source ~/.zprofile
+  video-tool --help
+  ```
+- Using pipx (recommended for users):
+  ```bash
+  brew install pipx
+  pipx ensurepath
+  pipx install .
+  video-tool --help
+  ```
+- Using pip (global or user install):
+  ```bash
+  pip install .
+  video-tool --help
+  ```
+- Install directly from GitHub (no clone):
+  - Replace `<username>/<repo>` and a tag like `v0.1.0` or a commit SHA.
+  ```bash
+  # pipx
+  pipx install "video-tool @ git+https://github.com/<username>/<repo>.git@v0.1.0"
+
+  # uv tools
+  uv tool install "video-tool @ git+https://github.com/<username>/<repo>.git@v0.1.0"
+
+  # pip
+  pip install "video-tool @ git+https://github.com/<username>/<repo>.git@v0.1.0"
+  ```
+  If the command is not found after install, please restart your terminal and ensure your tool bin directory is on PATH (e.g., `~/.local/bin` for uv tools, or your Python user bin on macOS like `~/Library/Python/3.11/bin`).
+
 ## Usage
 1. Install dependencies and export the required API keys.
 2. Run the CLI:
    ```bash
-   python main.py
+   video-tool
    ```
 3. Provide the target directory when prompted. The tool will list each available operation and let you skip steps such as silence removal, concatenation, transcript generation, description creation, SEO keywords, and social posts.
    > Tip: When you upload chapters or captions without re-uploading the video, wait for Bunny Stream to finish processing the asset and supply the existing video ID (prompt or `BUNNY_VIDEO_ID`).
