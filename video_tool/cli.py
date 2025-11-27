@@ -297,22 +297,29 @@ def cmd_timestamps(args: argparse.Namespace) -> None:
                     "[yellow]No transcript path provided. A transcript will be generated automatically for timestamps.[/]"
                 )
 
-    if not granularity:
-        granularity = ask_optional_text(
-            "Granularity for timestamps (low/medium/high)", default="medium"
-        )
-    if granularity:
-        granularity = granularity.lower().strip()
-        if granularity not in {"low", "medium", "high"}:
-            console.print("[yellow]Invalid granularity; defaulting to 'medium'.[/]")
+    if use_transcript:
+        if not granularity:
+            granularity = ask_optional_text(
+                "Granularity for timestamps (low/medium/high)", default="medium"
+            )
+        if granularity:
+            granularity = granularity.lower().strip()
+            if granularity not in {"low", "medium", "high"}:
+                console.print("[yellow]Invalid granularity; defaulting to 'medium'.[/]")
+                granularity = "medium"
+        else:
             granularity = "medium"
-    else:
-        granularity = "medium"
 
-    if timestamp_notes is None:
-        timestamp_notes = ask_optional_text(
-            "Additional instructions for timestamps (optional)", default=""
-        )
+        if timestamp_notes is None:
+            timestamp_notes = ask_optional_text(
+                "Additional instructions for timestamps (optional)", default=""
+            )
+    else:
+        if granularity:
+            granularity = granularity.lower().strip()
+            if granularity not in {"low", "medium", "high"}:
+                console.print("[yellow]Invalid granularity; defaulting to 'medium'.[/]")
+                granularity = "medium"
 
     console.print(f"[cyan]Generating timestamps...[/]")
     console.print(f"  Input: {input_path}")
