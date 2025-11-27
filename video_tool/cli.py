@@ -141,29 +141,80 @@ def cmd_concat(args: argparse.Namespace) -> None:
         console.print(f"[bold red]Error:[/] Invalid input directory: {input_dir}")
         sys.exit(1)
 
+    video_title = (args.title or "").strip()
+    if not video_title:
+        video_title = ask_required_text("Title for the final video")
+
     # Handle output path for the concatenated video file
-    output_path = None
-    if args.output_path:
-        output_path = normalize_path(args.output_path)
-    else:
-        # Default: input_dir/output/concatenated.mp4
-        output_path = str(input_path / "output" / "concatenated.mp4")
+    output_path = normalize_path(args.output_path) if args.output_path else None
 
     skip_reprocessing = args.fast_concat if args.fast_concat is not None else False
 
+    processor = VideoProcessor(str(input_path), video_title=video_title)
+    expected_output_path = (
+        output_path
+        if output_path
+        else str(
+            processor._resolve_unique_output_path(  # type: ignore[attr-defined]
+                processor._determine_output_filename(None)  # type: ignore[attr-defined]
+            )
+        )
+    )
+
     console.print(f"[cyan]Running video concatenation...[/]")
     console.print(f"  Input: {input_path}")
-    console.print(f"  Output file: {output_path}")
+    console.print(f"  Output file: {expected_output_path}")
     console.print(f"  Fast mode: {'Yes' if skip_reprocessing else 'No'}\n")
 
-    processor = VideoProcessor(str(input_path))
     output_video = processor.concatenate_videos(
+        output_filename=video_title,
         skip_reprocessing=skip_reprocessing,
         output_path=output_path
     )
 
+    if not output_video:
+        console.print(f"[bold red]Error:[/] Concatenation did not produce an output file.")
+        sys.exit(1)
+
     console.print(f"[green]✓ Concatenation complete![/]")
     console.print(f"  Output video: {output_video}")
+
+    # Emit metadata JSON alongside the final video
+    output_video_path = Path(output_video)
+    metadata_path = output_video_path.with_name(f"{output_video_path.stem}_metadata.json")
+
+    creation_date, detected_title, duration_minutes = processor._get_video_metadata(
+        str(output_video_path)
+    )
+
+    metadata = {
+        "title": video_title,
+        "output_path": str(output_video_path),
+        "output_directory": str(output_video_path.parent),
+        "output_filename": output_video_path.name,
+        "concat_mode": "fast" if skip_reprocessing else "standard",
+    }
+
+    if creation_date:
+        metadata["created_at"] = creation_date
+    if detected_title:
+        metadata["detected_title"] = detected_title
+    if duration_minutes is not None:
+        metadata["duration_minutes"] = duration_minutes
+        metadata["duration_seconds"] = round(duration_minutes * 60, 2)
+
+    try:
+        metadata["file_size_bytes"] = output_video_path.stat().st_size
+    except OSError as exc:  # pragma: no cover - surfaced via console
+        console.print(f"[yellow]Warning:[/] Unable to read file size: {exc}")
+
+    try:
+        metadata_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(metadata_path, "w", encoding="utf-8") as handle:
+            json.dump(metadata, handle, indent=2)
+        console.print(f"  Metadata file: {metadata_path}")
+    except OSError as exc:  # pragma: no cover - surfaced via console
+        console.print(f"[yellow]Warning:[/] Unable to write metadata JSON: {exc}")
 
 
 def cmd_timestamps(args: argparse.Namespace) -> None:
@@ -852,7 +903,11 @@ def create_parser() -> argparse.ArgumentParser:
     )
     concat_parser.add_argument(
         "--output-path",
-        help="Full path for the output video file (default: input_dir/output/concatenated.mp4)"
+        help="Full path for the output video file (default: derive from --title in input_dir/output)"
+    )
+    concat_parser.add_argument(
+        "--title",
+        help="Title for the final video (used to name the output file)"
     )
     concat_parser.add_argument(
         "--fast-concat",

@@ -87,19 +87,20 @@ Concatenate multiple video clips into a single video.
 
 **Required inputs:**
 - Input directory (containing video files to concatenate)
+- Title for the final video (used to name the output file)
 
 **Optional inputs:**
-- Output directory (defaults to `input_dir/output`)
+- Output path (defaults to `input_dir/output/<title>.mp4`)
 - Fast concatenation mode (true/false)
 
 **Example:**
 
 ```bash
 # Standard concatenation
-video-tool concat --input-dir ./clips
+video-tool concat --input-dir ./clips --title "Demo Reel"
 
 # Fast concatenation (skip reprocessing)
-video-tool concat --input-dir ./clips --fast-concat
+video-tool concat --input-dir ./clips --fast-concat --title "Demo Reel"
 
 # Interactive
 video-tool concat
@@ -107,8 +108,10 @@ video-tool concat
 
 **Arguments:**
 - `--input-dir PATH`: Input directory containing videos to concatenate
-- `--output-dir PATH`: Output directory (default: input_dir/output)
+- `--title TEXT`: Title for the final video (required; also used for filename)
+- `--output-path PATH`: Full path for the output file (defaults to `input_dir/output/<title>.mp4`)
 - `--fast-concat`: Use fast concatenation mode (skip reprocessing)
+- Writes a `<output_name>_metadata.json` file alongside the concatenated video with basic details (title, duration, file size)
 
 ---
 
@@ -421,6 +424,7 @@ If you omit required arguments when running a command, the tool will prompt you 
 ```bash
 $ video-tool concat
 Input directory (containing videos to concatenate): ./clips
+Title for the final video: Demo Reel
 ```
 
 This makes it easy to use the tool without memorizing all the argument names.
@@ -436,7 +440,7 @@ Process raw clips into a final video with all content:
 video-tool silence-removal --input-dir ./clips
 
 # 2. Concatenate into final video
-video-tool concat --input-dir ./clips --fast-concat
+video-tool concat --input-dir ./clips --fast-concat --title "Project Demo"
 
 # 3. Generate timestamps
 video-tool timestamps --input-dir ./clips
@@ -559,14 +563,15 @@ Create a shell script to automate your workflow:
 set -e
 
 INPUT_DIR="./clips"
-VIDEO_PATH="$INPUT_DIR/output/final-video.mp4"
+VIDEO_TITLE="final-video"
+VIDEO_PATH="$INPUT_DIR/output/${VIDEO_TITLE}.mp4"
 TRANSCRIPT_PATH="$INPUT_DIR/output/transcript.vtt"
 REPO_URL="https://github.com/user/repo"
 
 echo "Starting video processing pipeline..."
 
 video-tool silence-removal --input-dir "$INPUT_DIR"
-video-tool concat --input-dir "$INPUT_DIR" --fast-concat
+video-tool concat --input-dir "$INPUT_DIR" --fast-concat --title "$VIDEO_TITLE"
 video-tool timestamps --input-dir "$INPUT_DIR"
 video-tool transcript --video-path "$VIDEO_PATH"
 video-tool description --transcript-path "$TRANSCRIPT_PATH" --repo-url "$REPO_URL"
