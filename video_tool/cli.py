@@ -147,8 +147,9 @@ def cmd_concat(args: argparse.Namespace) -> None:
 
     output_dir_arg = args.output_dir
     if output_dir_arg is None:
+        default_concat_dir = str(input_path / "output")
         output_dir_arg = ask_optional_text(
-            "Output directory for concatenated video (leave blank for default)",
+            f"Output directory for concatenated video (leave blank for {default_concat_dir})",
             default="",
         )
     output_dir = normalize_path(output_dir_arg) if output_dir_arg else None
@@ -265,8 +266,9 @@ def cmd_timestamps(args: argparse.Namespace) -> None:
 
     output_dir_arg = args.output_dir
     if output_dir_arg is None:
+        default_timestamps_dir = str(base_dir / "output")
         output_dir_arg = ask_optional_text(
-            "Output directory for timestamps (leave blank for default)",
+            f"Output directory for timestamps (leave blank for {default_timestamps_dir})",
             default="",
         )
     output_dir = normalize_path(output_dir_arg) if output_dir_arg else None
