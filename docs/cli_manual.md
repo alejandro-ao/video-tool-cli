@@ -90,6 +90,7 @@ Concatenate multiple video clips into a single video.
 - Title for the final video (used to name the output file)
 
 **Optional inputs:**
+- Output directory (defaults to `input_dir/output`)
 - Output path (defaults to `input_dir/output/<title>.mp4`)
 - Fast concatenation mode (true/false)
 
@@ -109,6 +110,7 @@ video-tool concat
 **Arguments:**
 - `--input-dir PATH`: Input directory containing videos to concatenate
 - `--title TEXT`: Title for the final video (required; also used for filename)
+- `--output-dir PATH`: Directory for concat outputs (default: input_dir/output)
 - `--output-path PATH`: Full path for the output file (defaults to `input_dir/output/<title>.mp4`)
 - `--fast-concat`: Use fast concatenation mode (skip reprocessing)
 - Writes a `metadata.json` file alongside the concatenated video with basic details (title, duration, file size)

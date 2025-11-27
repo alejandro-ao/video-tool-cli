@@ -145,31 +145,42 @@ def cmd_concat(args: argparse.Namespace) -> None:
     if not video_title:
         video_title = ask_required_text("Title for the final video")
 
+    output_dir_arg = args.output_dir
+    if output_dir_arg is None:
+        output_dir_arg = ask_optional_text(
+            "Output directory for concatenated video (leave blank for default)",
+            default="",
+        )
+    output_dir = normalize_path(output_dir_arg) if output_dir_arg else None
+
     # Handle output path for the concatenated video file
     output_path = normalize_path(args.output_path) if args.output_path else None
+    default_output_dir = input_path / "output"
+    output_dir_path = Path(output_dir).expanduser().resolve() if output_dir else default_output_dir
 
     skip_reprocessing = args.fast_concat if args.fast_concat is not None else False
 
-    processor = VideoProcessor(str(input_path), video_title=video_title)
-    expected_output_path = (
-        output_path
-        if output_path
-        else str(
-            processor._resolve_unique_output_path(  # type: ignore[attr-defined]
-                processor._determine_output_filename(None)  # type: ignore[attr-defined]
-            )
+    processor = VideoProcessor(
+        str(input_path),
+        video_title=video_title,
+        output_dir=str(output_dir_path),
+    )
+    expected_output_path = output_path or str(
+        processor._resolve_unique_output_path(  # type: ignore[attr-defined]
+            processor._determine_output_filename(None)  # type: ignore[attr-defined]
         )
     )
+    resolved_output_path = expected_output_path
 
     console.print(f"[cyan]Running video concatenation...[/]")
     console.print(f"  Input: {input_path}")
-    console.print(f"  Output file: {expected_output_path}")
+    console.print(f"  Output file: {resolved_output_path}")
     console.print(f"  Fast mode: {'Yes' if skip_reprocessing else 'No'}\n")
 
     output_video = processor.concatenate_videos(
         output_filename=video_title,
         skip_reprocessing=skip_reprocessing,
-        output_path=output_path
+        output_path=resolved_output_path
     )
 
     if not output_video:
@@ -252,13 +263,24 @@ def cmd_timestamps(args: argparse.Namespace) -> None:
 
     base_dir = input_path.parent if is_video_input else input_path
 
+    output_dir_arg = args.output_dir
+    if output_dir_arg is None:
+        output_dir_arg = ask_optional_text(
+            "Output directory for timestamps (leave blank for default)",
+            default="",
+        )
+    output_dir = normalize_path(output_dir_arg) if output_dir_arg else None
+
+    default_output_dir = base_dir / "output"
+    output_dir_path = Path(output_dir).expanduser().resolve() if output_dir else default_output_dir
+
     # Handle output path for the JSON file
     output_path = None
     if args.output_path:
         output_path = normalize_path(args.output_path)
     else:
-        # Default: base_dir/output/timestamps.json
-        output_path = str(base_dir / "output" / "timestamps.json")
+        # Default: output_dir/timestamps.json
+        output_path = str(output_dir_path / "timestamps.json")
 
     transcript_path = None
     use_transcript = False
@@ -340,7 +362,7 @@ def cmd_timestamps(args: argparse.Namespace) -> None:
     console.print(f"  Input: {input_path}")
     console.print(f"  Output file: {output_path}\n")
 
-    processor = VideoProcessor(str(base_dir))
+    processor = VideoProcessor(str(base_dir), output_dir=str(output_dir_path))
     timestamps_info = processor.generate_timestamps(
         output_path=output_path,
         transcript_path=transcript_path,
@@ -971,6 +993,10 @@ def create_parser() -> argparse.ArgumentParser:
         help="Input directory containing videos to concatenate"
     )
     concat_parser.add_argument(
+        "--output-dir",
+        help="Directory for concat outputs (default: input_dir/output)"
+    )
+    concat_parser.add_argument(
         "--output-path",
         help="Full path for the output video file (default: derive from --title in input_dir/output)"
     )
@@ -992,6 +1018,10 @@ def create_parser() -> argparse.ArgumentParser:
     timestamps_parser.add_argument(
         "--input-dir",
         help="Input directory containing videos or a single MP4 video path"
+    )
+    timestamps_parser.add_argument(
+        "--output-dir",
+        help="Directory for timestamp outputs (default: input_dir/output)"
     )
     timestamps_parser.add_argument(
         "--output-path",
