@@ -208,10 +208,25 @@ def cmd_concat(args: argparse.Namespace) -> None:
     except OSError as exc:  # pragma: no cover - surfaced via console
         console.print(f"[yellow]Warning:[/] Unable to read file size: {exc}")
 
+    existing_metadata: Optional[Dict] = None
+    if metadata_path.exists():
+        try:
+            with open(metadata_path, "r", encoding="utf-8") as handle:
+                existing_metadata = json.load(handle)
+        except (OSError, json.JSONDecodeError) as exc:  # pragma: no cover - surfaced via console
+            console.print(
+                f"[yellow]Warning:[/] Unable to read existing metadata.json; will recreate it: {exc}"
+            )
+
+    merged_metadata = metadata.copy()
+    if isinstance(existing_metadata, dict):
+        # Preserve existing fields (e.g., timestamps) while updating current values
+        merged_metadata = {**existing_metadata, **metadata}
+
     try:
         metadata_path.parent.mkdir(parents=True, exist_ok=True)
         with open(metadata_path, "w", encoding="utf-8") as handle:
-            json.dump(metadata, handle, indent=2)
+            json.dump(merged_metadata, handle, indent=2)
         console.print(f"  Metadata file: {metadata_path}")
     except OSError as exc:  # pragma: no cover - surfaced via console
         console.print(f"[yellow]Warning:[/] Unable to write metadata JSON: {exc}")
@@ -376,6 +391,23 @@ def cmd_timestamps(args: argparse.Namespace) -> None:
                 console.print(
                     "[yellow]Warning:[/] metadata.json is not an object; skipping timestamp injection."
                 )
+    else:
+        new_metadata = {}
+        if isinstance(timestamps_info, dict):
+            meta_section = timestamps_info.get("metadata")
+            if isinstance(meta_section, dict):
+                new_metadata.update(meta_section)
+        new_metadata["timestamps"] = timestamps_payload
+
+        try:
+            metadata_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(metadata_path, "w", encoding="utf-8") as handle:
+                json.dump(new_metadata, handle, indent=2)
+            console.print(f"  Created metadata file: {metadata_path}")
+        except OSError as exc:  # pragma: no cover - surfaced via console
+            console.print(
+                f"[yellow]Warning:[/] Unable to create metadata.json with timestamps: {exc}"
+            )
 
 
 def cmd_transcript(args: argparse.Namespace) -> None:
