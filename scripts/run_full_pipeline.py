@@ -224,7 +224,7 @@ def main(argv: list[str] | None = None) -> None:
     if deploy_to_bunny:
         bunny_command = [
             cli_bin,
-            "bunny-video",
+            "bunny-upload",
             "--video-path",
             str(concatenated_video),
             "--bunny-library-id",

@@ -1463,7 +1463,7 @@ def create_parser() -> argparse.ArgumentParser:
 
     # Bunny video upload command
     bunny_parser = subparsers.add_parser(
-        "bunny-video",
+        "bunny-upload",
         help="Upload video to Bunny.net"
     )
     bunny_parser.add_argument(
@@ -1554,7 +1554,7 @@ def main() -> None:
         sys.exit(0)
 
     # Validate environment
-    commands_without_ai = {"bunny-video", "bunny-transcript", "bunny-chapters"}
+    commands_without_ai = {"bunny-upload", "bunny-transcript", "bunny-chapters"}
     if args.command not in commands_without_ai:
         missing = [var for var in ("OPENAI_API_KEY", "GROQ_API_KEY") if not os.getenv(var)]
         if missing:
@@ -1575,7 +1575,7 @@ def main() -> None:
         "seo": cmd_seo,
         "linkedin": cmd_linkedin,
         "twitter": cmd_twitter,
-        "bunny-video": cmd_bunny_video,
+        "bunny-upload": cmd_bunny_video,
         "bunny-transcript": cmd_bunny_transcript,
         "bunny-chapters": cmd_bunny_chapters,
     }

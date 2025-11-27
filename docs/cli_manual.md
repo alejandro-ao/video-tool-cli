@@ -358,7 +358,7 @@ video-tool thumbnail --prompt "Minimalist neon gradient" --output-path ./assets/
 
 ### Deployment Commands
 
-#### `bunny-video`
+#### `bunny-upload`
 
 Upload a video to Bunny.net CDN.
 
@@ -375,17 +375,17 @@ Upload a video to Bunny.net CDN.
 
 ```bash
 # With environment variables set
-video-tool bunny-video --video-path ./output/final-video.mp4
+video-tool bunny-upload --video-path ./output/final-video.mp4
 
 # With explicit credentials
-video-tool bunny-video \
+video-tool bunny-upload \
   --video-path ./output/final-video.mp4 \
   --bunny-library-id 12345 \
   --bunny-access-key your_key \
   --bunny-collection-id 67890
 
 # Batch upload every MP4 in a directory
-video-tool bunny-video \
+video-tool bunny-upload \
   --batch-dir ./output/videos \
   --bunny-library-id 12345 \
   --bunny-access-key your_key
@@ -407,7 +407,7 @@ The command prints the Bunny video ID on success. Save this ID for transcript an
 Upload a caption file to an existing Bunny.net video.
 
 **Required inputs:**
-- Bunny video ID (from `bunny-video` or an existing asset)
+- Bunny video ID (from `bunny-upload` or an existing asset)
 - Path to transcript file (.vtt)
 - Bunny Library ID (or set `BUNNY_LIBRARY_ID` env var)
 - Bunny Access Key (or set `BUNNY_ACCESS_KEY` env var)
@@ -438,7 +438,7 @@ video-tool bunny-transcript \
 Upload chapter data (timestamps) to an existing Bunny.net video.
 
 **Required inputs:**
-- Bunny video ID (from `bunny-video` or an existing asset)
+- Bunny video ID (from `bunny-upload` or an existing asset)
 - Path to chapters JSON (accepts `timestamps.json` output, a list of chapter dicts, or a single chapter dict)
 - Bunny Library ID (or set `BUNNY_LIBRARY_ID` env var)
 - Bunny Access Key (or set `BUNNY_ACCESS_KEY` env var)
@@ -506,7 +506,7 @@ video-tool linkedin --transcript-path ./clips/output/transcript.vtt
 video-tool twitter --transcript-path ./clips/output/transcript.vtt
 
 # 9. Upload to Bunny.net (video upload)
-video-tool bunny-video --video-path ./clips/output/final-video.mp4
+video-tool bunny-upload --video-path ./clips/output/final-video.mp4
 
 # 10. Upload captions to Bunny.net
 video-tool bunny-transcript \
