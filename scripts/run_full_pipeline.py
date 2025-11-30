@@ -3,10 +3,10 @@
 Usage:
     python scripts/run_full_pipeline.py
 
-The script will prompt you for the input directory containing your video clips.
-It mirrors the prior shell helper while providing better portability
-and error handling. It expects the video-tool CLI to be installed and
-discoverable on PATH (override via the --cli-bin flag or VIDEO_TOOL_CLI env).
+The script gathers every required flag up front (paths, titles, per-step outputs,
+and optional Bunny upload settings) and then runs the CLI steps non-interactively.
+It expects the video-tool CLI to be installed and discoverable on PATH (override
+via the --cli-bin flag or VIDEO_TOOL_CLI env).
 """
 
 from __future__ import annotations
@@ -18,21 +18,55 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import NamedTuple
 from dotenv import load_dotenv
 
 load_dotenv('../.env')
 
-REQUIRED_ENV_VARS = (
-    "OPENAI_API_KEY",
-    "GROQ_API_KEY",
-    "BUNNY_LIBRARY_ID",
-    "BUNNY_ACCESS_KEY",
-)
+REQUIRED_AI_VARS = ("OPENAI_API_KEY", "GROQ_API_KEY")
 
 
-def require_env_vars() -> None:
-    """Ensure all required environment variables are present."""
-    missing = [name for name in REQUIRED_ENV_VARS if not os.getenv(name)]
+class PipelineConfig(NamedTuple):
+    """Collected, non-interactive configuration for the pipeline run."""
+
+    input_dir: Path
+    output_dir: Path
+    cli_bin: str
+    concat_title: str
+    fast_concat: bool
+    concat_output_path: Path | None
+    timestamps_output_path: Path
+    timestamps_granularity: str
+    timestamp_notes: str
+    transcript_output_path: Path
+    include_context_cards: bool
+    context_cards_output_path: Path
+    include_linkedin: bool
+    linkedin_output_path: Path
+    include_seo: bool
+    include_twitter: bool
+    twitter_output_path: Path
+    upload_bunny: bool
+    bunny_library_id: str | None
+    bunny_access_key: str | None
+    bunny_collection_id: str | None
+    metadata_path: Path
+
+
+def require_env_vars(
+    needs_bunny: bool,
+    bunny_library_id: str | None = None,
+    bunny_access_key: str | None = None,
+) -> None:
+    """Ensure required environment variables are present for the selected steps."""
+    missing = [name for name in REQUIRED_AI_VARS if not os.getenv(name)]
+
+    if needs_bunny:
+        if not (os.getenv("BUNNY_LIBRARY_ID") or bunny_library_id):
+            missing.append("BUNNY_LIBRARY_ID")
+        if not (os.getenv("BUNNY_ACCESS_KEY") or bunny_access_key):
+            missing.append("BUNNY_ACCESS_KEY")
+
     if missing:
         formatted = ", ".join(missing)
         raise SystemExit(f"Missing required environment variables: {formatted}")
@@ -70,22 +104,72 @@ def prompt_input_directory() -> Path:
         return input_dir
 
 
-def prompt_fast_concat() -> bool:
-    """Ask the user whether to enable fast concatenation."""
-    try:
-        answer = input("Use fast concatenation? [y/N]: ").strip()
-    except EOFError:
-        return False
-    return answer.lower().startswith("y")
+def prompt_yes_no(question: str, default: bool = False) -> bool:
+    """Prompt for a yes/no answer with a default."""
+    suffix = "[Y/n]" if default else "[y/N]"
+    while True:
+        try:
+            answer = input(f"{question} {suffix}: ").strip().lower()
+        except EOFError:
+            return default
+
+        if not answer:
+            return default
+        if answer in ("y", "yes"):
+            return True
+        if answer in ("n", "no"):
+            return False
+        print("Please answer with 'y' or 'n'.")
 
 
-def prompt_bunny_deployment() -> bool:
-    """Ask the user whether to deploy the video to Bunny.net."""
-    try:
-        answer = input("Deploy video to Bunny.net? [y/N]: ").strip()
-    except EOFError:
-        return False
-    return answer.lower().startswith("y")
+def prompt_non_empty(question: str, default: str | None = None) -> str:
+    """Prompt until a non-empty string is provided."""
+    while True:
+        try:
+            answer = input(
+                f"{question}" + (f" (default: {default})" if default else "") + ": "
+            ).strip()
+        except EOFError:
+            if default:
+                return default
+            raise SystemExit("Required input missing.")
+
+        if answer:
+            return answer
+        if default:
+            return default
+        print("Please provide a value.")
+
+
+def normalize_path_str(value: str) -> str:
+    """Normalize shell-style path strings (quotes, escaped spaces)."""
+    trimmed = value.strip()
+    if (trimmed.startswith('"') and trimmed.endswith('"')) or (
+        trimmed.startswith("'") and trimmed.endswith("'")
+    ):
+        trimmed = trimmed[1:-1]
+    return trimmed.replace("\\ ", " ")
+
+
+def prompt_path(question: str, default: Path | None = None, allow_blank: bool = False) -> Path | None:
+    """Prompt for a filesystem path, applying shell-style normalization."""
+    suffix = f" (default: {default})" if default else ""
+    while True:
+        try:
+            answer = input(f"{question}{suffix}: ").strip()
+        except EOFError:
+            answer = ""
+
+        if not answer:
+            if default is not None:
+                return default
+            if allow_blank:
+                return None
+            print("Please provide a path.")
+            continue
+
+        normalized = normalize_path_str(answer)
+        return Path(normalized).expanduser().resolve()
 
 
 def run_cli_step(description: str, command: list[str]) -> None:
@@ -152,31 +236,155 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def gather_pipeline_config(args: argparse.Namespace) -> PipelineConfig:
+    """Collect all pipeline inputs up front so individual steps never prompt."""
+    input_dir = prompt_input_directory()
+
+    default_output_dir = input_dir / "output"
+    output_dir = prompt_path(
+        "Output directory for pipeline assets", default=default_output_dir
+    )
+    assert output_dir is not None  # for type checkers
+
+    concat_title = prompt_non_empty(
+        "Title for the concatenated video", default=input_dir.name
+    )
+    fast_concat = prompt_yes_no("Use fast concatenation", default=False)
+
+    custom_concat_path = prompt_path(
+        "Full output path for concatenated video (leave blank for default naming)",
+        default=None,
+        allow_blank=True,
+    )
+
+    print("\nSelect which outputs to generate (all enabled by default):")
+    include_context_cards = prompt_yes_no("Generate context cards", default=True)
+    include_linkedin = prompt_yes_no("Generate LinkedIn post", default=True)
+    include_twitter = prompt_yes_no("Generate Twitter post", default=True)
+    include_seo = prompt_yes_no("Generate SEO keywords", default=True)
+    upload_bunny = prompt_yes_no("Upload video to Bunny.net", default=False)
+
+    transcript_output_path = prompt_path(
+        "Transcript output path", default=output_dir / "transcript.vtt"
+    )
+    assert transcript_output_path is not None
+
+    timestamps_output_path = prompt_path(
+        "Timestamps output path", default=output_dir / "timestamps.json"
+    )
+    assert timestamps_output_path is not None
+    timestamps_granularity = prompt_non_empty(
+        "Timestamps granularity (low/medium/high)", default="medium"
+    ).lower()
+    if timestamps_granularity not in {"low", "medium", "high"}:
+        print("Invalid granularity; defaulting to 'medium'.")
+        timestamps_granularity = "medium"
+    try:
+        timestamp_notes = input(
+            "Additional instructions for timestamps (optional): "
+        ).strip()
+    except EOFError:
+        timestamp_notes = ""
+
+    context_cards_output_path = output_dir / "context-cards.md"
+    if include_context_cards:
+        context_cards_output_path = prompt_path(
+            "Context cards output path",
+            default=context_cards_output_path,
+        ) or context_cards_output_path
+
+    linkedin_output_path = output_dir / "linkedin_post.md"
+    if include_linkedin:
+        linkedin_output_path = prompt_path(
+            "LinkedIn post output path",
+            default=linkedin_output_path,
+        ) or linkedin_output_path
+
+    twitter_output_path = output_dir / "twitter_post.md"
+    if include_twitter:
+        twitter_output_path = prompt_path(
+            "Twitter post output path",
+            default=twitter_output_path,
+        ) or twitter_output_path
+
+    bunny_library_id = os.getenv("BUNNY_LIBRARY_ID")
+    bunny_access_key = os.getenv("BUNNY_ACCESS_KEY")
+    bunny_collection_id = os.getenv("BUNNY_COLLECTION_ID")
+
+    if upload_bunny:
+        bunny_library_id = prompt_non_empty(
+            "Bunny Library ID", default=bunny_library_id
+        )
+        bunny_access_key = prompt_non_empty(
+            "Bunny Access Key", default=bunny_access_key
+        )
+        bunny_collection_id = input(
+            "Bunny Collection ID (optional): "
+        ).strip() or bunny_collection_id
+
+    cli_bin = build_cli(args)
+
+    return PipelineConfig(
+        input_dir=input_dir,
+        output_dir=output_dir,
+        cli_bin=cli_bin,
+        concat_title=concat_title,
+        fast_concat=fast_concat,
+        concat_output_path=custom_concat_path,
+        timestamps_output_path=timestamps_output_path,
+        timestamps_granularity=timestamps_granularity,
+        timestamp_notes=timestamp_notes,
+        transcript_output_path=transcript_output_path,
+        include_context_cards=include_context_cards,
+        context_cards_output_path=context_cards_output_path,
+        include_linkedin=include_linkedin,
+        linkedin_output_path=linkedin_output_path,
+        include_seo=include_seo,
+        include_twitter=include_twitter,
+        twitter_output_path=twitter_output_path,
+        upload_bunny=upload_bunny,
+        bunny_library_id=bunny_library_id,
+        bunny_access_key=bunny_access_key,
+        bunny_collection_id=bunny_collection_id,
+        metadata_path=output_dir / "metadata.json",
+    )
+
+
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv if argv is not None else sys.argv[1:])
 
-    input_dir = prompt_input_directory()
+    config = gather_pipeline_config(args)
 
-    require_env_vars()
-    cli_bin = build_cli(args)
+    require_env_vars(
+        needs_bunny=config.upload_bunny,
+        bunny_library_id=config.bunny_library_id,
+        bunny_access_key=config.bunny_access_key,
+    )
 
-    output_dir = input_dir / "output"
-    output_dir.mkdir(parents=True, exist_ok=True)
+    config.output_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"Input directory : {input_dir}")
-    print(f"Output directory: {output_dir}")
+    print(f"\nInput directory : {config.input_dir}")
+    print(f"Output directory: {config.output_dir}")
 
-    fast_concat = prompt_fast_concat()
-    deploy_to_bunny = prompt_bunny_deployment()
-
-    concat_command = [cli_bin, "concat", "--input-dir", str(input_dir)]
-    if fast_concat:
+    concat_command = [
+        config.cli_bin,
+        "concat",
+        "--input-dir",
+        str(config.input_dir),
+        "--output-dir",
+        str(config.output_dir),
+        "--title",
+        config.concat_title,
+    ]
+    if config.concat_output_path:
+        concat_command.extend(["--output-path", str(config.concat_output_path)])
+    if config.fast_concat:
         concat_command.append("--fast-concat")
         print("Fast concatenation enabled.")
     else:
         print("Fast concatenation disabled.")
-    
-    if deploy_to_bunny:
+
+    if config.upload_bunny:
         print("Bunny.net deployment enabled.")
     else:
         print("Bunny.net deployment disabled.")
@@ -185,87 +393,125 @@ def main(argv: list[str] | None = None) -> None:
 
     run_cli_step(
         "Generating timestamps",
-        [cli_bin, "timestamps", "--input-dir", str(input_dir)],
+        [
+            config.cli_bin,
+            "timestamps",
+            "--input-dir",
+            str(config.input_dir),
+            "--output-dir",
+            str(config.output_dir),
+            "--output-path",
+            str(config.timestamps_output_path),
+            "--stamps-from-transcript",
+            str(config.transcript_output_path),
+            "--granularity",
+            config.timestamps_granularity,
+            "--timestamp-notes",
+            config.timestamp_notes,
+        ],
     )
 
-    concatenated_video = _resolve_concatenated_video(output_dir)
+    concatenated_video = (
+        config.concat_output_path
+        if config.concat_output_path
+        else _resolve_concatenated_video(config.output_dir)
+    )
     ensure_file(concatenated_video, "concatenated video")
 
-    transcript_path = output_dir / "transcript.vtt"
     run_cli_step(
         "Generating transcript",
         [
-            cli_bin,
+            config.cli_bin,
             "transcript",
             "--video-path",
             str(concatenated_video),
+            "--output-dir",
+            str(config.output_dir),
             "--output-path",
-            str(transcript_path),
+            str(config.transcript_output_path),
         ],
     )
 
-    ensure_file(transcript_path, "transcript file")
+    ensure_file(config.transcript_output_path, "transcript file")
 
-    run_cli_step(
-        "Generating context cards",
-        [
-            cli_bin,
-            "context-cards",
-            "--input-transcript",
-            str(transcript_path),
-            "--output-path",
-            str(output_dir / "context-cards.md"),
-        ],
-    )
+    if config.include_context_cards:
+        run_cli_step(
+            "Generating context cards",
+            [
+                config.cli_bin,
+                "context-cards",
+                "--input-transcript",
+                str(config.transcript_output_path),
+                "--output-dir",
+                str(config.output_dir),
+                "--output-path",
+                str(config.context_cards_output_path),
+            ],
+        )
 
-    run_cli_step(
-        "Generating LinkedIn post",
-        [
-            cli_bin,
-            "linkedin",
-            "--transcript-path",
-            str(transcript_path),
-            "--output-path",
-            str(output_dir / "linkedin_post.md"),
-        ],
-    )
+    if config.include_linkedin:
+        run_cli_step(
+            "Generating LinkedIn post",
+            [
+                config.cli_bin,
+                "linkedin",
+                "--transcript-path",
+                str(config.transcript_output_path),
+                "--output-dir",
+                str(config.output_dir),
+                "--output-path",
+                str(config.linkedin_output_path),
+            ],
+        )
 
-    run_cli_step(
-        "Generating SEO keywords",
-        [cli_bin, "seo", "--transcript-path", str(transcript_path)],
-    )
+    if config.include_seo:
+        run_cli_step(
+            "Generating SEO keywords",
+            [
+                config.cli_bin,
+                "seo",
+                "--transcript-path",
+                str(config.transcript_output_path),
+                "--output-dir",
+                str(config.output_dir),
+            ],
+        )
 
-    run_cli_step(
-        "Generating Twitter post",
-        [
-            cli_bin,
-            "twitter",
-            "--transcript-path",
-            str(transcript_path),
-            "--output-path",
-            str(output_dir / "twitter_post.md"),
-        ],
-    )
+    if config.include_twitter:
+        run_cli_step(
+            "Generating Twitter post",
+            [
+                config.cli_bin,
+                "twitter",
+                "--transcript-path",
+                str(config.transcript_output_path),
+                "--output-dir",
+                str(config.output_dir),
+                "--output-path",
+                str(config.twitter_output_path),
+            ],
+        )
 
-    if deploy_to_bunny:
+    if config.upload_bunny:
         bunny_command = [
-            cli_bin,
+            config.cli_bin,
             "bunny-upload",
             "--video-path",
             str(concatenated_video),
+            "--metadata-path",
+            str(config.metadata_path),
             "--bunny-library-id",
-            os.environ["BUNNY_LIBRARY_ID"],
+            str(config.bunny_library_id),
             "--bunny-access-key",
-            os.environ["BUNNY_ACCESS_KEY"],
+            str(config.bunny_access_key),
         ]
-        bunny_collection = os.getenv("BUNNY_COLLECTION_ID")
-        if bunny_collection:
-            bunny_command.extend(["--bunny-collection-id", bunny_collection])
+        if config.bunny_collection_id:
+            bunny_command.extend(["--bunny-collection-id", str(config.bunny_collection_id)])
 
         run_cli_step("Uploading video to Bunny.net", bunny_command)
 
     print("\nPipeline complete! Generated assets are located in:")
-    print(f"  {output_dir}")
+    print(f"  {config.output_dir}")
 
 
 if __name__ == "__main__":

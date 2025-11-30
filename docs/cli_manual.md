@@ -335,7 +335,15 @@ video-tool twitter --transcript-path ./output/transcript.vtt
 
 #### `pipeline`
 
-Run the full video-tool pipeline (silence removal not included) for an input directory of clips. Prompts for input directory, fast concat choice, and Bunny upload choice.
+Run the full video-tool pipeline (silence removal not included) for an input directory of clips. The pipeline now collects everything up front and then runs non-interactively (no step-level prompts): input/output directories, concat title/output path, fast concat toggle, timestamps settings (granularity/notes/output), transcript output path, which content steps to run (context cards, LinkedIn, SEO, Twitter), and optional Bunny upload credentials/metadata path.
+
+**Prompts for (in order):**
+- Input directory and output directory (default: `<input>/output`)
+- Concatenated video title, optional custom output path, and fast/standard concat
+- Timestamps output path, granularity (low/medium/high), and optional notes
+- Transcript output path for the concatenated video
+- Whether to generate context cards, LinkedIn post, SEO keywords, and Twitter post (plus their output paths)
+- Optional Bunny upload toggle and credentials (library/access keys and optional collection id)
 
 **Optional inputs:**
 - Override CLI binary (defaults to `video-tool` or `VIDEO_TOOL_CLI` env)
