@@ -6,7 +6,6 @@ If arguments are not provided, the user will be prompted interactively.
 """
 
 import argparse
-import importlib.util
 import json
 import os
 import sys
@@ -975,20 +974,9 @@ def cmd_twitter(args: argparse.Namespace) -> None:
 
 
 def cmd_pipeline(args: argparse.Namespace) -> None:
-    """Run the full video-tool pipeline via scripts/run_full_pipeline.py."""
-    script_path = Path(__file__).resolve().parent.parent / "scripts" / "run_full_pipeline.py"
-    if not script_path.exists():
-        console.print(f"[bold red]Error:[/] Pipeline runner not found at {script_path}")
-        sys.exit(1)
-
-    spec = importlib.util.spec_from_file_location("video_tool_run_full_pipeline", script_path)
-    if spec is None or spec.loader is None:
-        console.print(f"[bold red]Error:[/] Unable to load pipeline runner from {script_path}")
-        sys.exit(1)
-
-    run_full_pipeline = importlib.util.module_from_spec(spec)
+    """Run the full video-tool pipeline via the packaged runner module."""
     try:
-        spec.loader.exec_module(run_full_pipeline)
+        from video_tool.run_full_pipeline import main as pipeline_main
     except Exception as exc:  # pragma: no cover - surfaced to user
         console.print(f"[bold red]Error:[/] Unable to import pipeline runner: {exc}")
         sys.exit(1)
@@ -998,7 +986,7 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
         argv.extend(["--cli-bin", args.cli_bin])
 
     try:
-        run_full_pipeline.main(argv)
+        pipeline_main(argv)
     except SystemExit:
         raise
     except Exception as exc:  # pragma: no cover - surfaced to user
