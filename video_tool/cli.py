@@ -515,6 +515,71 @@ def cmd_transcript(args: argparse.Namespace) -> None:
         console.print(f"[yellow]Warning:[/] Unable to write metadata JSON: {exc}")
 
 
+def cmd_summary(args: argparse.Namespace) -> None:
+    """Generate a structured technical summary from a transcript."""
+
+    transcript_path = args.transcript_path
+    if not transcript_path:
+        transcript_path = ask_required_path("Path to transcript file (.vtt)")
+    else:
+        transcript_path = normalize_path(transcript_path)
+
+    transcript_file = Path(transcript_path).expanduser().resolve()
+    if not transcript_file.exists() or not transcript_file.is_file():
+        console.print(f"[bold red]Error:[/] Invalid transcript file: {transcript_path}")
+        sys.exit(1)
+
+    default_summary_dir = transcript_file.parent / "summaries"
+    output_dir_arg = args.output_dir
+    if output_dir_arg is None:
+        output_dir_arg = ask_optional_text(
+            f"Output directory for summary (leave blank for {default_summary_dir})",
+            default="",
+        )
+    output_dir = (
+        normalize_path(output_dir_arg) if output_dir_arg else str(default_summary_dir)
+    )
+    output_dir_path = Path(output_dir).expanduser().resolve()
+
+    output_format = (args.output_format or "markdown").lower()
+    extension = "json" if output_format == "json" else "md"
+
+    if args.output_path:
+        output_path = normalize_path(args.output_path)
+    else:
+        output_path = str(output_dir_path / f"{transcript_file.stem}_summary.{extension}")
+
+    summary_config = {
+        "enabled": not args.disable,
+        "length": args.length or "medium",
+        "difficulty": args.difficulty or "intermediate",
+        "include_keywords": not args.no_keywords,
+        "output_format": output_format,
+    }
+    if args.target_audience:
+        summary_config["target_audience"] = args.target_audience
+
+    console.print(f"[cyan]Generating technical summary...[/]")
+    console.print(f"  Transcript: {transcript_file}")
+    console.print(f"  Output file: {output_path}\n")
+
+    processor = VideoProcessor(
+        str(transcript_file.parent), output_dir=str(transcript_file.parent)
+    )
+    summary_path = processor.generate_summary(
+        transcript_path=str(transcript_file),
+        output_path=output_path,
+        config=summary_config,
+    )
+
+    if summary_path:
+        console.print(f"[green]✓ Summary generated![/]")
+        console.print(f"  Summary: {summary_path}")
+    else:
+        console.print("[bold red]Error:[/] Failed to generate summary")
+        sys.exit(1)
+
+
 def cmd_context_cards(args: argparse.Namespace) -> None:
     """Generate context cards from a transcript file."""
     transcript_path = args.input_transcript
@@ -1432,6 +1497,54 @@ def create_parser() -> argparse.ArgumentParser:
         help="Full path for the output VTT file (default: video_dir/output/transcript.vtt)"
     )
 
+    # Summary command
+    summary_parser = subparsers.add_parser(
+        "summary",
+        help="Generate a structured technical summary from a transcript"
+    )
+    summary_parser.add_argument(
+        "--transcript-path",
+        help="Path to transcript file (.vtt)"
+    )
+    summary_parser.add_argument(
+        "--output-dir",
+        help="Directory for summary output (default: transcript_dir/summaries)"
+    )
+    summary_parser.add_argument(
+        "--output-path",
+        help="Full path for the output summary file"
+    )
+    summary_parser.add_argument(
+        "--length",
+        choices=["short", "medium", "long"],
+        help="Desired summary length"
+    )
+    summary_parser.add_argument(
+        "--difficulty",
+        choices=["beginner", "intermediate", "advanced"],
+        help="Target difficulty for the summary"
+    )
+    summary_parser.add_argument(
+        "--no-keywords",
+        action="store_true",
+        help="Disable SEO keyword generation"
+    )
+    summary_parser.add_argument(
+        "--target-audience",
+        help="Override the target audience for the summary tone"
+    )
+    summary_parser.add_argument(
+        "--output-format",
+        choices=["markdown", "json"],
+        default="markdown",
+        help="Output format for the summary"
+    )
+    summary_parser.add_argument(
+        "--disable",
+        action="store_true",
+        help="Skip summary generation (useful for profiling pipeline configs)"
+    )
+
     # Context cards command
     context_parser = subparsers.add_parser(
         "context-cards",
@@ -1649,6 +1762,7 @@ def main() -> None:
         "concat": cmd_concat,
         "timestamps": cmd_timestamps,
         "transcript": cmd_transcript,
+        "summary": cmd_summary,
         "context-cards": cmd_context_cards,
         "description": cmd_description,
         "seo": cmd_seo,

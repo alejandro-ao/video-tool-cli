@@ -6,7 +6,34 @@ from string import Template
 from textwrap import dedent
 from typing import Optional
 
+from pydantic import BaseModel, Field
+
 from .shared import logger
+
+
+class SummaryResponse(BaseModel):
+    """Structured representation of a video summary."""
+
+    what_this_video_is_about: str = Field(description="Overview of the video's main topic.")
+    why_this_topic_matters: str = Field(description="Explanation of the real-world importance.")
+    key_points_covered: list[str] = Field(
+        description="Bullet list of 4-7 core technical points covered.",
+        default_factory=list,
+    )
+    what_is_built: str = Field(description="Description of what is implemented in the video.")
+    actionable_insights: list[str] = Field(
+        description="Practical skills or actions viewers can take away.",
+        default_factory=list,
+    )
+    who_this_video_is_for: str = Field(
+        description="Intended audience and skill level for the content."
+    )
+    further_research: list[str] = Field(
+        description="Topics to explore after watching.", default_factory=list
+    )
+    seo_friendly_keywords: list[str] = Field(
+        description="10-20 comma-separated keywords.", default_factory=list
+    )
 
 
 class ContentGenerationMixin:
@@ -314,3 +341,145 @@ class ContentGenerationMixin:
         except Exception as exc:
             logger.error(f"Error generating Twitter post: {exc}")
             raise
+
+    def generate_summary(
+        self,
+        transcript_path: Optional[str] = None,
+        *,
+        output_path: Optional[str] = None,
+        config: Optional[dict] = None,
+    ) -> str:
+        """Generate a structured technical summary from a transcript."""
+
+        summary_config = {
+            "enabled": True,
+            "length": "medium",
+            "difficulty": "intermediate",
+            "include_keywords": True,
+            "target_audience": "AI/ML engineers and developers in a private community",
+            "output_format": "markdown",
+        }
+        if config:
+            summary_config.update(config)
+
+        if not summary_config.get("enabled", True):
+            logger.info("Summary generation disabled via configuration; skipping step.")
+            return ""
+
+        transcript_file = (
+            Path(transcript_path)
+            if transcript_path
+            else self.output_dir / "transcript.vtt"
+        )
+
+        if not transcript_file.exists():
+            logger.error(f"Transcript file not found for summary generation: {transcript_file}")
+            return ""
+
+        try:
+            transcript = transcript_file.read_text(encoding="utf-8")
+        except OSError as exc:
+            logger.error(f"Unable to read transcript for summary generation: {exc}")
+            return ""
+
+        output_format = str(summary_config.get("output_format", "markdown")).lower().strip()
+        if output_format not in {"markdown", "json"}:
+            logger.warning(
+                f"Unsupported summary output_format '{output_format}', defaulting to markdown."
+            )
+            output_format = "markdown"
+
+        include_keywords = bool(summary_config.get("include_keywords", True))
+        difficulty = summary_config.get("difficulty", "intermediate")
+        length = summary_config.get("length", "medium")
+        target_audience = summary_config.get(
+            "target_audience", "AI/ML engineers and developers in a private community"
+        )
+
+        summary_dir = self.output_dir / "summaries"
+        resolved_output_path = Path(output_path) if output_path else summary_dir / (
+            f"{transcript_file.stem}_summary.{ 'json' if output_format == 'json' else 'md'}"
+        )
+        resolved_output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        system_message = dedent(
+            f"""
+            You are a specialized summary-generation agent integrated into a video-processing pipeline for a private community of AI/ML engineers and developers. Your role is to produce a high-quality, structured summary of a technical video based solely on the transcript. The audience is already technically literate. Do not explain basic concepts unless the video does; instead, emphasize the technical depth, tools, frameworks, and skills covered.
+
+            Follow this structure exactly:
+            1. What This Video Is About
+            2. Why This Topic Matters
+            3. Key Points Covered in the Video
+            4. What Is Built in This Video
+            5. Actionable Insights / Skills You’ll Gain
+            6. Who This Video Is For
+            7. Further Research / Next Steps
+            8. SEO-Friendly Keywords
+
+            Additional rules:
+            - Be accurate and avoid hallucinations.
+            - Only use information present in the transcript.
+            - The tone should be clear, concise, and professional.
+            - Calibrate the level of detail for a {difficulty} audience and aim for a {length} summary.
+            - Target audience: {target_audience}.
+            - If SEO keywords are disabled, still include section 8 and state that keywords are omitted per configuration.
+            """
+        ).strip()
+
+        keyword_instruction = (
+            "Include 10-20 SEO-friendly keywords as a comma-separated line."
+            if include_keywords
+            else "Do not invent SEO keywords; note that they are omitted per configuration."
+        )
+
+        user_message = dedent(
+            f"""
+            Generate the summary using the transcript below.
+            {keyword_instruction}
+
+            <TRANSCRIPT>
+            {transcript}
+            </TRANSCRIPT>
+            """
+        ).strip()
+
+        try:
+            if output_format == "json":
+                response = self._invoke_openai_chat_structured_output(
+                    model="gpt-5",
+                    messages=[
+                        {"role": "system", "content": system_message},
+                        {"role": "user", "content": user_message},
+                    ],
+                    schema=SummaryResponse,
+                    temperature=0.3,
+                )
+
+                summary_payload = response.dict()
+                if not include_keywords:
+                    summary_payload["seo_friendly_keywords"] = []
+
+                resolved_output_path.write_text(
+                    json.dumps(summary_payload, indent=2), encoding="utf-8"
+                )
+            else:
+                response = self._invoke_openai_chat(
+                    model="gpt-5",
+                    messages=[
+                        {"role": "system", "content": system_message},
+                        {"role": "user", "content": user_message},
+                    ],
+                    temperature=0.3,
+                )
+
+                summary_content = response.content
+                if not isinstance(summary_content, str):
+                    summary_content = str(summary_content)
+
+                resolved_output_path.write_text(summary_content, encoding="utf-8")
+
+            logger.info(f"Summary generated successfully: {resolved_output_path}")
+            return str(resolved_output_path)
+        except Exception as exc:
+            logger.error(f"Error generating summary: {exc}")
+            return ""
