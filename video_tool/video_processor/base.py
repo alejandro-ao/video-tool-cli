@@ -143,9 +143,14 @@ class VideoProcessorBase:
             yield
             return
 
-        with open(os.devnull, "w") as devnull:
-            with redirect_stdout(devnull), redirect_stderr(devnull):
-                yield
+        try:
+            with open(os.devnull, "w") as devnull:
+                with redirect_stdout(devnull), redirect_stderr(devnull):
+                    yield
+        except (OSError, TypeError, ValueError):
+            # Fall back to un-suppressed output when the underlying file handle
+            # cannot be created (e.g., when open is monkey-patched in tests).
+            yield
 
     def _build_openai_chat_model(
         self,

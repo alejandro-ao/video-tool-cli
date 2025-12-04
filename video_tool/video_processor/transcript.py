@@ -113,7 +113,7 @@ class TranscriptMixin:
                 transcript = self._merge_vtt_transcripts(transcripts)
 
             resolved_output_path = Path(output_path) if output_path else self.output_dir / "transcript.vtt"
-            resolved_output_path.parent.mkdir(parents=True, exist_ok=True)
+            os.makedirs(resolved_output_path.parent, exist_ok=True)
             with open(resolved_output_path, "w") as file:
                 file.write(transcript)
 

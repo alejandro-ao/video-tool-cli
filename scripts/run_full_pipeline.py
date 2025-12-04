@@ -181,6 +181,18 @@ def main(argv: list[str] | None = None) -> None:
     ensure_file(transcript_path, "transcript file")
 
     run_cli_step(
+        "Generating technical summary",
+        [
+            cli_bin,
+            "summary",
+            "--transcript-path",
+            str(transcript_path),
+            "--output-path",
+            str(output_dir / "summary.md"),
+        ],
+    )
+
+    run_cli_step(
         "Generating context cards",
         [
             cli_bin,

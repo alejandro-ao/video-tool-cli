@@ -38,6 +38,8 @@ def mock_video_processor(temp_dir):
             'generate_linkedin_post': 'Test LinkedIn prompt: {transcript}',
             'generate_twitter_post': 'Test Twitter prompt: {transcript}',
             'generate-timestamps-from-transcript': 'Transcript prompt: {transcript} {granularity_note} {extra_instructions} {video_duration} {video_title}',
+            'generate_summary_system': 'Summary length={summary_length} difficulty={difficulty} audience={target_audience} format={output_format} {keywords_note} {output_format_instruction}',
+            'generate_summary_user': 'Summary transcript: {transcript}',
         }
         
         with patch('video_tool.video_processor.VideoProcessor._load_prompts', return_value=mock_prompts):

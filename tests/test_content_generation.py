@@ -9,6 +9,7 @@ import pytest
 from langchain_core.messages import AIMessage
 
 from video_tool.video_processor import VideoProcessor
+from video_tool.video_processor.content import SummaryConfig
 from tests.test_data.mock_generators import (
     MockVideoGenerator,
     MockTranscriptGenerator,
@@ -340,6 +341,62 @@ class TestGenerateTimestamps:
         assert result["metadata"]["transcript_generated"] is True
         mock_generate.assert_called_once()
         mock_structured.assert_called_once()
+
+
+class TestGenerateSummary:
+    """Tests for transcript-driven summary generation."""
+
+    def test_generate_summary_writes_markdown(self, temp_dir, mock_video_processor):
+        """Markdown output is written with the rendered model content."""
+        transcript_file = temp_dir / "output" / "transcript.vtt"
+        transcript_file.write_text("Line one\nLine two", encoding="utf-8")
+
+        with patch.object(mock_video_processor, "_invoke_openai_chat") as mock_chat:
+            mock_chat.return_value = AIMessage(content="Rendered summary markdown")
+            summary_path = mock_video_processor.generate_summary(str(transcript_file))
+
+        expected_path = temp_dir / "output" / "summary.md"
+        assert summary_path == str(expected_path)
+        assert expected_path.exists()
+        assert expected_path.read_text(encoding="utf-8") == "Rendered summary markdown"
+        mock_chat.assert_called_once()
+
+    def test_generate_summary_json_prettifies_output(self, temp_dir, mock_video_processor):
+        """Valid JSON responses are pretty-printed when saved."""
+        transcript_file = temp_dir / "output" / "transcript.vtt"
+        transcript_file.write_text("Transcript body", encoding="utf-8")
+
+        config = SummaryConfig(output_format="json")
+        raw_json = '{"what_this_video_is_about": "Topic", "key_points_covered": ["a", "b"]}'
+
+        with patch.object(mock_video_processor, "_invoke_openai_chat") as mock_chat:
+            mock_chat.return_value = AIMessage(content=raw_json)
+            summary_path = mock_video_processor.generate_summary(
+                str(transcript_file), summary_config=config
+            )
+
+        output_file = temp_dir / "output" / "summary.json"
+        assert summary_path == str(output_file)
+        assert output_file.exists()
+
+        data = json.loads(output_file.read_text(encoding="utf-8"))
+        assert data["what_this_video_is_about"] == "Topic"
+        assert data["key_points_covered"] == ["a", "b"]
+        mock_chat.assert_called_once()
+
+    def test_generate_summary_respects_disabled_flag(self, temp_dir, mock_video_processor):
+        """Disabled configuration should skip generation entirely."""
+        transcript_file = temp_dir / "output" / "transcript.vtt"
+        transcript_file.write_text("Transcript body", encoding="utf-8")
+
+        with patch.object(mock_video_processor, "_invoke_openai_chat") as mock_chat:
+            result = mock_video_processor.generate_summary(
+                str(transcript_file), summary_config=SummaryConfig(enabled=False)
+            )
+
+        assert result == ""
+        mock_chat.assert_not_called()
+        assert not (temp_dir / "output" / "summary.md").exists()
 
 
 class TestGenerateTranscript:

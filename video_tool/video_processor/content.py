@@ -1,12 +1,60 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from string import Template
 from textwrap import dedent
-from typing import Optional
+from typing import Dict, Optional
 
 from .shared import logger
+
+
+@dataclass
+class SummaryConfig:
+    """Configuration for transcript-driven summary generation."""
+
+    enabled: bool = True
+    length: str = "medium"
+    difficulty: str = "intermediate"
+    include_keywords: bool = True
+    target_audience: str = "AI/ML engineers and developers in a private community"
+    output_format: str = "markdown"
+
+    @classmethod
+    def from_dict(cls, raw: Optional[Dict[str, object]]) -> "SummaryConfig":
+        """Build a config object from a mapping with sensible defaults."""
+
+        if not isinstance(raw, dict):
+            return cls()
+
+        def _normalized_choice(value: object, allowed: set[str], default: str) -> str:
+            candidate = str(value).strip().lower() if value is not None else ""
+            return candidate if candidate in allowed else default
+
+        length = _normalized_choice(raw.get("length"), {"short", "medium", "long"}, "medium")
+        difficulty = _normalized_choice(
+            raw.get("difficulty"), {"beginner", "intermediate", "advanced"}, "intermediate"
+        )
+        output_format = _normalized_choice(
+            raw.get("output_format"), {"markdown", "json"}, "markdown"
+        )
+
+        target_audience = str(raw.get("target_audience", "")).strip()
+        if not target_audience:
+            target_audience = cls.target_audience
+
+        include_keywords = bool(raw.get("include_keywords", True))
+        enabled = bool(raw.get("enabled", True))
+
+        return cls(
+            enabled=enabled,
+            length=length,
+            difficulty=difficulty,
+            include_keywords=include_keywords,
+            target_audience=target_audience,
+            output_format=output_format,
+        )
 
 
 class ContentGenerationMixin:
@@ -314,3 +362,110 @@ class ContentGenerationMixin:
         except Exception as exc:
             logger.error(f"Error generating Twitter post: {exc}")
             raise
+
+    def generate_summary(
+        self,
+        transcript_path: str,
+        *,
+        output_path: Optional[str] = None,
+        summary_config: Optional[SummaryConfig] = None,
+    ) -> str:
+        """Generate a structured technical summary from a transcript."""
+
+        config = summary_config or SummaryConfig()
+
+        if not config.enabled:
+            logger.info("Summary generation disabled via configuration; skipping.")
+            return ""
+
+        transcript_file = Path(transcript_path)
+        if not transcript_file.exists():
+            logger.error(f"Transcript file not found for summary generation: {transcript_path}")
+            return ""
+
+        try:
+            transcript = transcript_file.read_text(encoding="utf-8")
+        except OSError as exc:  # pragma: no cover - surfaced via console
+            logger.error(f"Error reading transcript for summary generation: {exc}")
+            return ""
+
+        output_format = config.output_format
+        output_file = (
+            Path(output_path)
+            if output_path
+            else self.output_dir
+            / ("summary.json" if output_format == "json" else "summary.md")
+        )
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+
+        output_format_instruction = (
+            dedent(
+                """
+                Return a JSON object with these keys using snake_case:
+                - what_this_video_is_about
+                - why_this_topic_matters
+                - key_points_covered (array of strings)
+                - what_is_built_in_this_video
+                - actionable_insights
+                - who_this_video_is_for
+                - further_research
+                - seo_friendly_keywords (array of strings; use an empty array if keywords are disabled)
+                Do not wrap the JSON in Markdown code fences.
+                """
+            )
+            if output_format == "json"
+            else "Use Markdown headings that mirror the numbered section titles."
+        )
+
+        keywords_note = (
+            "Include the SEO-Friendly Keywords section."
+            if config.include_keywords
+            else "If keywords are disabled, still include the section and state that keywords were not requested."
+        )
+
+        system_prompt = self.prompts["generate_summary_system"].format(
+            summary_length=config.length,
+            difficulty=config.difficulty,
+            target_audience=config.target_audience,
+            output_format=output_format,
+            keywords_note=keywords_note,
+            output_format_instruction=output_format_instruction,
+        )
+
+        user_prompt = self.prompts["generate_summary_user"].format(transcript=transcript)
+
+        try:
+            response = self._invoke_openai_chat(
+                model="gpt-5",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                temperature=0.4,
+            )
+        except Exception as exc:  # pragma: no cover - surfaced via console
+            logger.error(f"Error generating summary via OpenAI: {exc}")
+            return ""
+
+        content = response.content
+        try:
+            rendered_summary = str(content)
+        except Exception as exc:  # pragma: no cover - surfaced via console
+            logger.error(f"Unexpected summary content type: {exc}")
+            return ""
+
+        if output_format == "json":
+            try:
+                parsed = json.loads(rendered_summary)
+                rendered_summary = json.dumps(parsed, indent=2)
+            except json.JSONDecodeError:
+                logger.warning("Summary response was not valid JSON; writing raw response.")
+
+        try:
+            output_file.write_text(rendered_summary, encoding="utf-8")
+        except OSError as exc:  # pragma: no cover - surfaced via console
+            logger.error(f"Error writing summary to {output_file}: {exc}")
+            return ""
+
+        logger.info(f"Summary generated successfully: {output_file}")
+        return str(output_file)

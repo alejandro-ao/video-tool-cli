@@ -17,6 +17,7 @@ from rich.console import Console
 from rich.prompt import Prompt
 
 from video_tool import VideoProcessor
+from video_tool.video_processor.content import SummaryConfig
 
 console = Console()
 
@@ -505,6 +506,119 @@ def cmd_transcript(args: argparse.Namespace) -> None:
                 "transcript_format": transcript_file.suffix.lstrip(".").lower(),
             }
         )
+
+    try:
+        metadata_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(metadata_path, "w", encoding="utf-8") as handle:
+            json.dump(merged_metadata, handle, indent=2)
+        console.print(f"  Metadata file: {metadata_path}")
+    except OSError as exc:  # pragma: no cover - surfaced via console
+        console.print(f"[yellow]Warning:[/] Unable to write metadata JSON: {exc}")
+
+
+def cmd_summary(args: argparse.Namespace) -> None:
+    """Generate a structured technical summary from a transcript."""
+
+    transcript_path = args.transcript_path
+    if not transcript_path:
+        transcript_path = ask_required_path("Path to transcript file (.vtt)")
+    else:
+        transcript_path = normalize_path(transcript_path)
+
+    transcript_file = Path(transcript_path).expanduser().resolve()
+    if not transcript_file.exists() or not transcript_file.is_file():
+        console.print(f"[bold red]Error:[/] Invalid transcript file: {transcript_path}")
+        sys.exit(1)
+
+    default_output_dir = transcript_file.parent
+    output_dir_arg = args.output_dir
+    if output_dir_arg is None:
+        output_dir_arg = ask_optional_text(
+            f"Output directory for summary (leave blank for {default_output_dir})",
+            default="",
+        )
+    output_dir = normalize_path(output_dir_arg) if output_dir_arg else None
+    output_dir_path = Path(output_dir).expanduser().resolve() if output_dir else default_output_dir
+
+    output_format = (args.output_format or "markdown").lower()
+    if output_format not in {"markdown", "json"}:
+        console.print("[yellow]Invalid output format; defaulting to 'markdown'.[/]")
+        output_format = "markdown"
+
+    if args.output_path:
+        output_path = normalize_path(args.output_path)
+    else:
+        default_name = "summary.json" if output_format == "json" else "summary.md"
+        output_path = str(output_dir_path / default_name)
+
+    base_config = SummaryConfig()
+    summary_config = SummaryConfig(
+        enabled=not args.disable_summary,
+        length=args.length or base_config.length,
+        difficulty=args.difficulty or base_config.difficulty,
+        include_keywords=not args.exclude_keywords,
+        target_audience=args.target_audience or base_config.target_audience,
+        output_format=output_format,
+    )
+
+    if not summary_config.enabled:
+        console.print("[yellow]Summary generation disabled via configuration; skipping.[/]")
+        return
+
+    console.print("[cyan]Generating video summary...[/]")
+    console.print(f"  Transcript: {transcript_file}")
+    console.print(f"  Output file: {output_path}\n")
+
+    processor = VideoProcessor(str(transcript_file.parent), output_dir=str(output_dir_path))
+    summary_path = processor.generate_summary(
+        str(transcript_file), output_path=output_path, summary_config=summary_config
+    )
+
+    if not summary_path:
+        console.print("[bold red]Error:[/] Summary generation failed.")
+        sys.exit(1)
+
+    console.print(f"[green]✓ Summary generated![/]")
+    console.print(f"  Summary: {summary_path}")
+
+    metadata_path = Path(output_dir_path) / "metadata.json"
+    existing_metadata: Optional[Dict] = None
+    if metadata_path.exists():
+        try:
+            with open(metadata_path, "r", encoding="utf-8") as handle:
+                existing_metadata = json.load(handle)
+        except (OSError, json.JSONDecodeError) as exc:  # pragma: no cover - surfaced via console
+            console.print(
+                f"[yellow]Warning:[/] Unable to read existing metadata.json; will recreate it: {exc}"
+            )
+
+    merged_metadata = existing_metadata if isinstance(existing_metadata, dict) else {}
+
+    try:
+        summary_content = Path(summary_path).read_text(encoding="utf-8")
+        if output_format == "json":
+            try:
+                merged_metadata["summary"] = json.loads(summary_content)
+            except json.JSONDecodeError:
+                merged_metadata["summary"] = summary_content
+        else:
+            merged_metadata["summary"] = summary_content
+    except OSError as exc:  # pragma: no cover - surfaced via console
+        console.print(f"[yellow]Warning:[/] Unable to read summary content for metadata: {exc}")
+
+    merged_metadata.update(
+        {
+            "summary_format": output_format,
+            "summary_path": summary_path,
+            "summary_preferences": {
+                "length": summary_config.length,
+                "difficulty": summary_config.difficulty,
+                "include_keywords": summary_config.include_keywords,
+                "target_audience": summary_config.target_audience,
+                "output_format": summary_config.output_format,
+            },
+        }
+    )
 
     try:
         metadata_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1412,6 +1526,53 @@ def create_parser() -> argparse.ArgumentParser:
         help="Full path for the output VTT file (default: video_dir/output/transcript.vtt)"
     )
 
+    # Summary command
+    summary_parser = subparsers.add_parser(
+        "summary",
+        help="Generate a structured technical summary from a transcript",
+    )
+    summary_parser.add_argument(
+        "--transcript-path",
+        help="Path to transcript file (.vtt)",
+    )
+    summary_parser.add_argument(
+        "--output-dir",
+        help="Directory for summary output (default: transcript_dir)",
+    )
+    summary_parser.add_argument(
+        "--output-path",
+        help="Full path for the output summary file (default: transcript_dir/summary.<ext>)",
+    )
+    summary_parser.add_argument(
+        "--length",
+        choices=["short", "medium", "long"],
+        help="Preferred summary length (default: medium)",
+    )
+    summary_parser.add_argument(
+        "--difficulty",
+        choices=["beginner", "intermediate", "advanced"],
+        help="Target difficulty level (default: intermediate)",
+    )
+    summary_parser.add_argument(
+        "--target-audience",
+        help="Override the target audience description",
+    )
+    summary_parser.add_argument(
+        "--output-format",
+        choices=["markdown", "json"],
+        help="Summary output format (default: markdown)",
+    )
+    summary_parser.add_argument(
+        "--exclude-keywords",
+        action="store_true",
+        help="Exclude SEO keywords from the summary",
+    )
+    summary_parser.add_argument(
+        "--disable-summary",
+        action="store_true",
+        help="Disable summary generation (useful for config debugging)",
+    )
+
     # Context cards command
     context_parser = subparsers.add_parser(
         "context-cards",
@@ -1619,6 +1780,7 @@ def main() -> None:
         "concat": cmd_concat,
         "timestamps": cmd_timestamps,
         "transcript": cmd_transcript,
+        "summary": cmd_summary,
         "context-cards": cmd_context_cards,
         "description": cmd_description,
         "seo": cmd_seo,
