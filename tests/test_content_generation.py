@@ -1083,8 +1083,81 @@ class TestGenerateTwitterPost:
         transcript_file.write_text(SAMPLE_VTT_CONTENT)
         
         mock_video_processor.input_dir = temp_dir
-        
+
         # Mock OpenAI error
         with patch.object(mock_video_processor, '_invoke_openai_chat', side_effect=Exception("API Error")):
             with pytest.raises(Exception, match="API Error"):
                 mock_video_processor.generate_twitter_post(str(transcript_file))
+
+
+class TestGenerateSummary:
+    """Tests for the transcript-to-summary step."""
+
+    def _create_transcript(self, temp_dir: Path) -> Path:
+        transcript_file = temp_dir / "output" / "transcript.vtt"
+        transcript_file.write_text(
+            "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nSample content.\n",
+            encoding="utf-8",
+        )
+        return transcript_file
+
+    def test_summary_skips_when_disabled(self, temp_dir: Path, mock_video_processor):
+        """Configuration should allow bypassing summary generation."""
+
+        transcript_file = self._create_transcript(temp_dir)
+
+        with patch.object(mock_video_processor, "_invoke_openai_chat") as mock_chat:
+            result = mock_video_processor.generate_summary(
+                str(transcript_file), config={"enabled": False}
+            )
+
+        assert result == ""
+        mock_chat.assert_not_called()
+
+    def test_summary_generates_markdown_file(self, temp_dir: Path, mock_video_processor):
+        """Markdown summaries should be saved to the summaries directory."""
+
+        transcript_file = self._create_transcript(temp_dir)
+
+        with patch.object(mock_video_processor, "_invoke_openai_chat") as mock_chat:
+            mock_chat.return_value = AIMessage(content="# Summary\nBody text")
+
+            summary_path = mock_video_processor.generate_summary(str(transcript_file))
+
+        summary_file = Path(summary_path)
+        assert summary_file.exists()
+        assert summary_file.parent.name == "summaries"
+        assert "Body text" in summary_file.read_text(encoding="utf-8")
+
+    def test_summary_generates_json_payload(self, temp_dir: Path, mock_video_processor):
+        """JSON output should follow the expected schema and omit keywords when disabled."""
+
+        transcript_file = self._create_transcript(temp_dir)
+
+        structured_response = SimpleNamespace(
+            dict=lambda: {
+                "what_this_video_is_about": "Overview",
+                "why_this_topic_matters": "Impact",
+                "key_points_covered": ["a", "b", "c", "d"],
+                "what_is_built": "Pipeline",
+                "actionable_insights": ["configure", "deploy"],
+                "who_this_video_is_for": "Engineers",
+                "further_research": ["optimization"],
+                "seo_friendly_keywords": ["one", "two"],
+            }
+        )
+
+        with patch.object(
+            mock_video_processor, "_invoke_openai_chat_structured_output"
+        ) as mock_structured:
+            mock_structured.return_value = structured_response
+
+            summary_path = mock_video_processor.generate_summary(
+                str(transcript_file),
+                config={"output_format": "json", "include_keywords": False},
+            )
+
+        summary_file = Path(summary_path)
+        payload = json.loads(summary_file.read_text(encoding="utf-8"))
+        assert payload["key_points_covered"] == ["a", "b", "c", "d"]
+        assert payload["seo_friendly_keywords"] == []
