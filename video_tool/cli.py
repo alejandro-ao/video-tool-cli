@@ -1038,6 +1038,26 @@ def cmd_twitter(args: argparse.Namespace) -> None:
         console.print(f"[yellow]Warning:[/] Unable to write metadata JSON: {exc}")
 
 
+def cmd_pipeline(args: argparse.Namespace) -> None:
+    """Run the full video-tool pipeline via the packaged runner module."""
+    try:
+        from video_tool.run_full_pipeline import main as pipeline_main
+    except Exception as exc:  # pragma: no cover - surfaced to user
+        console.print(f"[bold red]Error:[/] Unable to import pipeline runner: {exc}")
+        sys.exit(1)
+
+    argv = []
+    if args.cli_bin:
+        argv.extend(["--cli-bin", args.cli_bin])
+
+    try:
+        pipeline_main(argv)
+    except SystemExit:
+        raise
+    except Exception as exc:  # pragma: no cover - surfaced to user
+        console.print(f"[bold red]Error:[/] Pipeline execution failed: {exc}")
+        sys.exit(1)
+
 def cmd_bunny_video(args: argparse.Namespace) -> None:
     """Upload video to Bunny.net."""
     def _resolve_bunny_credentials() -> tuple[str, str]:
@@ -1623,6 +1643,16 @@ def create_parser() -> argparse.ArgumentParser:
         help="Full path for the output Twitter post file (default: transcript_dir/twitter_post.md)"
     )
 
+    # Full pipeline command
+    pipeline_parser = subparsers.add_parser(
+        "pipeline",
+        help="Run the full video-tool pipeline"
+    )
+    pipeline_parser.add_argument(
+        "--cli-bin",
+        help="Override the video-tool executable (defaults to VIDEO_TOOL_CLI env or 'video-tool')"
+    )
+
     # Bunny video upload command
     bunny_parser = subparsers.add_parser(
         "bunny-upload",
@@ -1738,6 +1768,7 @@ def main() -> None:
         "seo": cmd_seo,
         "linkedin": cmd_linkedin,
         "twitter": cmd_twitter,
+        "pipeline": cmd_pipeline,
         "bunny-upload": cmd_bunny_video,
         "bunny-transcript": cmd_bunny_transcript,
         "bunny-chapters": cmd_bunny_chapters,
