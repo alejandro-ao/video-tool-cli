@@ -17,8 +17,10 @@ from rich.console import Console
 from rich.prompt import Prompt
 
 from video_tool import VideoProcessor
+from video_tool.video_processor.constants import SUPPORTED_VIDEO_SUFFIXES
 
 console = Console()
+SUPPORTED_VIDEO_LABEL = ", ".join(ext.lstrip(".").upper() for ext in SUPPORTED_VIDEO_SUFFIXES)
 
 
 def normalize_path(raw: str) -> str:
@@ -33,6 +35,14 @@ def normalize_path(raw: str) -> str:
     trimmed = trimmed.replace("\\ ", " ")
     # Expand user home directory and resolve to absolute path
     return str(Path(trimmed).expanduser().resolve())
+
+
+def find_supported_videos(directory: Path) -> List[Path]:
+    """Return supported video files within a directory, sorted by name."""
+    videos: List[Path] = []
+    for suffix in SUPPORTED_VIDEO_SUFFIXES:
+        videos.extend(directory.glob(f"*{suffix}"))
+    return sorted(videos)
 
 
 def ask_required_path(prompt_text: str) -> str:
@@ -258,8 +268,10 @@ def cmd_timestamps(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     is_video_input = input_path.is_file()
-    if is_video_input and input_path.suffix.lower() != ".mp4":
-        console.print(f"[bold red]Error:[/] Input file must be an MP4 video: {input_dir}")
+    if is_video_input and input_path.suffix.lower() not in SUPPORTED_VIDEO_SUFFIXES:
+        console.print(
+            f"[bold red]Error:[/] Input file must be one of ({SUPPORTED_VIDEO_LABEL}): {input_dir}"
+        )
         sys.exit(1)
 
     base_dir = input_path.parent if is_video_input else input_path
@@ -684,13 +696,17 @@ def cmd_description(args: argparse.Namespace) -> None:
         if video_input:
             video_path = normalize_path(video_input)
         else:
-            video_path = ask_required_path("Path to video file (MP4) to describe")
+            video_path = ask_required_path(
+                f"Path to video file ({SUPPORTED_VIDEO_LABEL}) to describe"
+            )
         video_file = Path(video_path).expanduser().resolve()
         if not video_file.exists() or not video_file.is_file():
             console.print(f"[bold red]Error:[/] Invalid video file: {video_path}")
             sys.exit(1)
-        if video_file.suffix.lower() != ".mp4":
-            console.print(f"[bold red]Error:[/] Video file must be an MP4: {video_path}")
+        if video_file.suffix.lower() not in SUPPORTED_VIDEO_SUFFIXES:
+            console.print(
+                f"[bold red]Error:[/] Video file must be one of ({SUPPORTED_VIDEO_LABEL}): {video_path}"
+            )
             sys.exit(1)
         default_output_dir = video_file.parent / "output"
 
@@ -751,7 +767,7 @@ def cmd_description(args: argparse.Namespace) -> None:
         # Find the video file (assume it's in the transcript directory or its parent)
         video_candidates = []
         for candidate_dir in search_dirs:
-            video_candidates.extend(sorted(candidate_dir.glob("*.mp4")))
+            video_candidates.extend(find_supported_videos(candidate_dir))
 
         if not video_candidates:
             console.print(f"[bold red]Error:[/] No video file found near transcript")
@@ -855,7 +871,7 @@ def cmd_seo(args: argparse.Namespace) -> None:
         # Find video file
         video_candidates = []
         for candidate_dir in search_dirs:
-            video_candidates.extend(sorted(candidate_dir.glob("*.mp4")))
+            video_candidates.extend(find_supported_videos(candidate_dir))
 
         if not video_candidates:
             console.print(f"[bold red]Error:[/] No video file found near transcript")
@@ -1136,13 +1152,13 @@ def cmd_bunny_video(args: argparse.Namespace) -> None:
 
         processor = VideoProcessor(str(batch_path))
         try:
-            video_files = processor.get_mp4_files(str(batch_path))
+            video_files = processor.get_video_files(str(batch_path))
         except Exception as exc:
             console.print(f"[bold red]Error:[/] Unable to read directory: {exc}")
             sys.exit(1)
 
         if not video_files:
-            console.print(f"[bold red]Error:[/] No MP4 files found in {batch_path}")
+            console.print(f"[bold red]Error:[/] No supported video files found in {batch_path}")
             sys.exit(1)
 
         successes = []
@@ -1453,7 +1469,7 @@ def create_parser() -> argparse.ArgumentParser:
     )
     timestamps_parser.add_argument(
         "--input-dir",
-        help="Input directory containing videos or a single MP4 video path"
+        help=f"Input directory containing videos or a single {SUPPORTED_VIDEO_LABEL} video path"
     )
     timestamps_parser.add_argument(
         "--output-dir",
@@ -1664,7 +1680,7 @@ def create_parser() -> argparse.ArgumentParser:
     )
     bunny_parser.add_argument(
         "--batch-dir",
-        help="Directory containing MP4 files to upload (uploads all videos)"
+        help=f"Directory containing {SUPPORTED_VIDEO_LABEL} files to upload (uploads all videos)"
     )
     bunny_parser.add_argument(
         "--metadata-path",

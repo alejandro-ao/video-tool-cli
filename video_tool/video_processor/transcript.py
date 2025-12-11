@@ -5,6 +5,7 @@ import re
 from pathlib import Path
 from typing import List, Optional
 
+from .constants import SUPPORTED_VIDEO_SUFFIXES
 from .shared import AudioSegment, VideoFileClip, logger
 
 
@@ -18,11 +19,15 @@ class TranscriptMixin:
             if candidate_path:
                 video_path = str(candidate_path)
             else:
-                mp4s = list(self.output_dir.glob("*.mp4"))
-                if not mp4s:
-                    mp4s = list(self.input_dir.glob("*.mp4"))
-                if mp4s:
-                    video_path = str(mp4s[0])
+                videos: List[Path] = []
+                for suffix in SUPPORTED_VIDEO_SUFFIXES:
+                    videos.extend(self.output_dir.glob(f"*{suffix}"))
+                if not videos:
+                    for suffix in SUPPORTED_VIDEO_SUFFIXES:
+                        videos.extend(self.input_dir.glob(f"*{suffix}"))
+                videos = sorted(videos)
+                if videos:
+                    video_path = str(videos[0])
                 else:
                     logger.error("No video file found for transcript generation")
                     raise FileNotFoundError("No video file found for transcript generation")

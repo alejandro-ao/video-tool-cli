@@ -81,6 +81,19 @@ class TestFileDiscoveryMethods:
         assert len(result) == 4
         assert all(f.suffix.lower() == '.mp4' for f in result)
 
+    def test_get_video_files_includes_mov(self, temp_dir, mock_video_processor):
+        """Ensure MOV files are treated as supported video inputs."""
+        (temp_dir / "clip.mp4").write_bytes(b"fake video")
+        (temp_dir / "clip.mov").write_bytes(b"fake video")
+
+        mock_video_processor.input_dir = temp_dir
+
+        video_results = mock_video_processor.get_video_files()
+        mp4_results = mock_video_processor.get_mp4_files()
+
+        assert {f.name for f in video_results} == {"clip.mp4", "clip.mov"}
+        assert {f.name for f in mp4_results} == {"clip.mp4", "clip.mov"}
+
 
 class TestVideoMetadataExtraction:
     """Test video metadata extraction methods."""

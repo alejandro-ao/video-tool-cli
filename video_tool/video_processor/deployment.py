@@ -374,7 +374,7 @@ class BunnyDeploymentMixin:
         video_id: str,
         file_path: Path,
     ) -> bool:
-        """Stream the MP4 file to Bunny."""
+        """Stream the video file to Bunny."""
         url = f"{self._API_BASE}/library/{library}/videos/{video_id}"
         headers = {"Content-Type": "application/octet-stream"}
 

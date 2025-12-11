@@ -8,6 +8,7 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from .constants import SUPPORTED_VIDEO_SUFFIXES
 from .shared import logger
 
 
@@ -53,9 +54,12 @@ class ContentGenerationMixin:
             if candidate:
                 video_path = str(candidate)
             else:
-                mp4s = list(Path(self.input_dir).glob("*.mp4"))
-                if mp4s:
-                    video_path = str(mp4s[0])
+                videos = []
+                for suffix in SUPPORTED_VIDEO_SUFFIXES:
+                    videos.extend(Path(self.input_dir).glob(f"*{suffix}"))
+                videos = sorted(videos)
+                if videos:
+                    video_path = str(videos[0])
                 else:
                     logger.error("No video file found for description generation")
                     raise FileNotFoundError("No video file found for description generation")

@@ -78,29 +78,29 @@ class ConcatenationMixin:
         skip_reprocessing: bool = False,
         output_path: Optional[str] = None,
     ) -> str:
-        """Concatenate multiple MP4 videos in alphabetical order using ffmpeg."""
+        """Concatenate multiple supported videos in alphabetical order using ffmpeg."""
         processed_dir = self.input_dir / "processed"
-        mp4_files: List[Path] = []
+        video_files: List[Path] = []
 
         if processed_dir.exists():
             try:
-                mp4_files = self.get_mp4_files(str(processed_dir))
+                video_files = self.get_video_files(str(processed_dir))
                 logger.info(f"Using videos from processed directory: {processed_dir}")
             except ValueError:
                 pass
 
-        if not mp4_files:
-            mp4_files = self.get_mp4_files()
+        if not video_files:
+            video_files = self.get_video_files()
             logger.info(f"Using videos from input directory: {self.input_dir}")
 
-        if not mp4_files:
+        if not video_files:
             logger.error(
-                f"No MP4 files found in either the processed directory ({processed_dir}) "
+                f"No supported video files found in either the processed directory ({processed_dir}) "
                 f"or input directory ({self.input_dir})"
             )
             return ""
 
-        logger.info(f"Found {len(mp4_files)} MP4 files to concatenate")
+        logger.info(f"Found {len(video_files)} videos to concatenate")
 
         # Determine output path
         if output_path:
@@ -118,8 +118,8 @@ class ConcatenationMixin:
                 logger.info("Fast concatenation mode: skipping video reprocessing")
                 concat_list = temp_dir / "concat_list.txt"
                 with open(concat_list, "w") as file:
-                    for mp4_file in mp4_files:
-                        file.write(f"file '{mp4_file.resolve()}'\n")
+                    for video_file in video_files:
+                        file.write(f"file '{video_file.resolve()}'\n")
 
                 logger.info("Concatenating videos without reprocessing")
                 subprocess.run(
@@ -153,7 +153,7 @@ class ConcatenationMixin:
                     "stream=width,height,r_frame_rate,codec_name",
                     "-of",
                     "json",
-                    str(mp4_files[0]),
+                    str(video_files[0]),
                 ]
                 probe_result = subprocess.run(
                     probe_cmd, capture_output=True, text=True, check=True
@@ -171,7 +171,7 @@ class ConcatenationMixin:
                     "stream=codec_name,sample_rate,channels",
                     "-of",
                     "json",
-                    str(mp4_files[0]),
+                    str(video_files[0]),
                 ]
                 audio_result = subprocess.run(
                     audio_probe_cmd, capture_output=True, text=True, check=True
@@ -180,8 +180,8 @@ class ConcatenationMixin:
                 audio_stream = audio_info["streams"][0] if audio_info["streams"] else None
 
                 processed_files: List[Path] = []
-                for mp4_file in mp4_files:
-                    output_file = temp_dir / f"processed_{mp4_file.name}"
+                for video_file in video_files:
+                    output_file = temp_dir / f"processed_{video_file.name}"
                     numerator, denominator = stream_info["r_frame_rate"].split("/")
                     fps = float(int(numerator) / int(denominator))
 
@@ -190,7 +190,7 @@ class ConcatenationMixin:
                         "-hwaccel",
                         "auto",
                         "-i",
-                        str(mp4_file),
+                        str(video_file),
                         "-c:v",
                         "h264_videotoolbox"
                         if stream_info["codec_name"] == "h264"
@@ -219,7 +219,7 @@ class ConcatenationMixin:
 
                     cmd.extend(["-y", str(output_file)])
                     logger.info(
-                        f"Standardizing video with hardware acceleration: {mp4_file.name}"
+                        f"Standardizing video with hardware acceleration: {video_file.name}"
                     )
                     subprocess.run(
                         cmd,
@@ -317,26 +317,26 @@ class ConcatenationMixin:
                 )
 
         processed_dir = self.input_dir / "processed"
-        mp4_files: List[Path] = []
+        video_files: List[Path] = []
 
         if processed_dir.exists():
             try:
-                mp4_files = self.get_mp4_files(str(processed_dir))
+                video_files = self.get_video_files(str(processed_dir))
                 logger.info(
                     f"Generating timestamps from processed directory: {processed_dir}"
                 )
             except ValueError:
                 pass
 
-        if not mp4_files:
-            mp4_files = self.get_mp4_files()
+        if not video_files:
+            video_files = self.get_video_files()
             if callable(getattr(logger, "__call__", None)):
                 logger("Generating timestamps from input directory")
             logger.info(f"Generating timestamps from input directory: {self.input_dir}")
 
-        if not mp4_files:
+        if not video_files:
             logger.warning(
-                f"No MP4 files found in either the processed directory ({processed_dir}) "
+                f"No supported video files found in either the processed directory ({processed_dir}) "
                 f"or input directory ({self.input_dir})"
             )
             video_info = {
@@ -353,33 +353,33 @@ class ConcatenationMixin:
         timestamps = []
         current_time = 0
 
-        for mp4_file in mp4_files:
+        for video_file in video_files:
             duration = None
             try:
-                meta = self._get_video_metadata(str(mp4_file))
+                meta = self._get_video_metadata(str(video_file))
                 if isinstance(meta, dict):
                     duration = int(meta.get("duration", 0)) if meta.get("duration") else None
                 elif isinstance(meta, tuple) and len(meta) == 3 and meta[2] is not None:
                     duration = int(meta[2] * 60)
             except Exception as exc:
-                logger.debug(f"Metadata extraction failed for {mp4_file}: {exc}")
+                logger.debug(f"Metadata extraction failed for {video_file}: {exc}")
 
             if duration is None:
                 if callable(getattr(logger, "__call__", None)):
-                    logger(f"Metadata unavailable for {mp4_file}, attempting MoviePy fallback")
-                logger.warning(f"Falling back to MoviePy for duration of {mp4_file}")
+                    logger(f"Metadata unavailable for {video_file}, attempting MoviePy fallback")
+                logger.warning(f"Falling back to MoviePy for duration of {video_file}")
                 try:
                     with self.suppress_external_output():
                         try:
-                            with VideoFileClip(str(mp4_file), audio=False, verbose=False) as video:  # type: ignore[arg-type]
+                            with VideoFileClip(str(video_file), audio=False, verbose=False) as video:  # type: ignore[arg-type]
                                 duration = int(video.duration)
                         except TypeError:
-                            with VideoFileClip(str(mp4_file), audio=False) as video:
+                            with VideoFileClip(str(video_file), audio=False) as video:
                                 duration = int(video.duration)
                 except Exception as exc:
                     if callable(getattr(logger, "__call__", None)):
-                        logger(f"Failed to extract duration for {mp4_file}: {exc}")
-                    logger.error(f"Failed to extract duration for {mp4_file}: {exc}")
+                        logger(f"Failed to extract duration for {video_file}: {exc}")
+                    logger.error(f"Failed to extract duration for {video_file}: {exc}")
                     continue
 
             start_time = current_time
@@ -389,7 +389,7 @@ class ConcatenationMixin:
                 {
                     "start": f"{start_time//3600:02d}:{(start_time%3600)//60:02d}:{start_time%60:02d}",
                     "end": f"{end_time//3600:02d}:{(end_time%3600)//60:02d}:{end_time%60:02d}",
-                    "title": mp4_file.stem,
+                    "title": video_file.stem,
                 }
             )
 
@@ -935,7 +935,7 @@ class ConcatenationMixin:
         crf: int = 23,
         preset: str = "medium",
     ) -> str:
-        """Compress an MP4 video to reduce file size while maintaining quality."""
+        """Compress a video to reduce file size while maintaining quality."""
         input_file = Path(input_path)
         if not input_file.exists():
             raise ValueError(f"Input video does not exist: {input_file}")
