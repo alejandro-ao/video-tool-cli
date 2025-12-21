@@ -267,18 +267,23 @@ def gather_pipeline_config(args: argparse.Namespace) -> PipelineConfig:
     timestamps_from_clips = prompt_yes_no(
         "Generate timestamps from clip boundaries", default=True
     )
-    timestamps_granularity = prompt_non_empty(
-        "Timestamps granularity (low/medium/high)", default="medium"
-    ).lower()
-    if timestamps_granularity not in {"low", "medium", "high"}:
-        print("Invalid granularity; defaulting to 'medium'.")
-        timestamps_granularity = "medium"
-    try:
-        timestamp_notes = input(
-            "Additional instructions for timestamps (optional): "
-        ).strip()
-    except EOFError:
-        timestamp_notes = ""
+
+    # Granularity and notes only apply to transcript-based timestamps
+    timestamps_granularity = "medium"
+    timestamp_notes = ""
+    if not timestamps_from_clips:
+        timestamps_granularity = prompt_non_empty(
+            "Timestamps granularity (low/medium/high)", default="medium"
+        ).lower()
+        if timestamps_granularity not in {"low", "medium", "high"}:
+            print("Invalid granularity; defaulting to 'medium'.")
+            timestamps_granularity = "medium"
+        try:
+            timestamp_notes = input(
+                "Additional instructions for timestamps (optional): "
+            ).strip()
+        except EOFError:
+            timestamp_notes = ""
 
     bunny_library_id = os.getenv("BUNNY_LIBRARY_ID")
     bunny_access_key = os.getenv("BUNNY_ACCESS_KEY")
@@ -368,15 +373,17 @@ def main(argv: list[str] | None = None) -> None:
         str(config.output_dir),
         "--output-path",
         str(config.timestamps_output_path),
-        "--granularity",
-        config.timestamps_granularity,
-        "--timestamp-notes",
-        config.timestamp_notes,
     ]
-    if not config.timestamps_from_clips:
+    if config.timestamps_from_clips:
+        timestamps_command.append("--stamps-from-clips")
+    else:
         timestamps_command.extend([
             "--stamps-from-transcript",
             str(config.transcript_output_path),
+            "--granularity",
+            config.timestamps_granularity,
+            "--timestamp-notes",
+            config.timestamp_notes,
         ])
     run_cli_step("Generating timestamps", timestamps_command)
 

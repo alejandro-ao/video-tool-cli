@@ -354,7 +354,9 @@ def cmd_timestamps(args: argparse.Namespace) -> None:
                 "[yellow]No transcript path provided. A transcript will be generated automatically for timestamps.[/]"
             )
     else:
-        if args.stamps_from_transcript is None:
+        if args.stamps_from_clips:
+            use_transcript = False
+        elif args.stamps_from_transcript is None:
             per_clip = ask_yes_no("Do you want one chapter per clip?", default=True)
             use_transcript = not per_clip
         else:
@@ -1534,6 +1536,11 @@ def create_parser() -> argparse.ArgumentParser:
         nargs="?",
         const="",
         help="Generate timestamps from a transcript (optionally provide the transcript path; omit to auto-generate)",
+    )
+    timestamps_parser.add_argument(
+        "--stamps-from-clips",
+        action="store_true",
+        help="Generate timestamps from clip boundaries (one chapter per clip, no prompts)",
     )
     timestamps_parser.add_argument(
         "--granularity",
