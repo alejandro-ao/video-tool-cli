@@ -138,6 +138,38 @@ def cmd_silence_removal(args: argparse.Namespace) -> None:
     console.print(f"  Processed videos: {processed_dir}")
 
 
+def cmd_download(args: argparse.Namespace) -> None:
+    """Download video from URL."""
+    url = args.url
+    if not url:
+        url = ask_required_text("Video URL")
+
+    output_dir = args.output_dir
+    if not output_dir:
+        output_dir = ask_required_path("Output directory")
+    else:
+        output_dir = normalize_path(output_dir)
+
+    output_path = Path(output_dir).expanduser().resolve()
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    filename = args.name
+    if filename and not filename.endswith(".mp4"):
+        filename += ".mp4"
+
+    console.print(f"[cyan]Downloading video...[/]")
+    console.print(f"  URL: {url}")
+    console.print(f"  Output: {output_path}")
+    if filename:
+        console.print(f"  Filename: {filename}")
+
+    # Use a minimal processor just for download
+    processor = VideoProcessor(str(output_path))
+    processor.download_video(url, output_path, filename)
+
+    console.print(f"[green]✓ Download complete![/]")
+
+
 def cmd_concat(args: argparse.Namespace) -> None:
     """Concatenate videos."""
     input_dir = args.input_dir
@@ -1435,6 +1467,24 @@ def create_parser() -> argparse.ArgumentParser:
         help="Output directory (default: input_dir/output)"
     )
 
+    # Download command
+    download_parser = subparsers.add_parser(
+        "download",
+        help="Download video from URL (YouTube, etc.)"
+    )
+    download_parser.add_argument(
+        "--url",
+        help="Video URL to download"
+    )
+    download_parser.add_argument(
+        "--output-dir",
+        help="Directory to save the video"
+    )
+    download_parser.add_argument(
+        "-n", "--name",
+        help="Output filename (uses video title if not specified)"
+    )
+
     # Concatenation command
     concat_parser = subparsers.add_parser(
         "concat",
@@ -1762,7 +1812,7 @@ def main() -> None:
         sys.exit(0)
 
     # Validate environment
-    commands_without_ai = {"bunny-upload", "bunny-transcript", "bunny-chapters"}
+    commands_without_ai = {"bunny-upload", "bunny-transcript", "bunny-chapters", "download"}
     if args.command not in commands_without_ai:
         missing = [var for var in ("OPENAI_API_KEY", "GROQ_API_KEY") if not os.getenv(var)]
         if missing:
@@ -1775,6 +1825,7 @@ def main() -> None:
     # Route to appropriate command handler
     command_handlers = {
         "silence-removal": cmd_silence_removal,
+        "download": cmd_download,
         "concat": cmd_concat,
         "timestamps": cmd_timestamps,
         "transcript": cmd_transcript,
