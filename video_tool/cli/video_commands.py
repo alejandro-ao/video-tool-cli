@@ -64,34 +64,55 @@ def download(
 
 @video_app.command("silence-removal")
 def silence_removal(
-    input_dir: Optional[Path] = typer.Option(None, "--input-dir", "-i", help="Input directory containing videos"),
-    output_dir: Optional[Path] = typer.Option(None, "--output-dir", "-o", help="Output directory"),
+    input_path: Optional[Path] = typer.Option(None, "--input", "-i", help="Input video file"),
+    output_path: Optional[Path] = typer.Option(None, "--output-path", "-o", help="Output video file path"),
+    threshold: float = typer.Option(1.0, "--threshold", "-t", help="Min silence duration in seconds to remove"),
 ) -> None:
-    """Remove silences from videos."""
-    if not validate_ai_env_vars():
-        raise typer.Exit(1)
-
-    if input_dir is None:
-        input_dir_str = ask_path("Input directory (containing videos)", required=True)
-        input_dir = Path(input_dir_str)
+    """Remove silences from a video file."""
+    if input_path is None:
+        input_path_str = ask_path("Input video file", required=True)
+        input_path = Path(input_path_str)
     else:
-        input_dir = Path(normalize_path(str(input_dir)))
+        input_path = Path(normalize_path(str(input_path)))
 
-    if not input_dir.exists() or not input_dir.is_dir():
-        step_error(f"Invalid input directory: {input_dir}")
+    if not input_path.exists() or not input_path.is_file():
+        step_error(f"Invalid input file: {input_path}")
         raise typer.Exit(1)
 
-    output_dir_path = None
-    if output_dir:
-        output_dir_path = str(Path(normalize_path(str(output_dir))))
+    # Resolve output path
+    if output_path:
+        final_output_path = Path(normalize_path(str(output_path)))
+        if not final_output_path.is_absolute():
+            final_output_path = input_path.parent / final_output_path
+    else:
+        # Interactive: prompt for path, auto-generate if empty
+        default_output = f"{input_path.stem}_no_silence.mp4"
+        output_path_str = ask_path(f"Output file path (defaults to {default_output})", required=False)
+        if output_path_str:
+            final_output_path = Path(output_path_str)
+            if not final_output_path.is_absolute():
+                final_output_path = input_path.parent / final_output_path
+        else:
+            final_output_path = input_path.parent / default_output
 
-    step_start("Removing silences", {"Input": str(input_dir), "Output": output_dir_path or str(input_dir / "output")})
+    if final_output_path.suffix.lower() != ".mp4":
+        final_output_path = final_output_path.with_suffix(".mp4")
+
+    step_start("Removing silences", {
+        "Input": str(input_path),
+        "Output": str(final_output_path),
+        "Threshold": f"{threshold}s"
+    })
 
     with status_spinner("Processing"):
-        processor = VideoProcessor(str(input_dir), output_dir=output_dir_path)
-        processed_dir = processor.remove_silences()
+        processor = VideoProcessor(str(input_path.parent))
+        result = processor.remove_silence_from_video(
+            video_path=str(input_path),
+            output_path=str(final_output_path),
+            min_silence_len=int(threshold * 1000)
+        )
 
-    step_complete("Silence removal complete", processed_dir)
+    step_complete("Silence removal complete", result)
 
 
 @video_app.command("concat")
