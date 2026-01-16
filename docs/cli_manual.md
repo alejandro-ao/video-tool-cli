@@ -12,10 +12,10 @@ video-tool --help
 video-tool concat --help
 
 # Run a command with arguments
-video-tool concat --input-dir ./clips --fast-concat
+video-tool video concat --input-dir ./clips --output-path ./output/final.mp4 --fast-concat
 
 # Run a command with interactive prompts (omit arguments)
-video-tool concat
+video-tool video concat
 ```
 
 ## Installation
@@ -41,8 +41,11 @@ python -m video_tool.cli <command> [options]
 Required environment variables (set in `.env` or your shell):
 
 ```bash
-OPENAI_API_KEY=your_openai_api_key
+# For transcription (Groq Whisper Large V3 Turbo)
 GROQ_API_KEY=your_groq_api_key
+
+# For content generation (descriptions, SEO, social posts, timestamps from transcript)
+OPENAI_API_KEY=your_openai_api_key
 
 # Optional: For Bunny.net uploads
 BUNNY_LIBRARY_ID=your_library_id
@@ -51,33 +54,72 @@ BUNNY_COLLECTION_ID=your_collection_id  # optional
 BUNNY_CAPTION_LANGUAGE=en  # optional, defaults to 'en'
 ```
 
+**API Usage by Command:**
+| Command | Groq | OpenAI |
+|---------|------|--------|
+| `transcript` | Yes | No |
+| `description`, `seo`, `linkedin`, `twitter` | No | Yes |
+| `timestamps` (transcript mode) | No | Yes |
+| `context-cards` | No | Yes |
+| `pipeline` | Yes | Yes |
+
 ## Available Commands
 
 ### Video Processing Commands
 
-#### `silence-removal`
+#### `download`
 
-Remove silences from video clips.
+Download video from a URL (YouTube, etc.) using yt-dlp.
 
 **Required inputs:**
-- Input directory (containing video files)
+- Video URL
 
 **Optional inputs:**
-- Output directory (defaults to `input_dir/output`)
+- Output directory (prompts if not provided)
+- Output filename
 
 **Example:**
 
 ```bash
 # With arguments
-video-tool silence-removal --input-dir ./clips
+video-tool video download --url "https://youtube.com/watch?v=..." --output-dir ./downloads --name "my-video"
 
 # Interactive (prompts for missing inputs)
-video-tool silence-removal
+video-tool video download
 ```
 
 **Arguments:**
-- `--input-dir PATH`: Input directory containing videos
-- `--output-dir PATH`: Output directory (default: input_dir/output)
+- `--url, -u URL`: Video URL to download
+- `--output-dir, -o PATH`: Output directory
+- `--name, -n TEXT`: Output filename (without extension)
+
+---
+
+#### `silence-removal`
+
+Remove silences from a video file.
+
+**Required inputs:**
+- Input video file
+
+**Optional inputs:**
+- Output file path (defaults to `<input_stem>_no_silence.mp4`)
+- Silence threshold in seconds (default: 1.0)
+
+**Example:**
+
+```bash
+# With arguments
+video-tool video silence-removal --input ./clip.mp4 --output-path ./clip_clean.mp4 --threshold 0.5
+
+# Interactive (prompts for missing inputs)
+video-tool video silence-removal
+```
+
+**Arguments:**
+- `--input, -i PATH`: Input video file
+- `--output-path, -o PATH`: Output video file path
+- `--threshold, -t SECONDS`: Min silence duration in seconds to remove (default: 1.0)
 
 ---
 
@@ -87,96 +129,110 @@ Concatenate multiple video clips into a single video.
 
 **Required inputs:**
 - Input directory (containing video files to concatenate)
-- Title for the final video (used to name the output file)
 
 **Optional inputs:**
-- Output directory (defaults to `input_dir/output`)
-- Output path (defaults to `input_dir/output/<title>.mp4`)
+- Output file path (.mp4)
 - Fast concatenation mode (true/false)
 
 **Example:**
 
 ```bash
 # Standard concatenation
-video-tool concat --input-dir ./clips --title "Demo Reel"
+video-tool video concat --input-dir ./clips --output-path ./output/final.mp4
 
 # Fast concatenation (skip reprocessing)
-video-tool concat --input-dir ./clips --fast-concat --title "Demo Reel"
+video-tool video concat --input-dir ./clips --output-path ./final.mp4 --fast-concat
 
 # Interactive
-video-tool concat
+video-tool video concat
 ```
 
 **Arguments:**
-- `--input-dir PATH`: Input directory containing videos to concatenate
-- `--title TEXT`: Title for the final video (required; also used for filename)
-- `--output-dir PATH`: Directory for concat outputs (default: input_dir/output)
-- `--output-path PATH`: Full path for the output file (defaults to `input_dir/output/<title>.mp4`)
-- `--fast-concat`: Use fast concatenation mode (skip reprocessing)
-- Writes a `metadata.json` file alongside the concatenated video with basic details (title, duration, file size)
+- `--input-dir, -i PATH`: Input directory containing videos to concatenate
+- `--output-path, -o PATH`: Full output file path (.mp4)
+- `--fast-concat/-f/--no-fast-concat`: Use fast concatenation mode (skip reprocessing)
+
+Writes a `metadata.json` file alongside the concatenated video with basic details (title, duration, file size).
 
 ---
 
 #### `timestamps`
 
-Generate timestamp information for videos (useful for YouTube chapters).
+Generate video chapter timestamps (useful for YouTube chapters).
+
+Two modes available:
+- **clips**: One chapter per video clip in a directory
+- **transcript**: LLM-analyzed chapters from a VTT transcript
 
 **Required inputs:**
-- Input directory (containing video files) **or** a single MP4 video path
+- Mode: `clips` or `transcript`
+- Input: directory (clips mode) or VTT file (transcript mode)
 
 **Optional inputs:**
-- Output directory (defaults to `input_dir/output`)
-- Transcript-driven chapters: `--stamps-from-transcript [PATH]` (provide a transcript path or omit the path to auto-generate one)
-- Granularity selection (low/medium/high)
-- Additional timestamp instructions specific to the video
-- The generated timestamps are also written to `metadata.json` (created if missing) under the `timestamps` key
+- Output JSON path (defaults to `timestamps.json`)
+- Granularity: low/medium/high (transcript mode only)
+- Additional notes for LLM (transcript mode only)
 
 **Example:**
 
 ```bash
-# Directory: prompt whether to use one chapter per clip
-video-tool timestamps --input-dir ./clips
-# Generate chapters from an existing transcript
-video-tool timestamps --input-dir ./clips --stamps-from-transcript ./clips/output/transcript.vtt
-# Single video: will prompt for (or auto-generate) transcript
-video-tool timestamps --input-dir ./clips/output/concatenated.mp4
+# Clips mode: one chapter per clip
+video-tool video timestamps --mode clips --input ./clips --output-path ./timestamps.json
+
+# Transcript mode: LLM-generated chapters from VTT
+video-tool video timestamps --mode transcript --input ./transcript.vtt --granularity medium
+
+# Interactive (prompts for mode and inputs)
+video-tool video timestamps
 ```
 
 **Arguments:**
-- `--input-dir PATH`: Input directory containing videos or a single MP4 video path
-- `--output-dir PATH`: Output directory (default: input_dir/output)
-- `--stamps-from-transcript [PATH]`: Generate timestamps directly from a transcript (optionally supply the transcript path; leave blank to auto-generate)
-- `--granularity {low|medium|high}`: Control how fine-grained the generated chapters should be
-- `--timestamp-notes TEXT`: Extra instructions to guide chapter generation for this video
+- `--mode, -m MODE`: Generation mode: `clips` or `transcript`
+- `--input, -i PATH`: Input directory (clips mode) or VTT file (transcript mode)
+- `--output-path, -o PATH`: Output JSON file path (default: timestamps.json)
+- `--granularity, -g LEVEL`: Chapter density: `low`/`medium`/`high` (transcript mode only)
+- `--notes, -n TEXT`: Additional LLM instructions (transcript mode only)
 
-**Output:** Creates `timestamps.json` in the output directory.
+**Output:** Creates `timestamps.json` and updates `metadata.json` with timestamps.
 
 ---
 
 #### `transcript`
 
-Generate a transcript for a video using Groq Whisper.
+Generate a VTT transcript from video or audio using Groq Whisper Large V3 Turbo.
+
+Accepts video files (extracts audio internally) or audio files directly (skips extraction). Only requires `GROQ_API_KEY`.
+
+**Supported formats:**
+- Video: `.mp4`, `.mov`
+- Audio: `.mp3`, `.wav`, `.m4a`, `.aac`, `.flac`, `.ogg`
 
 **Required inputs:**
-- Path to video file
+- Input file (video or audio)
 
 **Optional inputs:**
-- Output directory (defaults to `video_dir/output`)
-- Output path (defaults to `video_dir/output/transcript.vtt`)
-- Language (defaults to English)
+- Output path (defaults to `input_dir/transcript.vtt`)
 - Writes/updates `metadata.json` next to the transcript with the full transcript text
 
 **Example:**
 
 ```bash
-video-tool transcript --video-path ./my-video.mp4
+# From video (extracts audio, then transcribes)
+video-tool video transcript --input ./my-video.mp4
+
+# From audio (transcribes directly, no extraction)
+video-tool video transcript --input ./audio.mp3
+
+# Custom output path
+video-tool video transcript -i ./video.mp4 -o ./subs/transcript.vtt
+
+# Interactive mode
+video-tool video transcript
 ```
 
 **Arguments:**
-- `--video-path PATH`: Path to video file
-- `--output-dir PATH`: Directory for transcript outputs (default: video_dir/output)
-- `--output-path PATH`: Full path for the output VTT file (default: video_dir/output/transcript.vtt)
-- `--language LANG`: Language code (default: en)
+- `--input, -i PATH`: Input video or audio file
+- `--output-path, -o PATH`: Output VTT file path (default: input_dir/transcript.vtt)
 
 **Output:** Creates `transcript.vtt` in the chosen output directory and updates/creates `metadata.json`.
 
@@ -495,9 +551,10 @@ video-tool bunny-chapters \
 If you omit required arguments when running a command, the tool will prompt you interactively:
 
 ```bash
-$ video-tool concat
+$ video-tool video concat
 Input directory (containing videos to concatenate): ./clips
-Title for the final video: Demo Reel
+Output file path (.mp4, defaults to input dir): ./output/final.mp4
+Use fast concatenation? [y/N]: y
 ```
 
 This makes it easy to use the tool without memorizing all the argument names.
@@ -509,17 +566,17 @@ This makes it easy to use the tool without memorizing all the argument names.
 Process raw clips into a final video with all content:
 
 ```bash
-# 1. Remove silences from clips
-video-tool silence-removal --input-dir ./clips
+# 1. Remove silences from a clip
+video-tool video silence-removal --input ./clips/clip-01.mp4
 
 # 2. Concatenate into final video
-video-tool concat --input-dir ./clips --fast-concat --title "Project Demo"
+video-tool video concat --input-dir ./clips --output-path ./clips/output/final.mp4 --fast-concat
 
-# 3. Generate timestamps
-video-tool timestamps --input-dir ./clips
+# 3. Generate timestamps (clips mode)
+video-tool video timestamps --mode clips --input ./clips
 
-# 4. Generate transcript
-video-tool transcript --video-path ./clips/output/final-video.mp4
+# 4. Generate transcript (uses Groq Whisper)
+video-tool video transcript --input ./clips/output/final-video.mp4
 
 # 5. Generate context cards
 video-tool context-cards --input-transcript ./clips/output/transcript.vtt
@@ -552,10 +609,14 @@ video-tool bunny-chapters \
 
 ### Quick Transcript Generation
 
-Just need a transcript for an existing video:
+Just need a transcript for an existing video or audio file:
 
 ```bash
-video-tool transcript --video-path ./my-video.mp4
+# From video
+video-tool video transcript --input ./my-video.mp4
+
+# From audio (faster, skips extraction)
+video-tool video transcript --input ./podcast.mp3
 ```
 
 ### Social Media Content Only
@@ -617,15 +678,14 @@ Ensure your input directory contains `.mp4` files. The tool looks for MP4 files 
 
 ## Advanced Usage
 
-### Using Different Input/Output Directories
+### Input and Output Paths
 
-Each command that processes files from a directory follows the pattern:
+Commands use different input/output patterns depending on their function:
 
-```bash
-video-tool <command> --input-dir ./source --output-dir ./destination
-```
+- **Video commands** (`silence-removal`, `concat`, `timestamps`, `transcript`): Use `--input`/`-i` for input and `--output-path`/`-o` for output file path
+- **Content commands** (`description`, `seo`, etc.): Use `--transcript-path` for input and `--output-dir` or `--output-path` for output
 
-The output directory defaults to `input_dir/output` if not specified.
+Output paths default to sensible locations (usually alongside the input file) if not specified.
 
 ### Chaining Commands with Shell Scripts
 
@@ -643,10 +703,10 @@ REPO_URL="https://github.com/user/repo"
 
 echo "Starting video processing pipeline..."
 
-video-tool silence-removal --input-dir "$INPUT_DIR"
-video-tool concat --input-dir "$INPUT_DIR" --fast-concat --title "$VIDEO_TITLE"
-video-tool timestamps --input-dir "$INPUT_DIR"
-video-tool transcript --video-path "$VIDEO_PATH"
+video-tool video silence-removal --input "$INPUT_DIR/clip-01.mp4"
+video-tool video concat --input-dir "$INPUT_DIR" --output-path "$VIDEO_PATH" --fast-concat
+video-tool video timestamps --mode clips --input "$INPUT_DIR"
+video-tool video transcript --input "$VIDEO_PATH"
 video-tool description --transcript-path "$TRANSCRIPT_PATH" --repo-url "$REPO_URL"
 video-tool seo --transcript-path "$TRANSCRIPT_PATH"
 video-tool linkedin --transcript-path "$TRANSCRIPT_PATH"

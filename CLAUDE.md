@@ -41,8 +41,8 @@ pytest --cov=video_tool --cov=main  # with coverage
 ## Environment
 
 Required in `.env`:
-- `OPENAI_API_KEY`
-- `GROQ_API_KEY`
+- `GROQ_API_KEY` - transcription (Groq Whisper Large V3 Turbo)
+- `OPENAI_API_KEY` - content generation (descriptions, SEO, social posts, timestamps)
 
 Optional (Bunny.net): `BUNNY_LIBRARY_ID`, `BUNNY_ACCESS_KEY`, `BUNNY_COLLECTION_ID`
 

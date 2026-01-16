@@ -31,10 +31,10 @@ class VideoProcessorBase:
         self.output_dir = Path(output_dir) if output_dir else self.input_dir / "output"
         # Note: output_dir is created lazily when needed, not in __init__
         self.video_title = video_title.strip() if video_title else None
+        self.show_external_logs = show_external_logs
         self.groq = Groq()
         self.prompts = self._load_prompts()
         self.setup_logging()
-        self.show_external_logs = show_external_logs
         self._preferred_output_filename = (
             self._sanitize_filename(self.video_title)
             if self.video_title
@@ -123,12 +123,9 @@ class VideoProcessorBase:
             return yaml.safe_load(f)
 
     def setup_logging(self):
-        logger.add(
-            "video_processor.log",
-            rotation="1 day",
-            retention="1 week",
-            level="INFO",
-        )
+        from video_tool.logging_config import configure_logging
+
+        configure_logging(verbose=self.show_external_logs)
 
     def _quiet_subprocess_kwargs(self) -> Dict[str, object]:
         """Return subprocess kwargs that suppress stdout/stderr unless verbose logging is enabled."""

@@ -24,6 +24,8 @@ dependencies = [
     "langchain>=0.3.27",
     "langchain-openai>=0.3.35",
     "pydantic>=2.11.4",
+    "typer>=0.15.0",
+    "yt-dlp>=2024.0.0",
 ]
 
 [project.scripts]

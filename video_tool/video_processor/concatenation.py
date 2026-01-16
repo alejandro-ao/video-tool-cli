@@ -395,17 +395,6 @@ class ConcatenationMixin:
 
             current_time = end_time
 
-        transcript_path = self.output_dir / "transcript.vtt"
-        if transcript_path.exists():
-            try:
-                transcript_segments = self._load_transcript_segments(transcript_path)
-                if transcript_segments:
-                    timestamps = self._refine_timestamp_titles_with_structured_output(
-                        timestamps, transcript_segments
-                    )
-            except Exception as exc:
-                logger.warning(f"Unable to refine timestamp titles via transcript: {exc}")
-
         video_info = {
             "timestamps": timestamps,
             "metadata": {
