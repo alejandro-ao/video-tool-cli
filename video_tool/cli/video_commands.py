@@ -123,7 +123,7 @@ def concat(
             final_output_path = final_output_path.with_suffix(".mp4")
     else:
         # Interactive: prompt for path, auto-generate if empty
-        output_path_str = ask_path("Output file path (.mp4)", required=False)
+        output_path_str = ask_path("Output file path (.mp4, defaults to input dir)", required=False)
         if output_path_str:
             final_output_path = Path(output_path_str)
             if not final_output_path.is_absolute():
