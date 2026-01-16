@@ -180,19 +180,17 @@ class ContentGenerationMixin:
             if not isinstance(polished_description, str):
                 polished_description = str(polished_description)
         except Exception as exc:
-            if callable(logger):
-                logger()
             logger.error(f"Error extracting polished description: {exc}")
             return ""
 
         resolved_output_path = Path(output_path) if output_path else self.output_dir / "description.md"
+        if resolved_output_path.is_dir():
+            resolved_output_path = resolved_output_path / "description.md"
         resolved_output_path.parent.mkdir(parents=True, exist_ok=True)
         try:
             with open(resolved_output_path, "w") as file:
                 file.write(polished_description)
         except Exception as exc:
-            if callable(logger):
-                logger()
             logger.error(f"Error writing description file: {exc}")
             return ""
 
@@ -248,13 +246,9 @@ class ContentGenerationMixin:
             with open(description_path) as file:
                 description = file.read()
         except FileNotFoundError:
-            if callable(logger):
-                logger()
             logger.error(f"Description file not found: {description_path}")
             return ""
         except Exception as exc:
-            if callable(logger):
-                logger()
             logger.error(f"Error reading description file: {exc}")
             return ""
 
@@ -274,8 +268,6 @@ class ContentGenerationMixin:
 
             return str(output_path)
         except Exception as exc:
-            if callable(logger):
-                logger()
             logger.error(f"Error generating SEO keywords: {exc}")
             return ""
 
