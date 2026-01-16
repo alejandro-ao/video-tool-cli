@@ -23,9 +23,16 @@ from video_tool.ui import (
     step_start,
     step_warning,
 )
-from video_tool.video_processor.constants import SUPPORTED_VIDEO_SUFFIXES
+from video_tool.config import ensure_config
+from video_tool.video_processor.constants import (
+    SUPPORTED_VIDEO_SUFFIXES,
+    SUPPORTED_AUDIO_SUFFIXES,
+)
 
 SUPPORTED_VIDEO_LABEL = ", ".join(ext.lstrip(".").upper() for ext in SUPPORTED_VIDEO_SUFFIXES)
+SUPPORTED_AUDIO_LABEL = ", ".join(ext.lstrip(".").upper() for ext in SUPPORTED_AUDIO_SUFFIXES)
+SUPPORTED_MEDIA_LABEL = f"{SUPPORTED_VIDEO_LABEL}, {SUPPORTED_AUDIO_LABEL}"
+TRANSCRIPT_SUFFIXES = (".vtt", ".md", ".txt")
 
 
 def _find_supported_videos(directory: Path) -> List[Path]:
@@ -38,76 +45,70 @@ def _find_supported_videos(directory: Path) -> List[Path]:
 
 @content_app.command("description")
 def description(
-    transcript_path: Optional[Path] = typer.Option(None, "--transcript-path", "-t", help="Path to transcript (.vtt)"),
-    video_path: Optional[Path] = typer.Option(None, "--video-path", "-v", help="Path to video (auto-generates transcript)"),
-    output_dir: Optional[Path] = typer.Option(None, "--output-dir", "-o", help="Output directory"),
-    output_path: Optional[Path] = typer.Option(None, "--output-path", help="Full path for output description"),
-    repo_url: Optional[str] = typer.Option(None, "--repo-url", "-r", help="Repository URL to include"),
-    timestamps_path: Optional[Path] = typer.Option(None, "--timestamps-path", help="Path to timestamps JSON"),
+    input_path: Optional[Path] = typer.Option(None, "--input", "-i", help="Input file (video/audio/vtt/md/txt)"),
+    output_path: Optional[Path] = typer.Option(None, "--output-path", "-o", help="Full path for output description"),
+    timestamps_path: Optional[Path] = typer.Option(None, "--timestamps-path", "-t", help="Path to timestamps JSON"),
 ) -> None:
-    """Generate video description from transcript."""
+    """Generate video description from transcript or media file."""
     if not validate_ai_env_vars():
         raise typer.Exit(1)
 
+    # Ensure config exists (first-time setup if needed)
+    ensure_config()
+
     transcript_file: Optional[Path] = None
-    video_file: Optional[Path] = None
+    media_file: Optional[Path] = None
     transcript_generated = False
 
-    # Resolve transcript
-    if transcript_path is None:
-        transcript_input = ask_path("Path to transcript (.vtt) (leave blank to generate from video)", required=False)
-        if transcript_input:
-            transcript_file = Path(transcript_input)
+    # Resolve input
+    if input_path is None:
+        input_str = ask_path(f"Input file ({SUPPORTED_MEDIA_LABEL}, VTT, MD, TXT)", required=True)
+        input_path = Path(input_str)
     else:
-        transcript_file = Path(normalize_path(str(transcript_path)))
+        input_path = Path(normalize_path(str(input_path)))
 
-    if transcript_file and (not transcript_file.exists() or not transcript_file.is_file()):
-        step_error(f"Invalid transcript file: {transcript_file}")
+    if not input_path.exists() or not input_path.is_file():
+        step_error(f"Invalid input file: {input_path}")
         raise typer.Exit(1)
 
-    # If no transcript, we need a video to generate one
-    if transcript_file is None:
-        if video_path is None:
-            video_path_str = ask_path(f"Path to video file ({SUPPORTED_VIDEO_LABEL})", required=True)
-            video_file = Path(video_path_str)
-        else:
-            video_file = Path(normalize_path(str(video_path)))
-
-        if not video_file.exists() or not video_file.is_file():
-            step_error(f"Invalid video file: {video_file}")
-            raise typer.Exit(1)
-
-        if video_file.suffix.lower() not in SUPPORTED_VIDEO_SUFFIXES:
-            step_error(f"Video must be one of ({SUPPORTED_VIDEO_LABEL}): {video_file}")
-            raise typer.Exit(1)
-
-    # Determine output directory
-    if transcript_file:
-        default_output_dir = transcript_file.parent
+    # Determine input type and handle accordingly
+    suffix = input_path.suffix.lower()
+    if suffix in TRANSCRIPT_SUFFIXES:
+        # Use directly as transcript
+        transcript_file = input_path
+    elif suffix in SUPPORTED_VIDEO_SUFFIXES + SUPPORTED_AUDIO_SUFFIXES:
+        # Transcribe first
+        media_file = input_path
     else:
-        default_output_dir = video_file.parent / "output"
+        step_error(f"Unsupported file type: {suffix}")
+        raise typer.Exit(1)
 
-    output_dir_path = Path(normalize_path(str(output_dir))) if output_dir else default_output_dir
-    final_output_path = str(Path(normalize_path(str(output_path)))) if output_path else str(output_dir_path / "description.md")
+    # Determine default output path
+    default_output_path = input_path.parent / "description.md"
+
+    # Ask for output path if not provided
+    if output_path is None:
+        output_str = ask_path(f"Output path (default: {default_output_path})", required=False)
+        if output_str:
+            output_path = Path(output_str)
+
+    final_output_path = str(Path(normalize_path(str(output_path)))) if output_path else str(default_output_path)
+    output_dir_path = Path(final_output_path).parent
 
     # Generate transcript if needed
     processor: Optional[VideoProcessor] = None
-    if transcript_file is None and video_file:
-        transcript_dir = output_dir_path
-        processor = VideoProcessor(str(video_file.parent), output_dir=str(output_dir_path))
-        transcript_output = str(transcript_dir / "transcript.vtt")
+    if transcript_file is None and media_file:
+        output_dir_path.mkdir(parents=True, exist_ok=True)
+        processor = VideoProcessor(str(media_file.parent), output_dir=str(output_dir_path))
+        transcript_output = str(output_dir_path / "transcript.vtt")
 
-        step_start("Generating transcript", {"Video": str(video_file)})
+        step_start("Generating transcript", {"Input": str(media_file)})
         with status_spinner("Transcribing"):
-            transcript_result = processor.generate_transcript(str(video_file), output_path=transcript_output)
+            transcript_result = processor.generate_transcript(str(media_file), output_path=transcript_output)
         step_complete("Transcript generated", transcript_result)
 
         transcript_file = Path(transcript_result)
         transcript_generated = True
-
-    # Interactive repo URL
-    if repo_url is None:
-        repo_url = ask_path("Repository URL (optional)", required=False)
 
     # Handle timestamps path
     timestamps_str = None
@@ -117,30 +118,29 @@ def description(
             step_warning(f"Timestamps file not found: {timestamps_str}")
             timestamps_str = None
 
-    # Find video file if not already set
-    if video_file is None:
+    # Find media file if not already set (for video_path param in generate_description)
+    if media_file is None:
         search_dirs = [transcript_file.parent, transcript_file.parent.parent]
         video_candidates = []
         for candidate_dir in search_dirs:
             if candidate_dir.exists():
                 video_candidates.extend(_find_supported_videos(candidate_dir))
 
-        if not video_candidates:
-            step_error("No video file found near transcript")
-            raise typer.Exit(1)
-
-        video_file = video_candidates[0]
+        if video_candidates:
+            media_file = video_candidates[0]
+        else:
+            # Use transcript file's stem as fallback title
+            media_file = transcript_file
 
     # Create processor if needed
     if processor is None:
-        processor = VideoProcessor(str(video_file.parent), output_dir=str(output_dir_path))
+        processor = VideoProcessor(str(transcript_file.parent), output_dir=str(output_dir_path))
 
     step_start("Generating description", {"Transcript": str(transcript_file), "Output": final_output_path})
 
     with status_spinner("Processing"):
         description_result = processor.generate_description(
-            video_path=str(video_file),
-            repo_url=repo_url,
+            video_path=str(media_file),
             transcript_path=str(transcript_file),
             output_path=final_output_path,
             timestamps_path=timestamps_str,

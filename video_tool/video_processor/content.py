@@ -80,7 +80,7 @@ class ContentGenerationMixin:
         prompt = self.prompts["generate_description"].format(transcript=transcript)
 
         response = self._invoke_openai_chat(
-            model="gpt-5", messages=[{"role": "user", "content": prompt}]
+            command="description", messages=[{"role": "user", "content": prompt}]
         )
 
         links = [
@@ -176,7 +176,7 @@ class ContentGenerationMixin:
         )
 
         polished_description_response = self._invoke_openai_chat(
-            model="gpt-5",
+            command="description",
             messages=[{"role": "user", "content": polish_description_prompt}],
         )
 
@@ -230,7 +230,7 @@ class ContentGenerationMixin:
             prompt = self.prompts["generate_context_cards"].format(transcript=transcript)
 
             response = self._invoke_openai_chat(
-                model="gpt-4o",
+                command="context_cards",
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=1500,
                 temperature=0.4,
@@ -269,7 +269,7 @@ class ContentGenerationMixin:
             )
 
             response = self._invoke_openai_chat(
-                model="gpt-5", messages=[{"role": "user", "content": prompt}]
+                command="seo", messages=[{"role": "user", "content": prompt}]
             )
 
             output_path = Path(description_path).parent / "keywords.txt"
@@ -300,7 +300,7 @@ class ContentGenerationMixin:
             prompt = self.prompts["generate_linkedin_post"].format(transcript=transcript)
 
             response = self._invoke_openai_chat(
-                model="gpt-5",
+                command="linkedin",
                 messages=[{"role": "user", "content": prompt}],
             )
 
@@ -331,7 +331,7 @@ class ContentGenerationMixin:
             prompt = self.prompts["generate_twitter_post"].format(transcript=transcript)
 
             response = self._invoke_openai_chat(
-                model="gpt-5",
+                command="twitter",
                 messages=[{"role": "user", "content": prompt}],
             )
 
@@ -450,7 +450,7 @@ class ContentGenerationMixin:
         try:
             if output_format == "json":
                 response = self._invoke_openai_chat_structured_output(
-                    model="gpt-5",
+                    command="summary",
                     messages=[
                         {"role": "system", "content": system_message},
                         {"role": "user", "content": user_message},
@@ -468,7 +468,7 @@ class ContentGenerationMixin:
                 )
             else:
                 response = self._invoke_openai_chat(
-                    model="gpt-5",
+                    command="summary",
                     messages=[
                         {"role": "system", "content": system_message},
                         {"role": "user", "content": user_message},

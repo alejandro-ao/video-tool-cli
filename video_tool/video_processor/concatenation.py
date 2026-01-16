@@ -579,7 +579,7 @@ class ConcatenationMixin:
 
         try:
             return self._invoke_openai_chat_structured_output(
-                model="gpt-4o-mini",
+                command="timestamps",
                 messages=messages,
                 schema=TranscriptChapterResponse,
                 temperature=0.35,
@@ -765,7 +765,7 @@ class ConcatenationMixin:
 
         try:
             structured_response = self._invoke_openai_chat_structured_output(
-                model="gpt-4o-mini",
+                command="timestamps",
                 messages=messages,
                 schema=ChapterUpdateResponse,
                 temperature=0.3,

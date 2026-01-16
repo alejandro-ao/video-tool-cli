@@ -12,6 +12,8 @@ import yaml
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from pydantic import BaseModel
 
+from video_tool.config import get_llm_config
+
 from .shared import Groq, OpenAI, logger
 
 StructuredResponse = TypeVar("StructuredResponse", bound=BaseModel)
@@ -147,12 +149,16 @@ class VideoProcessorBase:
     def _build_openai_chat_model(
         self,
         *,
-        model: str,
+        command: str,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
     ):
         """Instantiate a LangChain ChatOpenAI model with the requested parameters."""
-        llm_kwargs: Dict[str, Union[str, float, int]] = {"model": model}
+        llm_config = get_llm_config(command)
+        llm_kwargs: Dict[str, Union[str, float, int]] = {
+            "model": llm_config.model,
+            "base_url": llm_config.base_url,
+        }
         if temperature is not None:
             llm_kwargs["temperature"] = temperature
         if max_tokens is not None:
@@ -191,14 +197,14 @@ class VideoProcessorBase:
     def _invoke_openai_chat(
         self,
         *,
-        model: str,
+        command: str,
         messages: List[Union[Dict[str, str], BaseMessage]],
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
     ) -> AIMessage:
         """Execute a chat completion request using LangChain's OpenAI integration."""
         chat_model = self._build_openai_chat_model(
-            model=model, temperature=temperature, max_tokens=max_tokens
+            command=command, temperature=temperature, max_tokens=max_tokens
         )
         langchain_messages = self._convert_messages_to_langchain(messages)
         response = chat_model.invoke(langchain_messages)
@@ -209,7 +215,7 @@ class VideoProcessorBase:
     def _invoke_openai_chat_structured_output(
         self,
         *,
-        model: str,
+        command: str,
         messages: List[Union[Dict[str, str], BaseMessage]],
         schema: Type[StructuredResponse],
         temperature: Optional[float] = None,
@@ -218,7 +224,7 @@ class VideoProcessorBase:
     ) -> StructuredResponse:
         """Execute a chat request that returns structured output defined by the schema."""
         chat_model = self._build_openai_chat_model(
-            model=model, temperature=temperature, max_tokens=max_tokens
+            command=command, temperature=temperature, max_tokens=max_tokens
         )
         structured_model = chat_model.with_structured_output(schema, include_raw=include_raw)
         langchain_messages = self._convert_messages_to_langchain(messages)

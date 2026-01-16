@@ -19,7 +19,14 @@ import typer
 from dotenv import load_dotenv
 
 from video_tool.logging_config import configure_logging
-from video_tool.ui import console, step_error
+from video_tool.ui import console, step_error, step_complete
+from video_tool.config import (
+    load_config,
+    set_llm_config,
+    reset_config,
+    get_llm_config,
+    CONFIG_PATH,
+)
 
 # Create main app and sub-apps
 app = typer.Typer(
@@ -108,6 +115,51 @@ def validate_bunny_env_vars(
         step_error(f"Missing Bunny credentials: {', '.join(missing)}")
         return False
     return True
+
+
+@app.command("config")
+def config_command(
+    show: bool = typer.Option(False, "--show", "-s", help="Show current config"),
+    command: Optional[str] = typer.Option(None, "--command", "-c", help="Command to configure (e.g., description, seo)"),
+    model: Optional[str] = typer.Option(None, "--model", "-m", help="Set model for command"),
+    base_url: Optional[str] = typer.Option(None, "--base-url", "-b", help="Set base URL for command"),
+    reset: bool = typer.Option(False, "--reset", help="Reset config to defaults"),
+) -> None:
+    """Configure LLM settings for video-tool."""
+    import yaml
+
+    if reset:
+        reset_config()
+        console.print(f"[green]Config reset to defaults[/green]")
+        console.print(f"[dim]Config file: {CONFIG_PATH}[/dim]")
+        return
+
+    if show:
+        config = load_config()
+        if command:
+            llm_cfg = get_llm_config(command)
+            console.print(f"[bold]{command}[/bold]:")
+            console.print(f"  base_url: {llm_cfg.base_url}")
+            console.print(f"  model: {llm_cfg.model}")
+        else:
+            console.print(yaml.safe_dump(config, default_flow_style=False, sort_keys=False))
+        console.print(f"\n[dim]Config file: {CONFIG_PATH}[/dim]")
+        return
+
+    if model or base_url:
+        set_llm_config(command, base_url=base_url, model=model)
+        target = command or "default"
+        step_complete(f"Config updated for '{target}'", str(CONFIG_PATH))
+        return
+
+    # No flags = show help
+    console.print("Usage: video-tool config [OPTIONS]")
+    console.print("\nOptions:")
+    console.print("  --show, -s          Show current config")
+    console.print("  --command, -c TEXT  Command to configure")
+    console.print("  --model, -m TEXT    Set model")
+    console.print("  --base-url, -b TEXT Set base URL")
+    console.print("  --reset             Reset to defaults")
 
 
 # Import command modules to register commands
