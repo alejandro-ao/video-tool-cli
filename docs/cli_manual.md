@@ -65,6 +65,60 @@ BUNNY_CAPTION_LANGUAGE=en  # optional, defaults to 'en'
 
 ## Available Commands
 
+### Configuration
+
+#### `config`
+
+Configure LLM and links settings for video-tool.
+
+**Options:**
+- `--show, -s`: Show current config
+- `--command, -c TEXT`: Command to configure (e.g., description, seo)
+- `--model, -m TEXT`: Set model for command
+- `--base-url, -b TEXT`: Set base URL for command
+- `--links, -l`: Manage persistent links
+- `--reset`: Reset config to defaults
+
+**Example:**
+
+```bash
+# Show all config (LLM + links)
+video-tool config --show
+
+# Configure default model
+video-tool config --model gpt-4o
+
+# Configure model for a specific command
+video-tool config --command description --model gpt-4o-mini
+
+# Manage persistent links (interactive)
+video-tool config --links
+
+# Reset to defaults
+video-tool config --reset
+```
+
+**Persistent Links:**
+
+Use `video-tool config --links` to interactively add/edit links that will be included in descriptions when using the `--links` flag. Links are stored in `~/.config/video-tool/config.yaml`:
+
+```yaml
+llm:
+  default:
+    base_url: "https://api.openai.com/v1"
+    model: "gpt-4o"
+
+links:
+  - description: "🚀 Complete AI Engineer Bootcamp"
+    url: "https://aibootcamp.dev"
+  - description: "❤️ Buy me a coffee"
+    url: "https://example.com/support"
+  - description: "💬 Discord Server"
+    url: "https://example.com/discord"
+```
+
+---
+
 ### Video Processing Commands
 
 #### `download`
@@ -279,32 +333,58 @@ video-tool context-cards \
 Generate a video description from a transcript.
 
 **Required inputs:**
-- Path to video transcript (.vtt file)
+- Input file (video/audio/vtt/md/txt)
 
 **Optional inputs:**
-- Video path (MP4) if a transcript isn't provided; will auto-generate transcript.vtt
-- Repository URL (for including code links)
-- Output directory (defaults to `transcript_dir`)
-- Output path (defaults to `transcript_dir/description.md`)
+- Output path (defaults to `input_dir/description.md`)
+- Timestamps JSON path (for including chapter timestamps)
+- Links flags for including links in the description
 - Updates/creates `metadata.json` with the full description text
-  - If transcript is auto-generated from video, the full transcript is also stored in `metadata.json`
+
+**Link Options:**
+
+The description command supports flexible link inclusion:
+
+| Flag | Purpose |
+|------|---------|
+| `--links, -l` | Include persistent links from config |
+| `--code-link URL` | Video-specific link to code repository |
+| `--article-link URL` | Video-specific link to written article |
+
+Links are added in order: video-specific first (code/article), then persistent links from config.
 
 **Example:**
 
 ```bash
-video-tool description --transcript-path ./output/transcript.vtt --repo-url https://github.com/user/repo
-# Auto-generate transcript from video if transcript is missing
-video-tool description --video-path ./output/final-video.mp4 --repo-url https://github.com/user/repo
+# Basic usage (no links)
+video-tool content description -i ./transcript.vtt
+
+# With persistent links from config
+video-tool content description -i ./transcript.vtt --links
+
+# With video-specific code link
+video-tool content description -i ./transcript.vtt --links --code-link https://github.com/user/repo
+
+# With both video-specific links
+video-tool content description -i ./transcript.vtt --links \
+  --code-link https://github.com/user/repo \
+  --article-link https://blog.example.com/post
+
+# Auto-generate transcript from video
+video-tool content description -i ./video.mp4 --links
 ```
 
 **Arguments:**
-- `--transcript-path PATH`: Path to video transcript (.vtt file)
-- `--video-path PATH`: Path to video file (auto-generates transcript if transcript is omitted)
-- `--repo-url URL`: Repository URL to include in description (optional)
-- `--output-dir PATH`: Directory for description output (default: transcript_dir)
-- `--output-path PATH`: Full path for the output description file (default: transcript_dir/description.md)
+- `--input, -i PATH`: Input file (video/audio/vtt/md/txt)
+- `--output-path, -o PATH`: Full path for output description (default: input_dir/description.md)
+- `--timestamps, -t PATH`: Path to timestamps JSON file
+- `--links, -l`: Include persistent links from config
+- `--code-link URL`: Link to code repository for this video
+- `--article-link URL`: Link to written article for this video
 
 **Output:** Creates `description.md` in the chosen output directory and updates/creates `metadata.json`.
+
+**First-time link setup:** If `--links` is passed but no links exist in config, you'll be prompted to add them interactively.
 
 ---
 
@@ -581,10 +661,11 @@ video-tool video transcript --input ./clips/output/final-video.mp4
 # 5. Generate context cards
 video-tool context-cards --input-transcript ./clips/output/transcript.vtt
 
-# 6. Generate description
-video-tool description \
-  --transcript-path ./clips/output/transcript.vtt \
-  --repo-url https://github.com/user/repo
+# 6. Generate description with links
+video-tool content description \
+  -i ./clips/output/transcript.vtt \
+  --links \
+  --code-link https://github.com/user/repo
 
 # 7. Generate SEO keywords
 video-tool seo --transcript-path ./clips/output/transcript.vtt
@@ -707,10 +788,10 @@ video-tool video silence-removal --input "$INPUT_DIR/clip-01.mp4"
 video-tool video concat --input-dir "$INPUT_DIR" --output-path "$VIDEO_PATH" --fast-concat
 video-tool video timestamps --mode clips --input "$INPUT_DIR"
 video-tool video transcript --input "$VIDEO_PATH"
-video-tool description --transcript-path "$TRANSCRIPT_PATH" --repo-url "$REPO_URL"
-video-tool seo --transcript-path "$TRANSCRIPT_PATH"
-video-tool linkedin --transcript-path "$TRANSCRIPT_PATH"
-video-tool twitter --transcript-path "$TRANSCRIPT_PATH"
+video-tool content description -i "$TRANSCRIPT_PATH" --links --code-link "$REPO_URL"
+video-tool content seo --transcript-path "$TRANSCRIPT_PATH"
+video-tool content linkedin --transcript-path "$TRANSCRIPT_PATH"
+video-tool content twitter --transcript-path "$TRANSCRIPT_PATH"
 
 echo "Pipeline complete!"
 ```
