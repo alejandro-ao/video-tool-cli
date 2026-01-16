@@ -41,8 +41,11 @@ python -m video_tool.cli <command> [options]
 Required environment variables (set in `.env` or your shell):
 
 ```bash
-OPENAI_API_KEY=your_openai_api_key
+# For transcription (Groq Whisper Large V3 Turbo)
 GROQ_API_KEY=your_groq_api_key
+
+# For content generation (descriptions, SEO, social posts, timestamps from transcript)
+OPENAI_API_KEY=your_openai_api_key
 
 # Optional: For Bunny.net uploads
 BUNNY_LIBRARY_ID=your_library_id
@@ -50,6 +53,15 @@ BUNNY_ACCESS_KEY=your_access_key
 BUNNY_COLLECTION_ID=your_collection_id  # optional
 BUNNY_CAPTION_LANGUAGE=en  # optional, defaults to 'en'
 ```
+
+**API Usage by Command:**
+| Command | Groq | OpenAI |
+|---------|------|--------|
+| `transcript` | Yes | No |
+| `description`, `seo`, `linkedin`, `twitter` | No | Yes |
+| `timestamps` (transcript mode) | No | Yes |
+| `context-cards` | No | Yes |
+| `pipeline` | Yes | Yes |
 
 ## Available Commands
 
@@ -155,28 +167,40 @@ video-tool timestamps --input-dir ./clips/output/concatenated.mp4
 
 #### `transcript`
 
-Generate a transcript for a video using Groq Whisper.
+Generate a VTT transcript from video or audio using Groq Whisper Large V3 Turbo.
+
+Accepts video files (extracts audio internally) or audio files directly (skips extraction). Only requires `GROQ_API_KEY`.
+
+**Supported formats:**
+- Video: `.mp4`, `.mov`
+- Audio: `.mp3`, `.wav`, `.m4a`, `.aac`, `.flac`, `.ogg`
 
 **Required inputs:**
-- Path to video file
+- Input file (video or audio)
 
 **Optional inputs:**
-- Output directory (defaults to `video_dir/output`)
-- Output path (defaults to `video_dir/output/transcript.vtt`)
-- Language (defaults to English)
+- Output path (defaults to `input_dir/transcript.vtt`)
 - Writes/updates `metadata.json` next to the transcript with the full transcript text
 
 **Example:**
 
 ```bash
-video-tool transcript --video-path ./my-video.mp4
+# From video (extracts audio, then transcribes)
+video-tool video transcript --input ./my-video.mp4
+
+# From audio (transcribes directly, no extraction)
+video-tool video transcript --input ./audio.mp3
+
+# Custom output path
+video-tool video transcript -i ./video.mp4 -o ./subs/transcript.vtt
+
+# Interactive mode
+video-tool video transcript
 ```
 
 **Arguments:**
-- `--video-path PATH`: Path to video file
-- `--output-dir PATH`: Directory for transcript outputs (default: video_dir/output)
-- `--output-path PATH`: Full path for the output VTT file (default: video_dir/output/transcript.vtt)
-- `--language LANG`: Language code (default: en)
+- `--input, -i PATH`: Input video or audio file
+- `--output-path, -o PATH`: Output VTT file path (default: input_dir/transcript.vtt)
 
 **Output:** Creates `transcript.vtt` in the chosen output directory and updates/creates `metadata.json`.
 
@@ -518,8 +542,8 @@ video-tool concat --input-dir ./clips --fast-concat --title "Project Demo"
 # 3. Generate timestamps
 video-tool timestamps --input-dir ./clips
 
-# 4. Generate transcript
-video-tool transcript --video-path ./clips/output/final-video.mp4
+# 4. Generate transcript (uses Groq Whisper)
+video-tool video transcript --input ./clips/output/final-video.mp4
 
 # 5. Generate context cards
 video-tool context-cards --input-transcript ./clips/output/transcript.vtt
@@ -552,10 +576,14 @@ video-tool bunny-chapters \
 
 ### Quick Transcript Generation
 
-Just need a transcript for an existing video:
+Just need a transcript for an existing video or audio file:
 
 ```bash
-video-tool transcript --video-path ./my-video.mp4
+# From video
+video-tool video transcript --input ./my-video.mp4
+
+# From audio (faster, skips extraction)
+video-tool video transcript --input ./podcast.mp3
 ```
 
 ### Social Media Content Only
@@ -646,7 +674,7 @@ echo "Starting video processing pipeline..."
 video-tool silence-removal --input-dir "$INPUT_DIR"
 video-tool concat --input-dir "$INPUT_DIR" --fast-concat --title "$VIDEO_TITLE"
 video-tool timestamps --input-dir "$INPUT_DIR"
-video-tool transcript --video-path "$VIDEO_PATH"
+video-tool video transcript --input "$VIDEO_PATH"
 video-tool description --transcript-path "$TRANSCRIPT_PATH" --repo-url "$REPO_URL"
 video-tool seo --transcript-path "$TRANSCRIPT_PATH"
 video-tool linkedin --transcript-path "$TRANSCRIPT_PATH"

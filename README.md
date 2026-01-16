@@ -18,8 +18,8 @@ Automate Alejandro's YouTube production workflow end to end. Given a directory o
 - `ffmpeg` available on the system path
 - `yt-dlp` for video downloads (installed automatically)
 - Environment variables:
-  - `OPENAI_API_KEY` (required for Whisper and text generation)
-  - `GROQ_API_KEY` (required for additional LLM calls)
+  - `GROQ_API_KEY` (transcription via Groq Whisper Large V3 Turbo)
+  - `OPENAI_API_KEY` (content generation: descriptions, SEO, social posts, timestamps)
   - *(Optional)* Bunny Stream deployment:
     - `BUNNY_LIBRARY_ID`
     - `BUNNY_ACCESS_KEY`
@@ -99,7 +99,7 @@ video-tool video download --url "https://youtube.com/watch?v=..." --output-dir .
 **Video processing:**
 - `video-tool video concat` - Concatenate clips into single video
 - `video-tool video timestamps` - Generate chapter timestamps
-- `video-tool video transcript` - Transcribe audio with Whisper
+- `video-tool video transcript` - Transcribe video/audio with Groq Whisper
 - `video-tool video silence-removal` - Remove silent sections
 - `video-tool video download` - Download from URL
 
