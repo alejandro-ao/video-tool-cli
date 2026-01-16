@@ -166,13 +166,14 @@ def ask_path(prompt_text: str, required: bool = True) -> Optional[str]:
     while True:
         suffix = "" if required else " [dim](optional)[/dim]"
         response = Prompt.ask(f"[bold cyan]{prompt_text}[/bold cyan]{suffix}", console=console)
-        normalized = normalize_path(response)
 
-        if normalized:
-            return normalized
-        if not required:
-            return None
-        console.print("[yellow]Please provide a path.[/yellow]")
+        if not response or not response.strip():
+            if not required:
+                return None
+            console.print("[yellow]Please provide a path.[/yellow]")
+            continue
+
+        return normalize_path(response)
 
 
 def ask_text(prompt_text: str, required: bool = True, default: Optional[str] = None) -> Optional[str]:

@@ -97,9 +97,7 @@ def silence_removal(
 @video_app.command("concat")
 def concat(
     input_dir: Optional[Path] = typer.Option(None, "--input-dir", "-i", help="Input directory containing videos"),
-    output_dir: Optional[Path] = typer.Option(None, "--output-dir", "-o", help="Output directory"),
-    output_path: Optional[Path] = typer.Option(None, "--output-path", help="Full path for output video"),
-    title: Optional[str] = typer.Option(None, "--title", "-t", help="Title for the final video"),
+    output_path: Optional[Path] = typer.Option(None, "--output-path", "-o", help="Full output file path (.mp4)"),
     fast_concat: Optional[bool] = typer.Option(None, "--fast-concat/--no-fast-concat", "-f", help="Use fast concatenation (skip reprocessing)"),
 ) -> None:
     """Concatenate videos into a single file."""
@@ -116,31 +114,46 @@ def concat(
         step_error(f"Invalid input directory: {input_dir}")
         raise typer.Exit(1)
 
-    video_title = title.strip() if title else None
-    if not video_title:
-        video_title = ask_text("Title for the final video", required=True)
+    # Resolve output path (relative paths resolve to input_dir)
+    if output_path:
+        final_output_path = Path(normalize_path(str(output_path)))
+        if not final_output_path.is_absolute():
+            final_output_path = input_dir / final_output_path
+        if final_output_path.suffix.lower() != ".mp4":
+            final_output_path = final_output_path.with_suffix(".mp4")
+    else:
+        # Interactive: prompt for path, auto-generate if empty
+        output_path_str = ask_path("Output file path (.mp4)", required=False)
+        if output_path_str:
+            final_output_path = Path(output_path_str)
+            if not final_output_path.is_absolute():
+                final_output_path = input_dir / final_output_path
+            if final_output_path.suffix.lower() != ".mp4":
+                final_output_path = final_output_path.with_suffix(".mp4")
+        else:
+            # Auto-generate with timestamp
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            final_output_path = input_dir / "output" / f"concat_{timestamp}.mp4"
+
+    output_dir_path = final_output_path.parent
+    video_title = final_output_path.stem  # Derive title from filename
 
     # Prompt for fast concat if not specified
     use_fast_concat = fast_concat
     if use_fast_concat is None:
         use_fast_concat = ask_confirm("Use fast concatenation?", default=False)
 
-    output_dir_path = Path(normalize_path(str(output_dir))) if output_dir else input_dir / "output"
-    final_output_path = str(Path(normalize_path(str(output_path)))) if output_path else None
-
     processor = VideoProcessor(str(input_dir), video_title=video_title, output_dir=str(output_dir_path))
-
-    if final_output_path is None:
-        final_output_path = str(processor._resolve_unique_output_path(processor._determine_output_filename(None)))
 
     step_start(
         "Concatenating videos",
-        {"Input": str(input_dir), "Output": final_output_path, "Fast mode": "Yes" if use_fast_concat else "No"},
+        {"Input": str(input_dir), "Output": str(final_output_path), "Fast mode": "Yes" if use_fast_concat else "No"},
     )
 
     with status_spinner("Processing"):
         output_video = processor.concatenate_videos(
-            output_filename=video_title, skip_reprocessing=use_fast_concat, output_path=final_output_path
+            skip_reprocessing=use_fast_concat, output_path=str(final_output_path)
         )
 
     if not output_video:
@@ -150,17 +163,16 @@ def concat(
     step_complete("Concatenation complete", output_video)
 
     # Write metadata
-    _write_concat_metadata(processor, Path(output_video), video_title, use_fast_concat)
+    _write_concat_metadata(processor, Path(output_video), use_fast_concat)
 
 
-def _write_concat_metadata(processor: VideoProcessor, output_video_path: Path, video_title: str, fast_concat: bool) -> None:
+def _write_concat_metadata(processor: VideoProcessor, output_video_path: Path, fast_concat: bool) -> None:
     """Write metadata.json for concatenated video."""
     metadata_path = output_video_path.with_name("metadata.json")
 
     creation_date, detected_title, duration_minutes = processor._get_video_metadata(str(output_video_path))
 
     metadata = {
-        "title": video_title,
         "output_path": str(output_video_path),
         "output_directory": str(output_video_path.parent),
         "output_filename": output_video_path.name,
