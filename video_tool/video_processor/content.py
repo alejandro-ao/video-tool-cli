@@ -103,29 +103,24 @@ class ContentGenerationMixin:
             },
         ]
 
-        # Handle timestamps (optional)
-        timestamps = None
+        # Handle timestamps (only if explicitly provided)
         timestamp_list = None
 
         if timestamps_path:
             resolved_timestamps_path = Path(timestamps_path)
-        else:
-            resolved_timestamps_path = self.output_dir / "timestamps.json"
-
-        if resolved_timestamps_path.exists():
-            try:
-                with open(resolved_timestamps_path) as file:
-                    timestamps = json.load(file)[0]["timestamps"]
-                timestamp_list = "\n".join(
-                    f'{timestamp["start"]} - {timestamp["title"]}' for timestamp in timestamps
-                )
-                logger.info(f"Using timestamps from: {resolved_timestamps_path}")
-            except Exception as exc:
-                logger.warning(f"Could not load timestamps from {resolved_timestamps_path}: {exc}")
-                timestamps = None
-                timestamp_list = None
-        else:
-            logger.info("No timestamps file found, generating description without timestamps")
+            if resolved_timestamps_path.exists():
+                try:
+                    with open(resolved_timestamps_path) as file:
+                        timestamps = json.load(file)[0]["timestamps"]
+                    timestamp_list = "\n".join(
+                        f'{timestamp["start"]} - {timestamp["title"]}' for timestamp in timestamps
+                    )
+                    logger.info(f"Using timestamps from: {resolved_timestamps_path}")
+                except Exception as exc:
+                    logger.warning(f"Could not load timestamps from {resolved_timestamps_path}: {exc}")
+                    timestamp_list = None
+            else:
+                logger.warning(f"Timestamps file not found: {resolved_timestamps_path}")
 
         link_list = "\n".join(f'- {link["description"]}: {link["url"]}' for link in links)
 

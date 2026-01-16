@@ -110,8 +110,13 @@ def description(
         transcript_file = Path(transcript_result)
         transcript_generated = True
 
-    # Handle timestamps path
+    # Handle timestamps path (ask if not provided)
     timestamps_str = None
+    if timestamps_path is None:
+        timestamps_input = ask_path("Timestamps JSON path (optional, leave blank to skip)", required=False)
+        if timestamps_input:
+            timestamps_path = Path(timestamps_input)
+
     if timestamps_path:
         timestamps_str = normalize_path(str(timestamps_path))
         if not Path(timestamps_str).exists():
