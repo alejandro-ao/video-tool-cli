@@ -25,6 +25,7 @@ from video_tool.config import (
     set_llm_config,
     reset_config,
     get_llm_config,
+    prompt_links_setup,
     CONFIG_PATH,
 )
 
@@ -123,15 +124,20 @@ def config_command(
     command: Optional[str] = typer.Option(None, "--command", "-c", help="Command to configure (e.g., description, seo)"),
     model: Optional[str] = typer.Option(None, "--model", "-m", help="Set model for command"),
     base_url: Optional[str] = typer.Option(None, "--base-url", "-b", help="Set base URL for command"),
+    links: bool = typer.Option(False, "--links", "-l", help="Manage persistent links"),
     reset: bool = typer.Option(False, "--reset", help="Reset config to defaults"),
 ) -> None:
-    """Configure LLM settings for video-tool."""
+    """Configure LLM and links settings for video-tool."""
     import yaml
 
     if reset:
         reset_config()
         console.print(f"[green]Config reset to defaults[/green]")
         console.print(f"[dim]Config file: {CONFIG_PATH}[/dim]")
+        return
+
+    if links:
+        prompt_links_setup()
         return
 
     if show:
@@ -159,6 +165,7 @@ def config_command(
     console.print("  --command, -c TEXT  Command to configure")
     console.print("  --model, -m TEXT    Set model")
     console.print("  --base-url, -b TEXT Set base URL")
+    console.print("  --links, -l         Manage persistent links")
     console.print("  --reset             Reset to defaults")
 
 

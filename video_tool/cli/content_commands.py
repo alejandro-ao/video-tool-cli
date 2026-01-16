@@ -23,7 +23,7 @@ from video_tool.ui import (
     step_start,
     step_warning,
 )
-from video_tool.config import ensure_config
+from video_tool.config import ensure_config, get_links, prompt_links_setup
 from video_tool.video_processor.constants import (
     SUPPORTED_VIDEO_SUFFIXES,
     SUPPORTED_AUDIO_SUFFIXES,
@@ -47,7 +47,10 @@ def _find_supported_videos(directory: Path) -> List[Path]:
 def description(
     input_path: Optional[Path] = typer.Option(None, "--input", "-i", help="Input file (video/audio/vtt/md/txt)"),
     output_path: Optional[Path] = typer.Option(None, "--output-path", "-o", help="Full path for output description"),
-    timestamps_path: Optional[Path] = typer.Option(None, "--timestamps-path", "-t", help="Path to timestamps JSON"),
+    timestamps: Optional[Path] = typer.Option(None, "--timestamps", "-t", help="Path to timestamps JSON"),
+    links: bool = typer.Option(False, "--links", "-l", help="Include persistent links from config"),
+    code_link: Optional[str] = typer.Option(None, "--code-link", help="Link to code repository"),
+    article_link: Optional[str] = typer.Option(None, "--article-link", help="Link to written article"),
 ) -> None:
     """Generate video description from transcript or media file."""
     if not validate_ai_env_vars():
@@ -110,10 +113,10 @@ def description(
         transcript_file = Path(transcript_result)
         transcript_generated = True
 
-    # Handle timestamps path (only if provided via flag)
+    # Handle timestamps path
     timestamps_str = None
-    if timestamps_path:
-        timestamps_str = normalize_path(str(timestamps_path))
+    if timestamps:
+        timestamps_str = normalize_path(str(timestamps))
         if not Path(timestamps_str).exists():
             step_warning(f"Timestamps file not found: {timestamps_str}")
             timestamps_str = None
@@ -136,6 +139,22 @@ def description(
     if processor is None:
         processor = VideoProcessor(str(transcript_file.parent), output_dir=str(output_dir_path))
 
+    # Build links list
+    links_list = []
+
+    # Video-specific links first
+    if code_link:
+        links_list.append({"description": "📦 Code from this video", "url": code_link})
+    if article_link:
+        links_list.append({"description": "📝 Written version", "url": article_link})
+
+    # Persistent links from config
+    if links:
+        config_links = get_links()
+        if not config_links:
+            config_links = prompt_links_setup()
+        links_list.extend(config_links)
+
     step_start("Generating description", {"Transcript": str(transcript_file), "Output": final_output_path})
 
     with status_spinner("Processing"):
@@ -144,6 +163,7 @@ def description(
             transcript_path=str(transcript_file),
             output_path=final_output_path,
             timestamps_path=timestamps_str,
+            links=links_list if links_list else None,
         )
 
     step_complete("Description generated", description_result)

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from string import Template
 from textwrap import dedent
 from typing import Optional
 
@@ -47,6 +46,7 @@ class ContentGenerationMixin:
         transcript_path: Optional[str] = None,
         output_path: Optional[str] = None,
         timestamps_path: Optional[str] = None,
+        links: Optional[list[dict]] = None,
     ) -> str:
         """Generate video description using LLM."""
         if video_path is None:
@@ -83,26 +83,6 @@ class ContentGenerationMixin:
             command="description", messages=[{"role": "user", "content": prompt}]
         )
 
-        links = [
-            {"url": repo_url, "description": "Code from the video"},
-            {
-                "url": "https://aibootcamp.dev",
-                "description": "🚀 Complete AI Engineer Bootcamp",
-            },
-            {
-                "url": "https://link.alejandro-ao.com/l83gNq",
-                "description": "❤️ Buy me a coffee... or a beer (thanks)",
-            },
-            {
-                "url": "https://link.alejandro-ao.com/HrFKZn",
-                "description": "💬 Join the Discord Help Server",
-            },
-            {
-                "url": "https://link.alejandro-ao.com/AIIguB",
-                "description": "✉️ Get the news from the channel and AI Engineering",
-            },
-        ]
-
         # Handle timestamps (only if explicitly provided)
         timestamp_list = None
 
@@ -111,9 +91,9 @@ class ContentGenerationMixin:
             if resolved_timestamps_path.exists():
                 try:
                     with open(resolved_timestamps_path) as file:
-                        timestamps = json.load(file)[0]["timestamps"]
+                        timestamps_data = json.load(file)[0]["timestamps"]
                     timestamp_list = "\n".join(
-                        f'{timestamp["start"]} - {timestamp["title"]}' for timestamp in timestamps
+                        f'{ts["start"]} - {ts["title"]}' for ts in timestamps_data
                     )
                     logger.info(f"Using timestamps from: {resolved_timestamps_path}")
                 except Exception as exc:
@@ -122,49 +102,17 @@ class ContentGenerationMixin:
             else:
                 logger.warning(f"Timestamps file not found: {resolved_timestamps_path}")
 
-        link_list = "\n".join(f'- {link["description"]}: {link["url"]}' for link in links)
+        # Build description with optional sections
+        sections = [f"# {Path(video_path).stem}", "", response.content]
 
-        # Build template with or without timestamps section
+        if links:
+            link_list = "\n".join(f'- {link["description"]}: {link["url"]}' for link in links)
+            sections.extend(["", "## Links", link_list])
+
         if timestamp_list:
-            template = Template(
-                dedent(
-                    """
-                    # $title
+            sections.extend(["", "## Timestamps", timestamp_list])
 
-                    $content
-
-                    ## Links
-                    $links
-
-                    ## Timestamps
-                    $timestamps
-                    """
-                )
-            )
-            description = template.substitute(
-                title=Path(video_path).stem,
-                content=response.content,
-                links=link_list,
-                timestamps=timestamp_list,
-            )
-        else:
-            template = Template(
-                dedent(
-                    """
-                    # $title
-
-                    $content
-
-                    ## Links
-                    $links
-                    """
-                )
-            )
-            description = template.substitute(
-                title=Path(video_path).stem,
-                content=response.content,
-                links=link_list,
-            )
+        description = "\n".join(sections)
 
         polish_description_prompt = self.prompts["polish_description"].format(
             description=description

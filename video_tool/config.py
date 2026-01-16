@@ -95,6 +95,53 @@ def reset_config() -> None:
     save_config(config)
 
 
+def get_links() -> list[dict]:
+    """Get persistent links from config."""
+    config = load_config()
+    return config.get("links", [])
+
+
+def set_links(links: list[dict]) -> None:
+    """Save links list to config."""
+    config = load_config()
+    config["links"] = links
+    save_config(config)
+
+
+def prompt_links_setup() -> list[dict]:
+    """Interactive add/edit links, saves result, returns links."""
+    from video_tool.ui import ask_text, ask_confirm, console
+
+    config = load_config()
+    links = config.get("links", [])
+
+    console.print("\n[bold]Persistent Links Configuration[/bold]")
+    console.print("[dim]These links will be added to descriptions when --links is used[/dim]\n")
+
+    if links:
+        console.print("[bold]Current links:[/bold]")
+        for i, link in enumerate(links, 1):
+            console.print(f"  {i}. {link.get('description', '')}: {link.get('url', '')}")
+        console.print()
+
+        if ask_confirm("Clear existing links and start fresh?"):
+            links = []
+
+    if not links or ask_confirm("Add new links?"):
+        console.print("[dim]Enter links (empty description to finish)[/dim]\n")
+        while True:
+            desc = ask_text("Link description (e.g., '🚀 My Bootcamp')", required=False)
+            if not desc:
+                break
+            url = ask_text("URL", required=True)
+            links.append({"description": desc, "url": url})
+            console.print(f"  [green]Added:[/green] {desc}: {url}\n")
+
+    set_links(links)
+    console.print(f"\n[green]Links saved to config[/green]")
+    return links
+
+
 def ensure_config() -> dict:
     """Load config or run first-time setup if needed.
 
