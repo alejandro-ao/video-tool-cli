@@ -9,6 +9,10 @@ from typing import Iterable
 SUPPORTED_VIDEO_SUFFIXES: tuple[str, ...] = (".mp4", ".mov")
 SUPPORTED_VIDEO_SUFFIX_SET = frozenset(suffix.lower() for suffix in SUPPORTED_VIDEO_SUFFIXES)
 
+# Audio formats accepted for direct transcription (skips extraction).
+SUPPORTED_AUDIO_SUFFIXES: tuple[str, ...] = (".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg")
+SUPPORTED_AUDIO_SUFFIX_SET = frozenset(suffix.lower() for suffix in SUPPORTED_AUDIO_SUFFIXES)
+
 
 def is_supported_video_file(candidate: Path | str, *, suffixes: Iterable[str] | None = None) -> bool:
     """

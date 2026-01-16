@@ -24,9 +24,10 @@ from video_tool.ui import (
     step_start,
     step_warning,
 )
-from video_tool.video_processor.constants import SUPPORTED_VIDEO_SUFFIXES
+from video_tool.video_processor.constants import SUPPORTED_VIDEO_SUFFIXES, SUPPORTED_AUDIO_SUFFIXES
 
 SUPPORTED_VIDEO_LABEL = ", ".join(ext.lstrip(".").upper() for ext in SUPPORTED_VIDEO_SUFFIXES)
+SUPPORTED_AUDIO_LABEL = ", ".join(ext.lstrip(".").upper() for ext in SUPPORTED_AUDIO_SUFFIXES)
 
 
 @video_app.command("download")
@@ -331,36 +332,67 @@ def _update_timestamps_metadata(output_path: str, timestamps_info: dict, use_tra
 
 @video_app.command("transcript")
 def transcript(
-    video_path: Optional[Path] = typer.Option(None, "--video-path", "-v", help="Path to video file"),
-    output_dir: Optional[Path] = typer.Option(None, "--output-dir", "-o", help="Output directory"),
-    output_path: Optional[Path] = typer.Option(None, "--output-path", help="Full path for output VTT"),
+    input_path: Optional[Path] = typer.Option(None, "--input", "-i", help="Input video or audio file"),
+    output_path: Optional[Path] = typer.Option(None, "--output-path", "-o", help="Output VTT file path"),
 ) -> None:
-    """Generate transcript for a video using Whisper."""
+    """Generate VTT transcript from video or audio using Whisper."""
     if not validate_ai_env_vars():
         raise typer.Exit(1)
 
-    if video_path is None:
-        video_path_str = ask_path("Path to video file", required=True)
-        video_path = Path(video_path_str)
+    # 1. Get input path
+    if input_path is None:
+        input_path_str = ask_path("Path to video or audio file", required=True)
+        input_path = Path(input_path_str)
     else:
-        video_path = Path(normalize_path(str(video_path)))
+        input_path = Path(normalize_path(str(input_path)))
 
-    if not video_path.exists() or not video_path.is_file():
-        step_error(f"Invalid video file: {video_path}")
+    # 2. Validate input
+    if not input_path.exists() or not input_path.is_file():
+        step_error(f"Invalid file: {input_path}")
         raise typer.Exit(1)
 
-    output_dir_path = Path(normalize_path(str(output_dir))) if output_dir else video_path.parent / "output"
-    final_output_path = str(Path(normalize_path(str(output_path)))) if output_path else str(output_dir_path / "transcript.vtt")
+    suffix = input_path.suffix.lower()
+    is_audio = suffix in SUPPORTED_AUDIO_SUFFIXES
+    is_video = suffix in SUPPORTED_VIDEO_SUFFIXES
 
-    step_start("Generating transcript", {"Video": str(video_path), "Output": final_output_path})
+    if not is_audio and not is_video:
+        step_error(f"Unsupported format: {suffix}. Use video ({SUPPORTED_VIDEO_LABEL}) or audio ({SUPPORTED_AUDIO_LABEL})")
+        raise typer.Exit(1)
+
+    base_dir = input_path.parent
+
+    # 3. Resolve output path
+    if output_path:
+        final_output_path = Path(normalize_path(str(output_path)))
+        if not final_output_path.is_absolute():
+            final_output_path = base_dir / final_output_path
+    else:
+        output_path_str = ask_path("Output VTT path (defaults to transcript.vtt)", required=False)
+        if output_path_str:
+            final_output_path = Path(output_path_str)
+            if not final_output_path.is_absolute():
+                final_output_path = base_dir / final_output_path
+        else:
+            final_output_path = base_dir / "transcript.vtt"
+
+    if final_output_path.suffix.lower() != ".vtt":
+        final_output_path = final_output_path.with_suffix(".vtt")
+
+    # 4. Generate transcript
+    step_start("Generating transcript", {
+        "Input": str(input_path),
+        "Type": "audio" if is_audio else "video",
+        "Output": str(final_output_path),
+    })
 
     with status_spinner("Transcribing"):
-        processor = VideoProcessor(str(video_path.parent), output_dir=str(output_dir_path))
-        transcript_result = processor.generate_transcript(str(video_path), output_path=final_output_path)
+        processor = VideoProcessor(str(base_dir), output_dir=str(final_output_path.parent))
+        transcript_result = processor.generate_transcript(
+            video_path=str(input_path),
+            output_path=str(final_output_path),
+        )
 
     step_complete("Transcript generated", transcript_result)
-
-    # Update metadata
     _update_transcript_metadata(transcript_result)
 
 

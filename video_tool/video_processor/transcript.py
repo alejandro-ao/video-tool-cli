@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 from typing import List, Optional
 
-from .constants import SUPPORTED_VIDEO_SUFFIXES
+from .constants import SUPPORTED_AUDIO_SUFFIXES, SUPPORTED_VIDEO_SUFFIXES
 from .shared import AudioSegment, VideoFileClip, logger
 
 
@@ -13,7 +13,10 @@ class TranscriptMixin:
     """Audio extraction and transcript generation helpers."""
 
     def generate_transcript(self, video_path: Optional[str] = None, output_path: Optional[str] = None) -> str:
-        """Generate VTT transcript using Groq Whisper Large V3 Turbo."""
+        """Generate VTT transcript using Groq Whisper Large V3 Turbo.
+
+        Accepts video files (extracts audio) or audio files directly (skips extraction).
+        """
         if video_path is None:
             candidate_path = self._find_existing_output()
             if candidate_path:
@@ -32,34 +35,53 @@ class TranscriptMixin:
                     logger.error("No video file found for transcript generation")
                     raise FileNotFoundError("No video file found for transcript generation")
 
-        video_file = Path(video_path)
-        if not video_file.exists():
-            logger.error(f"Video file does not exist: {video_path}")
+        input_file = Path(video_path)
+        if not input_file.exists():
+            logger.error(f"Input file does not exist: {video_path}")
             return ""
 
-        audio_path = Path(video_path).with_suffix(".mp3")
+        suffix = input_file.suffix.lower()
+        is_audio_input = suffix in SUPPORTED_AUDIO_SUFFIXES
 
-        try:
-            with self.suppress_external_output():
+        cleanup_audio = False
+        if is_audio_input:
+            # Use audio file directly; convert to MP3 if needed for Whisper
+            if suffix == ".mp3":
+                audio_path = input_file
+            else:
+                audio_path = input_file.with_suffix(".mp3")
                 try:
-                    video = VideoFileClip(video_path, audio=True, verbose=False)  # type: ignore[arg-type]
-                except TypeError:
-                    video = VideoFileClip(video_path)
-
-                if video.audio is None:
-                    logger.error("Video file has no audio track")
-                    video.close()
+                    audio = AudioSegment.from_file(str(input_file))
+                    audio.export(str(audio_path), format="mp3")
+                    cleanup_audio = True
+                except Exception as exc:
+                    logger.error(f"Error converting audio to MP3: {exc}")
                     return ""
+        else:
+            # Extract audio from video
+            audio_path = input_file.with_suffix(".mp3")
+            cleanup_audio = True
+            try:
+                with self.suppress_external_output():
+                    try:
+                        video = VideoFileClip(video_path, audio=True, verbose=False)  # type: ignore[arg-type]
+                    except TypeError:
+                        video = VideoFileClip(video_path)
 
-                try:
-                    video.audio.write_audiofile(str(audio_path), logger=None)  # type: ignore[arg-type]
-                except TypeError:
-                    video.audio.write_audiofile(str(audio_path))
-                finally:
-                    video.close()
-        except Exception as exc:
-            logger.error(f"Error processing video file {video_path}: {exc}")
-            return ""
+                    if video.audio is None:
+                        logger.error("Video file has no audio track")
+                        video.close()
+                        return ""
+
+                    try:
+                        video.audio.write_audiofile(str(audio_path), logger=None)  # type: ignore[arg-type]
+                    except TypeError:
+                        video.audio.write_audiofile(str(audio_path))
+                    finally:
+                        video.close()
+            except Exception as exc:
+                logger.error(f"Error processing video file {video_path}: {exc}")
+                return ""
 
         if not audio_path.exists():
             audio_path.touch()
@@ -122,23 +144,25 @@ class TranscriptMixin:
             with open(resolved_output_path, "w") as file:
                 file.write(transcript)
 
-            # Clean up temporary audio file
-            try:
-                if audio_path.exists():
-                    os.remove(audio_path)
-                    logger.debug(f"Cleaned up temporary audio file: {audio_path}")
-            except Exception as cleanup_exc:
-                logger.warning(f"Could not remove temporary audio file {audio_path}: {cleanup_exc}")
+            # Clean up temporary audio file (only if we created it)
+            if cleanup_audio:
+                try:
+                    if audio_path.exists():
+                        os.remove(audio_path)
+                        logger.debug(f"Cleaned up temporary audio file: {audio_path}")
+                except Exception as cleanup_exc:
+                    logger.warning(f"Could not remove temporary audio file {audio_path}: {cleanup_exc}")
 
             return str(resolved_output_path)
         except Exception as exc:
             logger.error(f"Error generating transcript: {exc}")
-            # Try to clean up audio file even on error
-            try:
-                if audio_path.exists():
-                    os.remove(audio_path)
-            except Exception:
-                pass
+            # Try to clean up audio file even on error (only if we created it)
+            if cleanup_audio:
+                try:
+                    if audio_path.exists():
+                        os.remove(audio_path)
+                except Exception:
+                    pass
             return ""
 
     def _clean_vtt_transcript(self, vtt_content: str) -> str:
