@@ -100,7 +100,7 @@ def concat(
     output_dir: Optional[Path] = typer.Option(None, "--output-dir", "-o", help="Output directory"),
     output_path: Optional[Path] = typer.Option(None, "--output-path", help="Full path for output video"),
     title: Optional[str] = typer.Option(None, "--title", "-t", help="Title for the final video"),
-    fast_concat: bool = typer.Option(False, "--fast-concat", "-f", help="Use fast concatenation (skip reprocessing)"),
+    fast_concat: Optional[bool] = typer.Option(None, "--fast-concat/--no-fast-concat", "-f", help="Use fast concatenation (skip reprocessing)"),
 ) -> None:
     """Concatenate videos into a single file."""
     if not validate_ai_env_vars():
@@ -120,6 +120,11 @@ def concat(
     if not video_title:
         video_title = ask_text("Title for the final video", required=True)
 
+    # Prompt for fast concat if not specified
+    use_fast_concat = fast_concat
+    if use_fast_concat is None:
+        use_fast_concat = ask_confirm("Use fast concatenation?", default=False)
+
     output_dir_path = Path(normalize_path(str(output_dir))) if output_dir else input_dir / "output"
     final_output_path = str(Path(normalize_path(str(output_path)))) if output_path else None
 
@@ -130,12 +135,12 @@ def concat(
 
     step_start(
         "Concatenating videos",
-        {"Input": str(input_dir), "Output": final_output_path, "Fast mode": "Yes" if fast_concat else "No"},
+        {"Input": str(input_dir), "Output": final_output_path, "Fast mode": "Yes" if use_fast_concat else "No"},
     )
 
     with status_spinner("Processing"):
         output_video = processor.concatenate_videos(
-            output_filename=video_title, skip_reprocessing=fast_concat, output_path=final_output_path
+            output_filename=video_title, skip_reprocessing=use_fast_concat, output_path=final_output_path
         )
 
     if not output_video:
@@ -145,7 +150,7 @@ def concat(
     step_complete("Concatenation complete", output_video)
 
     # Write metadata
-    _write_concat_metadata(processor, Path(output_video), video_title, fast_concat)
+    _write_concat_metadata(processor, Path(output_video), video_title, use_fast_concat)
 
 
 def _write_concat_metadata(processor: VideoProcessor, output_video_path: Path, video_title: str, fast_concat: bool) -> None:
