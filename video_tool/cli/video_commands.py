@@ -222,91 +222,101 @@ def _write_concat_metadata(processor: VideoProcessor, output_video_path: Path, f
 
 @video_app.command("timestamps")
 def timestamps(
-    input_dir: Optional[Path] = typer.Option(None, "--input-dir", "-i", help="Input directory or video file path"),
-    output_dir: Optional[Path] = typer.Option(None, "--output-dir", "-o", help="Output directory"),
-    output_path: Optional[Path] = typer.Option(None, "--output-path", help="Full path for output JSON"),
-    stamps_from_transcript: Optional[str] = typer.Option(
-        None, "--stamps-from-transcript", help="Generate from transcript (optionally provide path)"
-    ),
-    stamps_from_clips: bool = typer.Option(False, "--stamps-from-clips", help="Generate from clip boundaries"),
-    granularity: Optional[str] = typer.Option(None, "--granularity", "-g", help="Granularity (low/medium/high)"),
-    timestamp_notes: Optional[str] = typer.Option(None, "--timestamp-notes", help="Additional instructions"),
+    mode: Optional[str] = typer.Option(None, "--mode", "-m", help="Generation mode: 'clips' or 'transcript'"),
+    input_path: Optional[Path] = typer.Option(None, "--input", "-i", help="Input directory (clips) or VTT file (transcript)"),
+    output_path: Optional[Path] = typer.Option(None, "--output-path", "-o", help="Output JSON file path"),
+    granularity: Optional[str] = typer.Option(None, "--granularity", "-g", help="Granularity: low/medium/high (transcript mode)"),
+    notes: Optional[str] = typer.Option(None, "--notes", "-n", help="Additional LLM instructions (transcript mode)"),
 ) -> None:
-    """Generate timestamps/chapters for videos."""
-    if not validate_ai_env_vars():
+    """Generate video chapter timestamps."""
+    # 1. Determine mode (interactive or flag)
+    if mode is None:
+        console.print("  [dim]clips[/dim] = 1 chapter per clip, [dim]transcript[/dim] = LLM-analyzed VTT")
+        mode = ask_choice("How do you want to generate timestamps?", ["clips", "transcript"])
+
+    mode = mode.lower()
+    if mode not in ("clips", "transcript"):
+        step_error(f"Invalid mode: {mode}. Must be 'clips' or 'transcript'")
         raise typer.Exit(1)
 
-    if input_dir is None:
-        input_dir_str = ask_path("Input directory or video file path", required=True)
-        input_dir = Path(input_dir_str)
+    # 2. Validate AI env only for transcript mode
+    if mode == "transcript" and not validate_ai_env_vars():
+        raise typer.Exit(1)
+
+    # 3. Get input path
+    if input_path is None:
+        if mode == "clips":
+            input_path_str = ask_path("Directory containing video clips", required=True)
+        else:
+            input_path_str = ask_path("Path to VTT transcript file", required=True)
+        input_path = Path(input_path_str)
     else:
-        input_dir = Path(normalize_path(str(input_dir)))
+        input_path = Path(normalize_path(str(input_path)))
 
-    if not input_dir.exists():
-        step_error(f"Invalid input path: {input_dir}")
-        raise typer.Exit(1)
+    # 4. Validate input
+    if mode == "clips":
+        if not input_path.exists() or not input_path.is_dir():
+            step_error(f"Invalid directory: {input_path}")
+            raise typer.Exit(1)
+        base_dir = input_path
+    else:  # transcript
+        if not input_path.exists() or not input_path.is_file():
+            step_error(f"Invalid VTT file: {input_path}")
+            raise typer.Exit(1)
+        if input_path.suffix.lower() != ".vtt":
+            step_warning(f"Expected .vtt file, got: {input_path.suffix}")
+        base_dir = input_path.parent
 
-    is_video_input = input_dir.is_file()
-    if is_video_input and input_dir.suffix.lower() not in SUPPORTED_VIDEO_SUFFIXES:
-        step_error(f"Input file must be one of ({SUPPORTED_VIDEO_LABEL}): {input_dir}")
-        raise typer.Exit(1)
-
-    base_dir = input_dir.parent if is_video_input else input_dir
-    output_dir_path = Path(normalize_path(str(output_dir))) if output_dir else base_dir / "output"
-    final_output_path = str(Path(normalize_path(str(output_path)))) if output_path else str(output_dir_path / "timestamps.json")
-
-    # Determine timestamp generation mode
-    use_transcript = False
-    transcript_path = None
-
-    if is_video_input:
-        use_transcript = True
-        if stamps_from_transcript:
-            transcript_path = normalize_path(stamps_from_transcript)
-            if not Path(transcript_path).exists():
-                step_warning(f"Transcript not found at {transcript_path}. Will auto-generate.")
-                transcript_path = None
-    elif stamps_from_clips:
-        use_transcript = False
-    elif stamps_from_transcript is not None:
-        use_transcript = True
-        if stamps_from_transcript:
-            transcript_path = normalize_path(stamps_from_transcript)
-            if not Path(transcript_path).exists():
-                step_warning(f"Transcript not found at {transcript_path}. Will auto-generate.")
-                transcript_path = None
+    # 5. Resolve output path
+    if output_path:
+        final_output_path = Path(normalize_path(str(output_path)))
+        if not final_output_path.is_absolute():
+            final_output_path = base_dir / final_output_path
     else:
-        # Interactive: ask user preference
-        per_clip = ask_confirm("Generate one chapter per clip?", default=True)
-        use_transcript = not per_clip
-        if use_transcript:
-            transcript_input = ask_path("Path to transcript (leave blank to auto-generate)", required=False)
-            if transcript_input:
-                transcript_path = transcript_input
+        output_path_str = ask_path("Output JSON path (defaults to timestamps.json)", required=False)
+        if output_path_str:
+            final_output_path = Path(output_path_str)
+            if not final_output_path.is_absolute():
+                final_output_path = base_dir / final_output_path
+        else:
+            final_output_path = base_dir / "timestamps.json"
 
-    # Handle granularity for transcript-based timestamps
-    final_granularity = granularity.lower() if granularity else "medium"
-    if use_transcript and final_granularity not in {"low", "medium", "high"}:
-        step_warning("Invalid granularity; defaulting to 'medium'")
-        final_granularity = "medium"
+    if final_output_path.suffix.lower() != ".json":
+        final_output_path = final_output_path.with_suffix(".json")
 
-    step_start("Generating timestamps", {"Input": str(input_dir), "Output": final_output_path})
+    # 6. Get granularity (transcript mode only)
+    final_granularity = "medium"
+    if mode == "transcript":
+        if granularity:
+            final_granularity = granularity.lower()
+        else:
+            console.print("  [dim]low[/dim] = fewer chapters, [dim]medium[/dim] = balanced, [dim]high[/dim] = more chapters")
+            final_granularity = ask_choice("Granularity level", ["low", "medium", "high"], default="medium")
 
-    with status_spinner("Analyzing"):
-        processor = VideoProcessor(str(base_dir), output_dir=str(output_dir_path))
+        if final_granularity not in ("low", "medium", "high"):
+            step_warning(f"Invalid granularity '{final_granularity}', using 'medium'")
+            final_granularity = "medium"
+
+    # 7. Generate timestamps
+    step_start("Generating timestamps", {
+        "Mode": mode,
+        "Input": str(input_path),
+        "Output": str(final_output_path),
+        **({"Granularity": final_granularity} if mode == "transcript" else {}),
+    })
+
+    with status_spinner("Processing"):
+        processor = VideoProcessor(str(base_dir), output_dir=str(final_output_path.parent))
         timestamps_info = processor.generate_timestamps(
-            output_path=final_output_path,
-            transcript_path=transcript_path,
-            stamps_from_transcript=use_transcript,
+            output_path=str(final_output_path),
+            transcript_path=str(input_path) if mode == "transcript" else None,
+            stamps_from_transcript=(mode == "transcript"),
             granularity=final_granularity,
-            timestamp_notes=timestamp_notes,
-            video_path=str(input_dir) if is_video_input else None,
+            timestamp_notes=notes,
         )
 
-    step_complete("Timestamps generated", final_output_path)
-
-    # Update metadata
-    _update_timestamps_metadata(final_output_path, timestamps_info, use_transcript)
+    step_complete("Timestamps generated", str(final_output_path))
+    _update_timestamps_metadata(str(final_output_path), timestamps_info, mode == "transcript")
 
 
 def _update_timestamps_metadata(output_path: str, timestamps_info: dict, use_transcript: bool) -> None:
