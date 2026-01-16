@@ -29,25 +29,22 @@ polish_description: |
   2. Rewrite the description and the topics covered to use those SEO keywords
   3. Ensure that the description is clear, concise, and easy to read
   4. Maintain the same structure and style as the example below (including emojis, sections, and formatting)
+  5. IMPORTANT: The "Topics Covered" section must have EXACTLY 3 bullet points maximum. Each bullet should be very concise (under 10 words).
 
   <EXAMPLE>
-  Discover how to build AI-powered apps efficiently: generate a Product Requirements Document (PRD) with TRAE, develop a Next.js app with in-memory authentication, and rigorously test edge cases using TestSprite’s automated AI test suite.
+  Discover how to build AI-powered apps efficiently: generate a Product Requirements Document (PRD) with TRAE, develop a Next.js app with in-memory authentication, and rigorously test edge cases using TestSprite's automated AI test suite.
 
   ---
   🔗 *Links*
   - 🧪 TestSprite: https://www.testsprite.com/
   - 🤖 TRAE (AI Code Editor): https://www.trae.ai/
-  - 📣 Dictation App (Willow Voice): https://willowvoice.com/?ref=AAO40
   - 🚀 Complete AI Engineer Bootcamp: [aibootcamp.dev](https://aibootcamp.dev)
-  - ❤️ Support me: [Buy me a coffee or beer](https://link.alejandro-ao.com/l83gNq)
-  - 💬 Join the Discord Help Server: [Click here](https://link.alejandro-ao.com/HrFKZn)
 
   ---
   🤓 *Topics Covered*
-  - AI coding assistants overview (TRAE vs Cursor)
-  - Building a Next.js app with in-memory authentication & storage
-  - Automated front-end testing with Playwright
-  - Integrating TRAE, TestSprite, and modern IDEs (Cursor, Windsurf, etc.)
+  - AI coding assistants (TRAE vs Cursor)
+  - Next.js app with in-memory auth
+  - Automated testing with Playwright
   </EXAMPLE>
 
   <ORIGINAL DESCRIPTION>{description}</ORIGINAL DESCRIPTION>
