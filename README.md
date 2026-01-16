@@ -3,19 +3,20 @@
 Automate Alejandro's YouTube production workflow end to end. Given a directory of source MP4 clips, the script can clean the footage, join the clips, create chapter timestamps, transcribe the final video, and generate all supporting copy for publishing.
 
 ## Features
-- Silence trimming with `pydub` to tighten raw footage before assembly.
-- MP4 concatenation with `ffmpeg`, including optional fast-path when reprocessing is unnecessary.
-- Automatic chapter map (`timestamps.json`) with ISO-formatted timecode.
-- Whisper transcription (`transcript.vtt`) via `OPENAI_API_KEY`.
-- Thumbnail artwork generation via OpenAI's responses API (gpt-5 + image generation tool) using your prompt, automatically mapped to OpenAI's supported image sizes.
-- Markdown description, SEO keywords, and social posts derived from `prompts.yaml`.
-- Optional Bunny.net deployment with independent toggles for uploading the final cut, chapters, and transcript captions.
-- Optional duration CSV export for analytics.
+- **Video download** from YouTube and 1000+ sites via yt-dlp
+- Silence trimming with `pydub` to tighten raw footage before assembly
+- MP4 concatenation with `ffmpeg`, including optional fast-path when reprocessing is unnecessary
+- Automatic chapter map (`timestamps.json`) with ISO-formatted timecode
+- Whisper transcription (`transcript.vtt`) via Groq
+- Thumbnail artwork generation via OpenAI's responses API (gpt-5 + image generation tool)
+- Markdown description, SEO keywords, and social posts derived from `prompts.yaml`
+- Optional Bunny.net deployment with independent toggles for uploading the final cut, chapters, and transcript captions
+- Optional duration CSV export for analytics
 
 ## Requirements
 - Python 3.11+
-- Installed dependencies: `pip install -r requirements.txt`
 - `ffmpeg` available on the system path
+- `yt-dlp` for video downloads (installed automatically)
 - Environment variables:
   - `OPENAI_API_KEY` (required for Whisper and text generation)
   - `GROQ_API_KEY` (required for additional LLM calls)
@@ -61,25 +62,71 @@ Automate Alejandro's YouTube production workflow end to end. Given a directory o
   If the command is not found after install, please restart your terminal and ensure your tool bin directory is on PATH (e.g., `~/.local/bin` for uv tools, or your Python user bin on macOS like `~/Library/Python/3.11/bin`).
 
 ## Usage
-1. Install dependencies and export the required API keys.
-2. Run the CLI:
+
+### CLI Structure
+
+```
+video-tool pipeline ...              # Full workflow (most common)
+video-tool video <command> ...       # Video processing
+video-tool content <command> ...     # Content generation
+video-tool deploy <command> ...      # Bunny.net deployment
+```
+
+### Quick Start
+
+1. Export the required API keys
+2. Run the full pipeline:
    ```bash
-   video-tool
+   video-tool pipeline -i /path/to/clips
    ```
-3. Provide the target directory when prompted. The tool will list each available operation and let you skip steps such as silence removal, concatenation, transcript generation, description creation, SEO keywords, and social posts.
-   > Tip: When you upload chapters or captions without re-uploading the video, wait for Bunny Stream to finish processing the asset and supply the existing video ID (prompt or `BUNNY_VIDEO_ID`).
-4. Outputs are written to an `output/` subdirectory inside your input directory:
-   - Processed clips: `processed/` (remains alongside the raw footage)
-   - Final video: `output/<date>_<title>.mp4`
-   - Chapters: `output/timestamps.json`
-   - Transcript: `output/transcript.vtt`
-   - Description: `output/description.md`
-   - SEO keywords: `output/keywords.txt`
-   - Social copy: `output/linkedin_post.md`, `output/twitter_post.md`
+   Or use non-interactive mode:
+   ```bash
+   video-tool pipeline -i /path/to/clips --yes
+   ```
 
-All actions are logged to `video_processor.log` so you can review progress and debug any failures.
+### Download Videos
 
-For a full reference of CLI commands and flags, see `docs/cli_manual.md`.
+Download from YouTube and 1000+ supported sites:
+
+```bash
+video-tool video download --url "https://youtube.com/watch?v=..." --output-dir ./downloads
+```
+
+**Supported sites include:** YouTube, Vimeo, Twitter/X, TikTok, Instagram, Facebook, Twitch, Reddit, Dailymotion, and [1000+ more](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md).
+
+### Commands
+
+**Video processing:**
+- `video-tool video concat` - Concatenate clips into single video
+- `video-tool video timestamps` - Generate chapter timestamps
+- `video-tool video transcript` - Transcribe audio with Whisper
+- `video-tool video silence-removal` - Remove silent sections
+- `video-tool video download` - Download from URL
+
+**Content generation:**
+- `video-tool content description` - Generate video description
+- `video-tool content seo` - Generate SEO keywords
+- `video-tool content linkedin` - Generate LinkedIn post
+- `video-tool content twitter` - Generate Twitter post
+- `video-tool content context-cards` - Generate context cards
+- `video-tool content summary` - Generate technical summary
+
+**Deployment:**
+- `video-tool deploy bunny-upload` - Upload video to Bunny.net
+- `video-tool deploy bunny-transcript` - Upload captions
+- `video-tool deploy bunny-chapters` - Upload chapters
+
+### Outputs
+
+All outputs are written to an `output/` subdirectory:
+- Final video: `output/<title>.mp4`
+- Chapters: `output/timestamps.json`
+- Transcript: `output/transcript.vtt`
+- Description: `output/description.md`
+- SEO keywords: `output/keywords.txt`
+- Social copy: `output/linkedin_post.md`, `output/twitter_post.md`
+
+All actions are logged to `video_processor.log`.
 
 ## Additional Tools
 - `VideoProcessor.extract_duration_csv()` exports `video_metadata.csv` summarizing clip lengths and creation dates across a directory tree.
