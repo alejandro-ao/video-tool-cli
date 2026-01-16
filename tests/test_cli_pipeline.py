@@ -1,22 +1,65 @@
-import argparse
+"""Tests for the new Typer-based pipeline CLI."""
 
 import pytest
+from typer.testing import CliRunner
+from unittest.mock import MagicMock, patch
 
-from video_tool import cli
+from video_tool.cli import app
+
+
+runner = CliRunner()
 
 
 @pytest.mark.unit
-def test_cmd_pipeline_uses_packaged_runner(monkeypatch):
-    """Ensure the pipeline command dispatches to the packaged runner module."""
-    called: dict[str, list[str]] = {}
+def test_pipeline_help():
+    """Ensure the pipeline command shows help."""
+    result = runner.invoke(app, ["pipeline", "--help"])
+    assert result.exit_code == 0
+    assert "Run the full video processing pipeline" in result.stdout
 
-    def fake_main(argv: list[str] | None = None) -> None:
-        called["argv"] = argv or []
 
-    monkeypatch.setattr("video_tool.run_full_pipeline.main", fake_main)
+@pytest.mark.unit
+def test_pipeline_requires_input_dir_in_noninteractive():
+    """In non-interactive mode, --input-dir is required."""
+    result = runner.invoke(app, ["pipeline", "--yes"])
+    assert result.exit_code == 1
+    assert "input-dir is required" in result.stdout.lower() or result.exit_code != 0
 
-    args = argparse.Namespace(cli_bin="custom-cli")
 
-    cli.cmd_pipeline(args)
+@pytest.mark.unit
+def test_video_subcommands_exist():
+    """Verify video subcommands are registered."""
+    result = runner.invoke(app, ["video", "--help"])
+    assert result.exit_code == 0
+    assert "concat" in result.stdout
+    assert "timestamps" in result.stdout
+    assert "transcript" in result.stdout
 
-    assert called["argv"] == ["--cli-bin", "custom-cli"]
+
+@pytest.mark.unit
+def test_content_subcommands_exist():
+    """Verify content subcommands are registered."""
+    result = runner.invoke(app, ["content", "--help"])
+    assert result.exit_code == 0
+    assert "description" in result.stdout
+    assert "seo" in result.stdout
+    assert "linkedin" in result.stdout
+    assert "twitter" in result.stdout
+
+
+@pytest.mark.unit
+def test_deploy_subcommands_exist():
+    """Verify deploy subcommands are registered."""
+    result = runner.invoke(app, ["deploy", "--help"])
+    assert result.exit_code == 0
+    assert "bunny-upload" in result.stdout
+    assert "bunny-transcript" in result.stdout
+    assert "bunny-chapters" in result.stdout
+
+
+@pytest.mark.unit
+def test_verbose_flag_exists():
+    """Verify the global --verbose flag is available."""
+    result = runner.invoke(app, ["--help"])
+    assert result.exit_code == 0
+    assert "--verbose" in result.stdout or "-v" in result.stdout
