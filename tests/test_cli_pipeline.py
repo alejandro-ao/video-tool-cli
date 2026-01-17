@@ -42,9 +42,7 @@ def test_content_subcommands_exist():
     result = runner.invoke(app, ["content", "--help"])
     assert result.exit_code == 0
     assert "description" in result.stdout
-    assert "seo" in result.stdout
-    assert "linkedin" in result.stdout
-    assert "twitter" in result.stdout
+    assert "context-cards" in result.stdout
 
 
 @pytest.mark.unit

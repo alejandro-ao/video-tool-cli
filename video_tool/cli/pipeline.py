@@ -44,9 +44,6 @@ class PipelineConfig:
     timestamp_notes: str
     timestamps_from_clips: bool
     include_context_cards: bool
-    include_linkedin: bool
-    include_seo: bool
-    include_twitter: bool
     upload_bunny: bool
     bunny_library_id: Optional[str]
     bunny_access_key: Optional[str]
@@ -69,14 +66,6 @@ class PipelineConfig:
         return self.output_dir / "context-cards.md"
 
     @property
-    def linkedin_output_path(self) -> Path:
-        return self.output_dir / "linkedin_post.md"
-
-    @property
-    def twitter_output_path(self) -> Path:
-        return self.output_dir / "twitter_post.md"
-
-    @property
     def description_output_path(self) -> Path:
         return self.output_dir / "description.md"
 
@@ -89,12 +78,6 @@ def _count_steps(config: PipelineConfig) -> int:
     """Count total number of pipeline steps."""
     count = 3  # concat, timestamps, transcript (always run)
     if config.include_context_cards:
-        count += 1
-    if config.include_linkedin:
-        count += 1
-    if config.include_twitter:
-        count += 1
-    if config.include_seo:
         count += 1
     if config.upload_bunny:
         count += 1
@@ -125,9 +108,6 @@ def _gather_interactive_config() -> PipelineConfig:
     # Output options
     console.print("\n[bold]Select outputs to generate:[/bold]")
     include_context_cards = ask_confirm("Generate context cards?", default=True)
-    include_linkedin = ask_confirm("Generate LinkedIn post?", default=True)
-    include_twitter = ask_confirm("Generate Twitter post?", default=True)
-    include_seo = ask_confirm("Generate SEO keywords?", default=True)
     upload_bunny = ask_confirm("Upload to Bunny.net?", default=False)
 
     # Timestamp settings
@@ -159,9 +139,6 @@ def _gather_interactive_config() -> PipelineConfig:
         timestamp_notes=timestamp_notes,
         timestamps_from_clips=timestamps_from_clips,
         include_context_cards=include_context_cards,
-        include_linkedin=include_linkedin,
-        include_seo=include_seo,
-        include_twitter=include_twitter,
         upload_bunny=upload_bunny,
         bunny_library_id=bunny_library_id,
         bunny_access_key=bunny_access_key,
@@ -191,9 +168,6 @@ def _build_noninteractive_config(
         timestamp_notes="",
         timestamps_from_clips=timestamps_from_clips,
         include_context_cards=True,
-        include_linkedin=True,
-        include_seo=True,
-        include_twitter=True,
         upload_bunny=upload_bunny,
         bunny_library_id=os.getenv("BUNNY_LIBRARY_ID"),
         bunny_access_key=os.getenv("BUNNY_ACCESS_KEY"),
@@ -337,54 +311,7 @@ def pipeline(
             else:
                 step_warning("Context cards generation failed")
 
-        # Step 5: LinkedIn (optional)
-        if config.include_linkedin:
-            current_step += 1
-            pipeline_step(current_step, total_steps, "Generating LinkedIn post")
-            with status_spinner("Processing"):
-                linkedin_result = processor.generate_linkedin_post(
-                    str(config.transcript_output_path),
-                    output_path=str(config.linkedin_output_path),
-                )
-
-            step_complete("LinkedIn post generated", linkedin_result)
-            artifacts.append(config.linkedin_output_path.name)
-
-        # Step 6: Twitter (optional)
-        if config.include_twitter:
-            current_step += 1
-            pipeline_step(current_step, total_steps, "Generating Twitter post")
-            with status_spinner("Processing"):
-                twitter_result = processor.generate_twitter_post(
-                    str(config.transcript_output_path),
-                    output_path=str(config.twitter_output_path),
-                )
-
-            step_complete("Twitter post generated", twitter_result)
-            artifacts.append(config.twitter_output_path.name)
-
-        # Step 7: SEO (optional)
-        if config.include_seo:
-            current_step += 1
-            pipeline_step(current_step, total_steps, "Generating SEO keywords")
-
-            # SEO requires description, generate if needed
-            if not config.description_output_path.exists():
-                with status_spinner("Generating description"):
-                    processor.generate_description(
-                        video_path=str(config.concat_output_path),
-                        transcript_path=str(config.transcript_output_path),
-                        output_path=str(config.description_output_path),
-                    )
-                artifacts.append(config.description_output_path.name)
-
-            with status_spinner("Processing"):
-                seo_result = processor.generate_seo_keywords(str(config.description_output_path))
-
-            step_complete("SEO keywords generated", seo_result)
-            artifacts.append(Path(seo_result).name)
-
-        # Step 8: Bunny upload (optional)
+        # Step 5: Bunny upload (optional)
         if config.upload_bunny:
             current_step += 1
             pipeline_step(current_step, total_steps, "Uploading to Bunny.net")

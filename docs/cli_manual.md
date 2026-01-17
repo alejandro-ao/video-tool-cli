@@ -58,7 +58,7 @@ BUNNY_CAPTION_LANGUAGE=en  # optional, defaults to 'en'
 | Command | Groq | OpenAI |
 |---------|------|--------|
 | `transcript` | Yes | No |
-| `description`, `seo`, `linkedin`, `twitter` | No | Yes |
+| `description`, `context-cards` | No | Yes |
 | `timestamps` (transcript mode) | No | Yes |
 | `context-cards` | No | Yes |
 | `pipeline` | Yes | Yes |
@@ -388,97 +388,16 @@ video-tool content description -i ./video.mp4 --links
 
 ---
 
-#### `seo`
-
-Generate SEO keywords from a transcript.
-
-**Required inputs:**
-- Path to video transcript (.vtt file)
-
-**Optional inputs:**
-- Output directory (defaults to `transcript_dir`)
-- Updates/creates `metadata.json` with the SEO keywords content
-
-**Example:**
-
-```bash
-video-tool seo --transcript-path ./output/transcript.vtt
-```
-
-**Arguments:**
-- `--transcript-path PATH`: Path to video transcript (.vtt file)
-- `--output-dir PATH`: Directory for SEO output (default: transcript_dir)
-
-**Note:** If a description doesn't exist, it will be generated automatically.
-
-**Output:** Creates `keywords.txt` in the chosen output directory and updates/creates `metadata.json`.
-
----
-
-#### `linkedin`
-
-Generate a LinkedIn post from a video transcript.
-
-**Required inputs:**
-- Path to video transcript (.vtt file)
-
-**Optional inputs:**
-- Output directory (defaults to `transcript_dir`)
-- Output path (defaults to `transcript_dir/linkedin_post.md`)
-- Updates/creates `metadata.json` with the LinkedIn post content
-
-**Example:**
-
-```bash
-video-tool linkedin --transcript-path ./output/transcript.vtt
-```
-
-**Arguments:**
-- `--transcript-path PATH`: Path to video transcript (.vtt file)
-- `--output-dir PATH`: Directory for LinkedIn output (default: transcript_dir)
-- `--output-path PATH`: Full path for the output LinkedIn post file (default: transcript_dir/linkedin_post.md)
-
-**Output:** Creates `linkedin_post.md` in the chosen output directory and updates/creates `metadata.json`.
-
----
-
-#### `twitter`
-
-Generate a Twitter/X post from a video transcript.
-
-**Required inputs:**
-- Path to video transcript (.vtt file)
-
-**Optional inputs:**
-- Output directory (defaults to `transcript_dir`)
-- Output path (defaults to `transcript_dir/twitter_post.md`)
-- Updates/creates `metadata.json` with the Twitter post content
-
-**Example:**
-
-```bash
-video-tool twitter --transcript-path ./output/transcript.vtt
-```
-
-**Arguments:**
-- `--transcript-path PATH`: Path to video transcript (.vtt file)
-- `--output-dir PATH`: Directory for Twitter output (default: transcript_dir)
-- `--output-path PATH`: Full path for the output Twitter post file (default: transcript_dir/twitter_post.md)
-
-**Output:** Creates `twitter_post.md` in the chosen output directory and updates/creates `metadata.json`.
-
----
-
 #### `pipeline`
 
-Run the full video-tool pipeline (silence removal not included) for an input directory of clips. The pipeline now collects everything up front and then runs non-interactively (no step-level prompts): input/output directories, concat title/output path, fast concat toggle, timestamps settings (granularity/notes/output), transcript output path, which content steps to run (context cards, LinkedIn, SEO, Twitter), and optional Bunny upload credentials/metadata path.
+Run the full video-tool pipeline (silence removal not included) for an input directory of clips. The pipeline now collects everything up front and then runs non-interactively (no step-level prompts): input/output directories, concat title/output path, fast concat toggle, timestamps settings (granularity/notes/output), transcript output path, whether to generate context cards, and optional Bunny upload credentials/metadata path.
 
 **Prompts for (in order):**
 - Input directory and output directory (default: `<input>/output`)
 - Concatenated video title, optional custom output path, and fast/standard concat
 - Timestamps output path, granularity (low/medium/high), and optional notes
 - Transcript output path for the concatenated video
-- Whether to generate context cards, LinkedIn post, SEO keywords, and Twitter post (plus their output paths)
+- Whether to generate context cards
 - Optional Bunny upload toggle and credentials (library/access keys and optional collection id)
 
 **Optional inputs:**
@@ -491,7 +410,7 @@ video-tool pipeline
 video-tool pipeline --cli-bin ./venv/bin/video-tool
 ```
 
-**Output:** Executes concat, timestamps, transcript, context cards, SEO, LinkedIn, Twitter, and optional Bunny upload in sequence using defaults from the individual commands.
+**Output:** Executes concat, timestamps, transcript, context cards, and optional Bunny upload in sequence using defaults from the individual commands.
 
 ---
 
@@ -667,14 +586,7 @@ video-tool content description \
   --links \
   --code-link https://github.com/user/repo
 
-# 7. Generate SEO keywords
-video-tool seo --transcript-path ./clips/output/transcript.vtt
-
-# 8. Generate social media posts
-video-tool linkedin --transcript-path ./clips/output/transcript.vtt
-video-tool twitter --transcript-path ./clips/output/transcript.vtt
-
-# 9. Upload to Bunny.net (video upload)
+# 7. Upload to Bunny.net (video upload)
 video-tool bunny-upload --video-path ./clips/output/final-video.mp4
 
 # 10. Upload captions to Bunny.net
@@ -700,15 +612,6 @@ video-tool video transcript --input ./my-video.mp4
 video-tool video transcript --input ./podcast.mp3
 ```
 
-### Social Media Content Only
-
-Generate social media posts from an existing transcript:
-
-```bash
-video-tool linkedin --transcript-path ./transcript.vtt
-video-tool twitter --transcript-path ./transcript.vtt
-```
-
 ## Output Structure
 
 All generated files are stored in the `output/` directory within your input directory:
@@ -724,11 +627,8 @@ clips/
     ├── final-video.mp4     # After concatenation
     ├── transcript.vtt      # Video transcript
     ├── timestamps.json     # Chapter timestamps
-    ├── context-cards.md    # Context cards
     ├── description.md      # Video description
-    ├── keywords.txt        # SEO keywords
-    ├── linkedin_post.md    # LinkedIn post
-    └── twitter_post.md     # Twitter post
+    └── context-cards.md    # Context cards
 ```
 
 ## Logging
@@ -764,7 +664,7 @@ Ensure your input directory contains `.mp4` files. The tool looks for MP4 files 
 Commands use different input/output patterns depending on their function:
 
 - **Video commands** (`silence-removal`, `concat`, `timestamps`, `transcript`): Use `--input`/`-i` for input and `--output-path`/`-o` for output file path
-- **Content commands** (`description`, `seo`, etc.): Use `--transcript-path` for input and `--output-dir` or `--output-path` for output
+- **Content commands** (`description`, `context-cards`): Use `--input` or `--input-transcript` for input and `--output-path` for output
 
 Output paths default to sensible locations (usually alongside the input file) if not specified.
 
@@ -789,9 +689,6 @@ video-tool video concat --input-dir "$INPUT_DIR" --output-path "$VIDEO_PATH" --f
 video-tool video timestamps --mode clips --input "$INPUT_DIR"
 video-tool video transcript --input "$VIDEO_PATH"
 video-tool content description -i "$TRANSCRIPT_PATH" --links --code-link "$REPO_URL"
-video-tool content seo --transcript-path "$TRANSCRIPT_PATH"
-video-tool content linkedin --transcript-path "$TRANSCRIPT_PATH"
-video-tool content twitter --transcript-path "$TRANSCRIPT_PATH"
 
 echo "Pipeline complete!"
 ```

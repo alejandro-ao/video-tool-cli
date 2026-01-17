@@ -46,7 +46,7 @@ video_app = typer.Typer(
 
 content_app = typer.Typer(
     name="content",
-    help="Content generation commands (description, seo, linkedin, etc.)",
+    help="Content generation commands (description, context-cards)",
     rich_markup_mode="rich",
     no_args_is_help=True,
 )

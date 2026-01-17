@@ -1,4 +1,4 @@
-"""Content generation commands: description, seo, linkedin, twitter, context-cards, summary."""
+"""Content generation commands: description, context-cards."""
 
 from __future__ import annotations
 
@@ -12,9 +12,6 @@ from video_tool import VideoProcessor
 from video_tool.cli import validate_ai_env_vars, content_app
 from video_tool.ui import (
     ask_path,
-    ask_text,
-    ask_choice,
-    ask_confirm,
     console,
     normalize_path,
     status_spinner,
@@ -192,163 +189,6 @@ def _update_description_metadata(output_dir: Path, transcript_file: Optional[Pat
     _write_metadata(metadata_path, existing)
 
 
-@content_app.command("seo")
-def seo(
-    transcript_path: Optional[Path] = typer.Option(None, "--transcript-path", "-t", help="Path to transcript (.vtt)"),
-    output_dir: Optional[Path] = typer.Option(None, "--output-dir", "-o", help="Output directory"),
-) -> None:
-    """Generate SEO keywords from transcript."""
-    if not validate_ai_env_vars():
-        raise typer.Exit(1)
-
-    if transcript_path is None:
-        transcript_path_str = ask_path("Path to transcript (.vtt)", required=True)
-        transcript_path = Path(transcript_path_str)
-    else:
-        transcript_path = Path(normalize_path(str(transcript_path)))
-
-    if not transcript_path.exists() or not transcript_path.is_file():
-        step_error(f"Invalid transcript file: {transcript_path}")
-        raise typer.Exit(1)
-
-    transcript_dir = transcript_path.parent
-    output_dir_path = Path(normalize_path(str(output_dir))) if output_dir else transcript_dir
-
-    step_start("Generating SEO keywords", {"Transcript": str(transcript_path)})
-
-    # Check if description exists, generate if needed
-    description_path = output_dir_path / "description.md"
-    processor = VideoProcessor(str(transcript_dir), output_dir=str(output_dir_path))
-
-    if not description_path.exists():
-        step_warning("Description not found. Generating description first...")
-        search_dirs = [transcript_dir, transcript_dir.parent]
-        video_candidates = []
-        for candidate_dir in search_dirs:
-            if candidate_dir.exists():
-                video_candidates.extend(_find_supported_videos(candidate_dir))
-
-        if not video_candidates:
-            step_error("No video file found near transcript")
-            raise typer.Exit(1)
-
-        video_path = str(video_candidates[0])
-        processor = VideoProcessor(str(Path(video_path).parent), output_dir=str(output_dir_path))
-
-        with status_spinner("Generating description"):
-            description_path = processor.generate_description(
-                video_path=video_path,
-                transcript_path=str(transcript_path),
-                output_path=str(output_dir_path / "description.md"),
-            )
-
-    with status_spinner("Processing"):
-        keywords_path = processor.generate_seo_keywords(str(description_path))
-
-    step_complete("SEO keywords generated", keywords_path)
-
-    # Update metadata
-    _update_seo_metadata(output_dir_path, keywords_path)
-
-
-def _update_seo_metadata(output_dir: Path, keywords_path: str) -> None:
-    """Update metadata.json with SEO keywords."""
-    metadata_path = output_dir / "metadata.json"
-    existing = _read_metadata(metadata_path) or {}
-
-    try:
-        existing["seo_keywords"] = Path(keywords_path).read_text(encoding="utf-8")
-    except OSError:
-        pass
-
-    _write_metadata(metadata_path, existing)
-
-
-@content_app.command("linkedin")
-def linkedin(
-    transcript_path: Optional[Path] = typer.Option(None, "--transcript-path", "-t", help="Path to transcript (.vtt)"),
-    output_dir: Optional[Path] = typer.Option(None, "--output-dir", "-o", help="Output directory"),
-    output_path: Optional[Path] = typer.Option(None, "--output-path", help="Full path for output file"),
-) -> None:
-    """Generate LinkedIn post from transcript."""
-    if not validate_ai_env_vars():
-        raise typer.Exit(1)
-
-    if transcript_path is None:
-        transcript_path_str = ask_path("Path to transcript (.vtt)", required=True)
-        transcript_path = Path(transcript_path_str)
-    else:
-        transcript_path = Path(normalize_path(str(transcript_path)))
-
-    if not transcript_path.exists() or not transcript_path.is_file():
-        step_error(f"Invalid transcript file: {transcript_path}")
-        raise typer.Exit(1)
-
-    transcript_dir = transcript_path.parent
-    output_dir_path = Path(normalize_path(str(output_dir))) if output_dir else transcript_dir
-    final_output_path = str(Path(normalize_path(str(output_path)))) if output_path else str(output_dir_path / "linkedin_post.md")
-
-    step_start("Generating LinkedIn post", {"Transcript": str(transcript_path), "Output": final_output_path})
-
-    with status_spinner("Processing"):
-        processor = VideoProcessor(str(transcript_dir), output_dir=str(output_dir_path))
-        linkedin_path = processor.generate_linkedin_post(str(transcript_path), output_path=final_output_path)
-
-    step_complete("LinkedIn post generated", linkedin_path)
-
-    # Update metadata
-    _update_social_metadata(output_dir_path, "linkedin_post", linkedin_path)
-
-
-@content_app.command("twitter")
-def twitter(
-    transcript_path: Optional[Path] = typer.Option(None, "--transcript-path", "-t", help="Path to transcript (.vtt)"),
-    output_dir: Optional[Path] = typer.Option(None, "--output-dir", "-o", help="Output directory"),
-    output_path: Optional[Path] = typer.Option(None, "--output-path", help="Full path for output file"),
-) -> None:
-    """Generate Twitter post from transcript."""
-    if not validate_ai_env_vars():
-        raise typer.Exit(1)
-
-    if transcript_path is None:
-        transcript_path_str = ask_path("Path to transcript (.vtt)", required=True)
-        transcript_path = Path(transcript_path_str)
-    else:
-        transcript_path = Path(normalize_path(str(transcript_path)))
-
-    if not transcript_path.exists() or not transcript_path.is_file():
-        step_error(f"Invalid transcript file: {transcript_path}")
-        raise typer.Exit(1)
-
-    transcript_dir = transcript_path.parent
-    output_dir_path = Path(normalize_path(str(output_dir))) if output_dir else transcript_dir
-    final_output_path = str(Path(normalize_path(str(output_path)))) if output_path else str(output_dir_path / "twitter_post.md")
-
-    step_start("Generating Twitter post", {"Transcript": str(transcript_path), "Output": final_output_path})
-
-    with status_spinner("Processing"):
-        processor = VideoProcessor(str(transcript_dir), output_dir=str(output_dir_path))
-        twitter_path = processor.generate_twitter_post(str(transcript_path), output_path=final_output_path)
-
-    step_complete("Twitter post generated", twitter_path)
-
-    # Update metadata
-    _update_social_metadata(output_dir_path, "twitter_post", twitter_path)
-
-
-def _update_social_metadata(output_dir: Path, key: str, content_path: str) -> None:
-    """Update metadata.json with social post content."""
-    metadata_path = output_dir / "metadata.json"
-    existing = _read_metadata(metadata_path) or {}
-
-    try:
-        existing[key] = Path(content_path).read_text(encoding="utf-8")
-    except OSError:
-        pass
-
-    _write_metadata(metadata_path, existing)
-
-
 @content_app.command("context-cards")
 def context_cards(
     input_transcript: Optional[Path] = typer.Option(None, "--input-transcript", "-t", help="Path to transcript (.vtt)"),
@@ -398,73 +238,6 @@ def _update_context_cards_metadata(output_dir: Path, cards_path: str) -> None:
         pass
 
     _write_metadata(metadata_path, existing)
-
-
-@content_app.command("summary")
-def summary(
-    transcript_path: Optional[Path] = typer.Option(None, "--transcript-path", "-t", help="Path to transcript (.vtt)"),
-    output_dir: Optional[Path] = typer.Option(None, "--output-dir", "-o", help="Output directory"),
-    output_path: Optional[Path] = typer.Option(None, "--output-path", help="Full path for output file"),
-    length: Optional[str] = typer.Option(None, "--length", "-l", help="Summary length (short/medium/long)"),
-    difficulty: Optional[str] = typer.Option(None, "--difficulty", "-d", help="Difficulty (beginner/intermediate/advanced)"),
-    no_keywords: bool = typer.Option(False, "--no-keywords", help="Disable SEO keyword generation"),
-    target_audience: Optional[str] = typer.Option(None, "--target-audience", help="Target audience override"),
-    output_format: str = typer.Option("markdown", "--output-format", "-f", help="Output format (markdown/json)"),
-    disable: bool = typer.Option(False, "--disable", help="Skip summary generation"),
-) -> None:
-    """Generate a structured technical summary from a transcript."""
-    if not validate_ai_env_vars():
-        raise typer.Exit(1)
-
-    if disable:
-        console.print("[dim]Summary generation disabled.[/dim]")
-        return
-
-    if transcript_path is None:
-        transcript_path_str = ask_path("Path to transcript (.vtt)", required=True)
-        transcript_path = Path(transcript_path_str)
-    else:
-        transcript_path = Path(normalize_path(str(transcript_path)))
-
-    if not transcript_path.exists() or not transcript_path.is_file():
-        step_error(f"Invalid transcript file: {transcript_path}")
-        raise typer.Exit(1)
-
-    transcript_dir = transcript_path.parent
-    default_output_dir = transcript_dir / "summaries"
-    output_dir_path = Path(normalize_path(str(output_dir))) if output_dir else default_output_dir
-
-    extension = "json" if output_format.lower() == "json" else "md"
-    if output_path:
-        final_output_path = str(Path(normalize_path(str(output_path))))
-    else:
-        final_output_path = str(output_dir_path / f"{transcript_path.stem}_summary.{extension}")
-
-    summary_config = {
-        "enabled": True,
-        "length": length or "medium",
-        "difficulty": difficulty or "intermediate",
-        "include_keywords": not no_keywords,
-        "output_format": output_format.lower(),
-    }
-    if target_audience:
-        summary_config["target_audience"] = target_audience
-
-    step_start("Generating summary", {"Transcript": str(transcript_path), "Output": final_output_path})
-
-    with status_spinner("Processing"):
-        processor = VideoProcessor(str(transcript_dir), output_dir=str(transcript_dir))
-        summary_path = processor.generate_summary(
-            transcript_path=str(transcript_path),
-            output_path=final_output_path,
-            config=summary_config,
-        )
-
-    if summary_path:
-        step_complete("Summary generated", summary_path)
-    else:
-        step_error("Failed to generate summary")
-        raise typer.Exit(1)
 
 
 # --- Metadata helpers ---
