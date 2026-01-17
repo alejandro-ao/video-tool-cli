@@ -8,8 +8,7 @@ Automate Alejandro's YouTube production workflow end to end. Given a directory o
 - MP4 concatenation with `ffmpeg`, including optional fast-path when reprocessing is unnecessary
 - Automatic chapter map (`timestamps.json`) with ISO-formatted timecode
 - Whisper transcription (`transcript.vtt`) via Groq
-- Thumbnail artwork generation via OpenAI's responses API (gpt-5 + image generation tool)
-- Markdown description, SEO keywords, and social posts derived from `prompts.yaml`
+- Markdown description and context cards derived from `prompts.yaml`
 - Optional Bunny.net deployment with independent toggles for uploading the final cut, chapters, and transcript captions
 - Optional duration CSV export for analytics
 
@@ -19,7 +18,7 @@ Automate Alejandro's YouTube production workflow end to end. Given a directory o
 - `yt-dlp` for video downloads (installed automatically)
 - Environment variables:
   - `GROQ_API_KEY` (transcription via Groq Whisper Large V3 Turbo)
-  - `OPENAI_API_KEY` (content generation: descriptions, SEO, social posts, timestamps)
+  - `OPENAI_API_KEY` (content generation: descriptions, context cards, timestamps)
   - *(Optional)* Bunny Stream deployment:
     - `BUNNY_LIBRARY_ID`
     - `BUNNY_ACCESS_KEY`
@@ -66,9 +65,9 @@ Automate Alejandro's YouTube production workflow end to end. Given a directory o
 ### CLI Structure
 
 ```
+video-tool config ...                # Configuration
 video-tool pipeline ...              # Full workflow (most common)
-video-tool video <command> ...       # Video processing
-video-tool content <command> ...     # Content generation
+video-tool video <command> ...       # Video processing + content generation
 video-tool deploy <command> ...      # Bunny.net deployment
 ```
 
@@ -104,12 +103,8 @@ video-tool video download --url "https://youtube.com/watch?v=..." --output-dir .
 - `video-tool video download` - Download from URL
 
 **Content generation:**
-- `video-tool content description` - Generate video description
-- `video-tool content seo` - Generate SEO keywords
-- `video-tool content linkedin` - Generate LinkedIn post
-- `video-tool content twitter` - Generate Twitter post
-- `video-tool content context-cards` - Generate context cards
-- `video-tool content summary` - Generate technical summary
+- `video-tool video description` - Generate video description
+- `video-tool video context-cards` - Generate context cards
 
 **Deployment:**
 - `video-tool deploy bunny-upload` - Upload video to Bunny.net
@@ -123,8 +118,7 @@ All outputs are written to an `output/` subdirectory:
 - Chapters: `output/timestamps.json`
 - Transcript: `output/transcript.vtt`
 - Description: `output/description.md`
-- SEO keywords: `output/keywords.txt`
-- Social copy: `output/linkedin_post.md`, `output/twitter_post.md`
+- Context cards: `output/context-cards.md`
 
 All actions are logged to `video_processor.log`.
 

@@ -60,8 +60,39 @@ BUNNY_CAPTION_LANGUAGE=en  # optional, defaults to 'en'
 | `transcript` | Yes | No |
 | `description`, `context-cards` | No | Yes |
 | `timestamps` (transcript mode) | No | Yes |
-| `context-cards` | No | Yes |
 | `pipeline` | Yes | Yes |
+
+## Configuration
+
+### Config File Location
+User configuration is stored in `~/.config/video-tool/config.yaml`.
+
+### Config File Structure
+```yaml
+llm:
+  default:
+    base_url: "https://api.openai.com/v1"
+    model: "gpt-4o"
+  description:  # per-command override (optional)
+    model: "gpt-4o-mini"
+
+links:  # persistent links for descriptions
+  - description: "Code from this video"
+    url: "https://github.com/..."
+```
+
+### First-Time Setup
+On first run, you'll be prompted to configure:
+1. Base URL for OpenAI-compatible API
+2. Default model name
+
+### Managing Configuration
+Use `video-tool config` to manage settings:
+- `--show` - view current config
+- `--model`, `--base-url` - set defaults
+- `--command` - configure specific command
+- `--links` - manage persistent links
+- `--reset` - reset to defaults
 
 ## Available Commands
 
@@ -215,7 +246,7 @@ Writes a `metadata.json` file alongside the concatenated video with basic detail
 Generate video chapter timestamps (useful for YouTube chapters).
 
 Two modes available:
-- **clips**: One chapter per video clip in a directory. If a transcript exists in the output directory (`transcript.vtt`), chapter titles are automatically refined using an LLM for better readability.
+- **clips**: One chapter per video clip in a directory. If a transcript exists (`transcript.vtt`), you'll be prompted to configure an LLM for title refinement. Leave empty to skip and use filenames as titles.
 - **transcript**: LLM-analyzed chapters from a VTT transcript
 
 **Required inputs:**
@@ -294,33 +325,33 @@ video-tool video transcript
 
 #### `context-cards`
 
-Generate context cards and resource mentions from a transcript.
+Generate context cards and resource mentions from a transcript or media file.
 
 **Required inputs:**
-- Path to transcript file (.vtt)
+- Input file (video/audio/vtt)
 
 **Optional inputs:**
-- Output directory (defaults to `transcript_dir`)
-- Output path (defaults to `transcript_dir/context-cards.md`)
+- Output path (defaults to `input_dir/context-cards.md`)
 - Updates/creates `metadata.json` with the full context cards content
 
 **Example:**
 
 ```bash
-video-tool video context-cards --input-transcript ./output/transcript.vtt
+# From transcript
+video-tool video context-cards --input ./output/transcript.vtt
+
+# From video (auto-generates transcript)
+video-tool video context-cards -i ./output/final.mp4
 
 # Custom output location
 video-tool video context-cards \
-  --input-transcript ./output/transcript.vtt \
-  --output-path ./output/custom-context-cards.md
+  -i ./output/transcript.vtt \
+  -o ./output/custom-context-cards.md
 ```
 
 **Arguments:**
-- `--input-transcript PATH`: Path to transcript file (.vtt)
-- `--output-dir PATH`: Directory for context cards output (default: transcript_dir)
-- `--output-path PATH`: Full path for the generated context cards file (default: transcript_dir/context-cards.md)
-
-**Note:** The transcript must already exist; generate it first using the `transcript` command.
+- `--input, -i PATH`: Input file (video/audio/vtt)
+- `--output, -o PATH`: Full path for the generated context cards file (default: input_dir/context-cards.md)
 
 **Output:** Creates `context-cards.md` in the chosen output directory and updates/creates `metadata.json`.
 
@@ -409,34 +440,6 @@ video-tool pipeline --cli-bin ./venv/bin/video-tool
 ```
 
 **Output:** Executes concat, timestamps, transcript, context cards, and optional Bunny upload in sequence using defaults from the individual commands.
-
----
-
-#### `thumbnail`
-
-Generate a thumbnail image for the video using OpenAI's GPT image generation endpoint.
-
-**Required inputs:**
-- Thumbnail description (used as the prompt)
-
-**Optional inputs:**
-- Input directory (defaults to the current working directory)
-- Output directory or explicit output path
-- Image size (e.g. `1280x720`, defaults to `1280x720`)
-- OpenAI image model (defaults to `gpt-5`)
-- Note: OpenAI's image tool currently accepts `1024x1024`, `1536x1024`, `1024x1536`, or `auto`; other dimensions are mapped to the closest supported option.
-
-**Example:**
-
-```bash
-# Non-interactive usage
-video-tool thumbnail --prompt "Bold text about AI agent demo" --size 1280x720
-
-# Save to a specific location
-video-tool thumbnail --prompt "Minimalist neon gradient" --output-path ./assets/thumbnail.png
-```
-
-**Output:** Creates `thumbnail.png` in the output directory (or at the specified path).
 
 ---
 
@@ -576,7 +579,7 @@ video-tool video timestamps --mode clips --input ./clips
 video-tool video transcript --input ./clips/output/final-video.mp4
 
 # 5. Generate context cards
-video-tool video context-cards --input-transcript ./clips/output/transcript.vtt
+video-tool video context-cards -i ./clips/output/transcript.vtt
 
 # 6. Generate description with links
 video-tool video description \
@@ -662,7 +665,7 @@ Ensure your input directory contains `.mp4` files. The tool looks for MP4 files 
 Commands use different input/output patterns depending on their function:
 
 - **Processing commands** (`silence-removal`, `concat`, `timestamps`, `transcript`): Use `--input`/`-i` for input and `--output-path`/`-o` for output file path
-- **Content commands** (`description`, `context-cards`): Use `--input`/`-i` or `--input-transcript`/`-t` for input and `--output-path`/`-o` for output
+- **Content commands** (`description`, `context-cards`): Use `--input`/`-i` for input and `--output`/`-o` for output
 
 Output paths default to sensible locations (usually alongside the input file) if not specified.
 

@@ -9,6 +9,8 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 from pydantic import BaseModel
 
+from video_tool.config import is_llm_configured, prompt_optional_llm_setup
+
 from .shared import VideoFileClip, logger
 
 
@@ -395,7 +397,7 @@ class ConcatenationMixin:
 
             current_time = end_time
 
-        # Refine titles with transcript if available
+        # Refine titles with transcript if available and LLM is configured
         transcript_file = None
         if transcript_path:
             candidate = Path(transcript_path).expanduser()
@@ -407,11 +409,19 @@ class ConcatenationMixin:
                 transcript_file = default_transcript
 
         if transcript_file and timestamps:
-            transcript_segments = self._load_transcript_segments(transcript_file)
-            if transcript_segments:
-                timestamps = self._refine_timestamp_titles_with_structured_output(
-                    timestamps, transcript_segments
-                )
+            # Check if LLM is configured; prompt if not
+            llm_available = is_llm_configured()
+            if not llm_available:
+                llm_available = prompt_optional_llm_setup()
+
+            if llm_available:
+                transcript_segments = self._load_transcript_segments(transcript_file)
+                if transcript_segments:
+                    timestamps = self._refine_timestamp_titles_with_structured_output(
+                        timestamps, transcript_segments
+                    )
+            else:
+                logger.info("Skipping LLM title refinement (no LLM configured)")
 
         video_info = {
             "timestamps": timestamps,

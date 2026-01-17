@@ -143,9 +143,9 @@ class TestGenerateTimestamps:
 
         mock_video_processor.video_dir = temp_dir
 
-        with patch.object(mock_video_processor, '_get_video_metadata') as mock_metadata, patch.object(
-            mock_video_processor, '_invoke_openai_chat_structured_output'
-        ) as mock_structured:
+        with patch.object(mock_video_processor, '_get_video_metadata') as mock_metadata, \
+             patch.object(mock_video_processor, '_invoke_openai_chat_structured_output') as mock_structured, \
+             patch('video_tool.video_processor.concatenation.is_llm_configured', return_value=True):
             mock_metadata.side_effect = [
                 {'duration': 120.0},
                 {'duration': 180.0},
@@ -185,9 +185,9 @@ class TestGenerateTimestamps:
 
         mock_video_processor.video_dir = temp_dir
 
-        with patch.object(mock_video_processor, '_get_video_metadata') as mock_metadata, patch.object(
-            mock_video_processor, '_invoke_openai_chat_structured_output'
-        ) as mock_structured:
+        with patch.object(mock_video_processor, '_get_video_metadata') as mock_metadata, \
+             patch.object(mock_video_processor, '_invoke_openai_chat_structured_output') as mock_structured, \
+             patch('video_tool.video_processor.concatenation.is_llm_configured', return_value=True):
             mock_metadata.side_effect = [
                 {'duration': 60.0},
                 {'duration': 60.0},

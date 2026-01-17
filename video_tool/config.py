@@ -28,6 +28,23 @@ def config_exists() -> bool:
     return CONFIG_PATH.exists()
 
 
+def is_llm_configured() -> bool:
+    """Check if user has explicitly configured LLM settings.
+
+    Returns True if config file exists with LLM settings, False otherwise.
+    This distinguishes between 'user configured defaults' and 'never configured'.
+    """
+    if not CONFIG_PATH.exists():
+        return False
+
+    try:
+        with open(CONFIG_PATH) as f:
+            config = yaml.safe_load(f) or {}
+        return "llm" in config and "default" in config.get("llm", {})
+    except (OSError, yaml.YAMLError):
+        return False
+
+
 def load_config() -> dict:
     """Load config from file or return defaults."""
     if not CONFIG_PATH.exists():
@@ -172,3 +189,44 @@ def ensure_config() -> dict:
 
     console.print(f"\n[green]Config saved to {CONFIG_PATH}[/green]\n")
     return config
+
+
+def prompt_optional_llm_setup() -> bool:
+    """Prompt user to configure LLM for optional features. Returns True if configured.
+
+    Used for features like timestamp title refinement that enhance output but aren't required.
+    If user skips configuration, the feature will be skipped.
+    """
+    from video_tool.ui import ask_text, ask_confirm, console
+
+    console.print("\n[bold]LLM Configuration (Optional)[/bold]")
+    console.print("[dim]An LLM can improve chapter titles using transcript context.[/dim]")
+    console.print("[dim]Leave empty to skip this enhancement.[/dim]\n")
+
+    if not ask_confirm("Configure LLM for title refinement?", default=False):
+        console.print("[dim]Skipping LLM configuration - using default titles[/dim]\n")
+        return False
+
+    base_url = ask_text(
+        f"Base URL for OpenAI-compatible API (default: {DEFAULT_BASE_URL})",
+        required=False,
+    )
+    model = ask_text(f"Model name (default: {DEFAULT_MODEL})", required=False)
+
+    # If both empty, user wants to skip
+    if not base_url and not model:
+        console.print("[dim]No LLM configured - using default titles[/dim]\n")
+        return False
+
+    # Save config with provided or default values
+    config = {
+        "llm": {
+            "default": {
+                "base_url": base_url or DEFAULT_BASE_URL,
+                "model": model or DEFAULT_MODEL,
+            }
+        }
+    }
+    save_config(config)
+    console.print(f"\n[green]LLM config saved to {CONFIG_PATH}[/green]\n")
+    return True
