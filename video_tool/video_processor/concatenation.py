@@ -395,6 +395,24 @@ class ConcatenationMixin:
 
             current_time = end_time
 
+        # Refine titles with transcript if available
+        transcript_file = None
+        if transcript_path:
+            candidate = Path(transcript_path).expanduser()
+            if candidate.exists():
+                transcript_file = candidate
+        if transcript_file is None:
+            default_transcript = self.output_dir / "transcript.vtt"
+            if default_transcript.exists():
+                transcript_file = default_transcript
+
+        if transcript_file and timestamps:
+            transcript_segments = self._load_transcript_segments(transcript_file)
+            if transcript_segments:
+                timestamps = self._refine_timestamp_titles_with_structured_output(
+                    timestamps, transcript_segments
+                )
+
         video_info = {
             "timestamps": timestamps,
             "metadata": {

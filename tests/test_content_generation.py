@@ -424,11 +424,8 @@ class TestGenerateTranscript:
         
         with patch('video_tool.video_processor.VideoFileClip') as mock_video_clip, \
              patch.object(mock_video_processor, '_groq_verbose_json_to_vtt') as mock_vtt_converter, \
-             patch.object(mock_video_processor, '_clean_vtt_transcript') as mock_clean_vtt, \
-             patch('builtins.open', create=True) as mock_open, \
-             patch('os.path.getsize') as mock_getsize, \
-             patch('pathlib.Path.stat') as mock_stat:
-            
+             patch('os.path.getsize') as mock_getsize:
+
             # Mock small audio file (≤25MB)
             mock_clip = Mock()
             mock_audio = Mock()
@@ -436,30 +433,20 @@ class TestGenerateTranscript:
             mock_clip.audio = mock_audio
             mock_clip.close = Mock()
             mock_video_clip.return_value = mock_clip
-            
+
             # Mock audio write operation
             mock_audio.write_audiofile = Mock()
-            
-            # Create the audio file to simulate successful extraction
+
+            # Create the audio file to simulate successful extraction (non-empty)
             audio_file = video_file.with_suffix(".mp3")
-            audio_file.touch()  # Create empty file
-            
+            audio_file.write_bytes(b'\x00' * 100)  # Write some bytes to avoid empty file check
+
             # Mock file size to be small (≤25MB) - no chunking needed
             mock_getsize.return_value = 20 * 1024 * 1024  # 20MB
-            
-            # Mock stat for pathlib.Path.stat() to return small file size
-            mock_stat_result = Mock()
-            mock_stat_result.st_size = 20 * 1024 * 1024  # 20MB
-            mock_stat.return_value = mock_stat_result
-            
-            # Mock VTT conversion and cleaning
+
+            # Mock VTT conversion
             mock_vtt_converter.return_value = SAMPLE_VTT_CONTENT
-            mock_clean_vtt.return_value = SAMPLE_VTT_CONTENT
-            
-            # Mock file operations
-            mock_file_handle = Mock()
-            mock_open.return_value.__enter__.return_value = mock_file_handle
-            
+
             result = mock_video_processor.generate_transcript(str(video_file))
             
             # Should call transcription once for small file
@@ -495,11 +482,8 @@ class TestGenerateTranscript:
              patch.object(mock_video_processor, '_groq_verbose_json_to_vtt') as mock_vtt_converter, \
              patch.object(mock_video_processor, '_clean_vtt_transcript') as mock_clean_vtt, \
              patch.object(mock_video_processor, '_merge_vtt_transcripts') as mock_merge, \
-             patch('builtins.open', create=True) as mock_open, \
-             patch('os.path.getsize') as mock_getsize, \
-             patch('pathlib.Path.stat') as mock_stat, \
-             patch('os.remove') as mock_remove:
-            
+             patch('os.path.getsize') as mock_getsize:
+
             # Mock large audio file that needs chunking (>25MB)
             mock_clip = Mock()
             mock_audio = Mock()
@@ -507,47 +491,38 @@ class TestGenerateTranscript:
             mock_clip.audio = mock_audio
             mock_clip.close = Mock()
             mock_video_clip.return_value = mock_clip
-            
+
             # Mock audio write operation
             mock_audio.write_audiofile = Mock()
-            
+
             # Create the audio file to simulate successful extraction
             audio_file = video_file.with_suffix(".mp3")
-            audio_file.touch()  # Create empty file
-            
+            audio_file.write_bytes(b'\x00' * 100)  # Write some bytes to avoid empty file check
+
             # Mock file size to be large (>25MB) to trigger chunking
             mock_getsize.return_value = 30 * 1024 * 1024  # 30MB
-            
-            # Mock stat for pathlib.Path.stat() to return large file size
-            mock_stat_result = Mock()
-            mock_stat_result.st_size = 30 * 1024 * 1024  # 30MB
-            mock_stat.return_value = mock_stat_result
-            
+
             # Mock AudioSegment for chunking
             mock_audio_instance = Mock()
             # Configure the mock to support len() operation
             type(mock_audio_instance).__len__ = Mock(return_value=1200000)  # 20 minutes (2 chunks of 10 min each)
             mock_audio_segment.from_mp3.return_value = mock_audio_instance
-            
+
             # Mock chunk creation and export
             mock_chunk = Mock()
             def create_chunk_file(path, format=None):
-                # Create the chunk file when export is called
+                # Create non-empty chunk file when export is called
                 chunk_path = Path(path)
-                chunk_path.touch()
+                chunk_path.write_bytes(b'\x00' * 100)
             mock_chunk.export.side_effect = create_chunk_file
             # Configure the mock to support slicing operations
             type(mock_audio_instance).__getitem__ = Mock(return_value=mock_chunk)
-            
+
             # Mock VTT conversion and cleaning
             mock_vtt_converter.return_value = "WEBVTT\n\n00:00:00.000 --> 00:00:05.000\nTest chunk\n"
             mock_clean_vtt.return_value = "WEBVTT\n\n00:00:00.000 --> 00:00:05.000\nTest chunk\n"
             mock_merge.return_value = SAMPLE_VTT_CONTENT
-            
-            # Mock file operations for chunk processing
-            mock_file_handle = Mock()
-            mock_open.return_value.__enter__.return_value = mock_file_handle
-            
+
             result = mock_video_processor.generate_transcript(str(video_file))
             
             # Should call transcription multiple times for chunks (2 chunks expected)
