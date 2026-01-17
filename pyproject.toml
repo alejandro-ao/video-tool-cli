@@ -9,6 +9,7 @@ description = "A professional video processing tool with MCP server capabilities
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "audioop-lts>=0.2.1",  # audioop replacement for Python 3.13+
     "loguru>=0.7.3",
     "mcp>=1.12.2",
     "moviepy>=2.1.2",
