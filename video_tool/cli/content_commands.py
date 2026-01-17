@@ -191,46 +191,93 @@ def _update_description_metadata(output_dir: Path, transcript_file: Optional[Pat
 
 @video_app.command("context-cards")
 def context_cards(
-    input_transcript: Optional[Path] = typer.Option(None, "--input-transcript", "-t", help="Path to transcript (.vtt)"),
-    output_dir: Optional[Path] = typer.Option(None, "--output-dir", "-o", help="Output directory"),
-    output_path: Optional[Path] = typer.Option(None, "--output-path", help="Full path for output file"),
+    input_path: Optional[Path] = typer.Option(None, "--input", "-i", help="Input file (video/audio/vtt)"),
+    output_path: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path"),
 ) -> None:
-    """Generate context cards from transcript."""
+    """Generate context cards from transcript or media file."""
     if not validate_ai_env_vars():
         raise typer.Exit(1)
 
-    if input_transcript is None:
-        transcript_path_str = ask_path("Path to transcript (.vtt)", required=True)
-        input_transcript = Path(transcript_path_str)
-    else:
-        input_transcript = Path(normalize_path(str(input_transcript)))
+    transcript_file: Optional[Path] = None
+    media_file: Optional[Path] = None
+    transcript_generated = False
 
-    if not input_transcript.exists() or not input_transcript.is_file():
-        step_error(f"Invalid transcript file: {input_transcript}")
+    # Resolve input
+    if input_path is None:
+        input_str = ask_path(f"Input file ({SUPPORTED_MEDIA_LABEL}, VTT)", required=True)
+        input_path = Path(input_str)
+    else:
+        input_path = Path(normalize_path(str(input_path)))
+
+    if not input_path.exists() or not input_path.is_file():
+        step_error(f"Invalid input file: {input_path}")
         raise typer.Exit(1)
 
-    transcript_dir = input_transcript.parent
-    output_dir_path = Path(normalize_path(str(output_dir))) if output_dir else transcript_dir
-    final_output_path = str(Path(normalize_path(str(output_path)))) if output_path else str(output_dir_path / "context-cards.md")
+    # Determine input type
+    suffix = input_path.suffix.lower()
+    if suffix == ".vtt":
+        transcript_file = input_path
+    elif suffix in SUPPORTED_VIDEO_SUFFIXES + SUPPORTED_AUDIO_SUFFIXES:
+        media_file = input_path
+    else:
+        step_error(f"Unsupported file type: {suffix}. Use VTT transcript or video/audio.")
+        raise typer.Exit(1)
 
-    step_start("Generating context cards", {"Transcript": str(input_transcript), "Output": final_output_path})
+    # Determine default output path
+    default_output_path = input_path.parent / "context-cards.md"
+
+    # Resolve output path
+    if output_path is None:
+        output_str = ask_path(f"Output path (default: {default_output_path})", required=False)
+        if output_str:
+            output_path = Path(output_str)
+
+    final_output_path = str(Path(normalize_path(str(output_path)))) if output_path else str(default_output_path)
+    output_dir_path = Path(final_output_path).parent
+
+    # Generate transcript if needed
+    processor: Optional[VideoProcessor] = None
+    if transcript_file is None and media_file:
+        output_dir_path.mkdir(parents=True, exist_ok=True)
+        processor = VideoProcessor(str(media_file.parent), output_dir=str(output_dir_path))
+        transcript_output = str(output_dir_path / "transcript.vtt")
+
+        step_start("Generating transcript", {"Input": str(media_file)})
+        with status_spinner("Transcribing"):
+            transcript_result = processor.generate_transcript(str(media_file), output_path=transcript_output)
+        step_complete("Transcript generated", transcript_result)
+
+        transcript_file = Path(transcript_result)
+        transcript_generated = True
+
+    # Create processor if needed
+    if processor is None:
+        processor = VideoProcessor(str(transcript_file.parent), output_dir=str(output_dir_path))
+
+    step_start("Generating context cards", {"Transcript": str(transcript_file), "Output": final_output_path})
 
     with status_spinner("Processing"):
-        processor = VideoProcessor(str(transcript_dir), output_dir=str(output_dir_path))
-        cards_path = processor.generate_context_cards(str(input_transcript), output_path=final_output_path)
+        cards_path = processor.generate_context_cards(str(transcript_file), output_path=final_output_path)
 
     if cards_path:
         step_complete("Context cards generated", cards_path)
-        _update_context_cards_metadata(output_dir_path, cards_path)
+        _update_context_cards_metadata(output_dir_path, cards_path, transcript_file if transcript_generated else None)
     else:
         step_error("Failed to generate context cards")
         raise typer.Exit(1)
 
 
-def _update_context_cards_metadata(output_dir: Path, cards_path: str) -> None:
-    """Update metadata.json with context cards."""
+def _update_context_cards_metadata(output_dir: Path, cards_path: str, transcript_file: Optional[Path] = None) -> None:
+    """Update metadata.json with context cards and optional transcript."""
     metadata_path = output_dir / "metadata.json"
     existing = _read_metadata(metadata_path) or {}
+
+    if transcript_file:
+        try:
+            existing["transcript"] = transcript_file.read_text(encoding="utf-8")
+            existing["transcript_format"] = transcript_file.suffix.lstrip(".").lower()
+        except OSError:
+            pass
 
     try:
         existing["context_cards"] = Path(cards_path).read_text(encoding="utf-8")
