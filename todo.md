@@ -16,9 +16,12 @@
 - [X] integrate langsmith for tracing
 - [X] fix chapter names with LLM right into the json file
 
-- [ ] publish LinkedIn post
-- [ ] fix generate seo words with web search
-- [ ] add willow animation
-- [ ] generate a blog post
-  - [ ] create agent with access to github repo
-  - [ ] have agent write the blog post with transcript & repo
+- [x] generate a blog post (skill)
+  - [x] create agent with access to github repo (skill)
+  - [x] have agent write the blog post with transcript & repo (skill)
+
+## New Commands
+
+- [ ] `video extract-audio` - extract audio track from video
+- [ ] `video enhance-audio` - voice enhancement (noise reduction, normalization)
+- [ ] `video youtube-upload` - upload to YouTube via Data API
