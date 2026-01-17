@@ -3,7 +3,7 @@ from moviepy import VideoFileClip
 from pydub import AudioSegment
 from pydub.silence import detect_nonsilent
 from groq import Groq
-from langchain_openai import ChatOpenAI as OpenAI
+from openai import OpenAI
 import requests
 
 from .processor import VideoProcessor

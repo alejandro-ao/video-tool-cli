@@ -23,7 +23,7 @@ pytest --cov=video_tool --cov=main  # with coverage
 **Entry points**: `main.py` → `video_tool/cli.py` (interactive CLI with 17+ commands)
 
 **VideoProcessor (mixin pattern)** in `video_tool/video_processor/`:
-- `base.py`: Core config, LLM clients (OpenAI/Groq via langchain), loguru logging
+- `base.py`: Core config, LLM clients (OpenAI/Groq via native SDKs), loguru logging
 - `concatenation.py`: ffmpeg video joining, fast concat, timestamp generation
 - `content.py`: Description, SEO, social posts, context cards (uses prompts.yaml)
 - `transcript.py`: Groq Whisper transcription

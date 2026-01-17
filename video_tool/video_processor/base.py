@@ -9,12 +9,12 @@ from pathlib import Path
 from typing import Dict, List, Optional, Type, TypeVar, Union
 
 import yaml
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
+from openai import OpenAI
 from pydantic import BaseModel
 
 from video_tool.config import get_llm_config
 
-from .shared import Groq, OpenAI, logger
+from .shared import Groq, logger
 
 StructuredResponse = TypeVar("StructuredResponse", bound=BaseModel)
 
@@ -146,87 +146,57 @@ class VideoProcessorBase:
             with redirect_stdout(devnull), redirect_stderr(devnull):
                 yield
 
-    def _build_openai_chat_model(
-        self,
-        *,
-        command: str,
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
-    ):
-        """Instantiate a LangChain ChatOpenAI model with the requested parameters."""
+    def _get_openai_client(self, command: str) -> OpenAI:
+        """Return an OpenAI client configured for the given command."""
         llm_config = get_llm_config(command)
-        llm_kwargs: Dict[str, Union[str, float, int]] = {
-            "model": llm_config.model,
-            "base_url": llm_config.base_url,
-        }
-        if temperature is not None:
-            llm_kwargs["temperature"] = temperature
-        if max_tokens is not None:
-            llm_kwargs["max_tokens"] = max_tokens
-        return OpenAI(**llm_kwargs)
-
-    def _convert_messages_to_langchain(
-        self, messages: List[Union[Dict[str, str], BaseMessage]]
-    ) -> List[BaseMessage]:
-        """Convert OpenAI-style message dicts into LangChain message objects."""
-        converted: List[BaseMessage] = []
-        for message in messages:
-            if isinstance(message, BaseMessage):
-                converted.append(message)
-                continue
-
-            if not isinstance(message, dict):
-                raise TypeError(
-                    "Messages must be dicts with 'role' and 'content' keys or LangChain BaseMessage instances."
-                )
-
-            role = message.get("role", "user")
-            content = str(message.get("content", ""))
-
-            if role == "system":
-                converted.append(SystemMessage(content=content))
-            elif role == "assistant":
-                converted.append(AIMessage(content=content))
-            elif role == "user":
-                converted.append(HumanMessage(content=content))
-            else:
-                raise ValueError(f"Unsupported message role: {role}")
-
-        return converted
+        return OpenAI(base_url=llm_config.base_url)
 
     def _invoke_openai_chat(
         self,
         *,
         command: str,
-        messages: List[Union[Dict[str, str], BaseMessage]],
+        messages: List[Dict[str, str]],
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
-    ) -> AIMessage:
-        """Execute a chat completion request using LangChain's OpenAI integration."""
-        chat_model = self._build_openai_chat_model(
-            command=command, temperature=temperature, max_tokens=max_tokens
-        )
-        langchain_messages = self._convert_messages_to_langchain(messages)
-        response = chat_model.invoke(langchain_messages)
-        if not isinstance(response, AIMessage):
-            raise TypeError("Expected LangChain AIMessage response from ChatOpenAI invocation.")
-        return response
+    ) -> str:
+        """Execute a chat completion request using the OpenAI SDK."""
+        client = self._get_openai_client(command)
+        llm_config = get_llm_config(command)
+
+        kwargs: Dict[str, Union[str, float, int, List]] = {
+            "model": llm_config.model,
+            "messages": messages,
+        }
+        if temperature is not None:
+            kwargs["temperature"] = temperature
+        if max_tokens is not None:
+            kwargs["max_completion_tokens"] = max_tokens
+
+        response = client.chat.completions.create(**kwargs)
+        return response.choices[0].message.content
 
     def _invoke_openai_chat_structured_output(
         self,
         *,
         command: str,
-        messages: List[Union[Dict[str, str], BaseMessage]],
+        messages: List[Dict[str, str]],
         schema: Type[StructuredResponse],
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
-        include_raw: bool = False,
     ) -> StructuredResponse:
         """Execute a chat request that returns structured output defined by the schema."""
-        chat_model = self._build_openai_chat_model(
-            command=command, temperature=temperature, max_tokens=max_tokens
-        )
-        structured_model = chat_model.with_structured_output(schema, include_raw=include_raw)
-        langchain_messages = self._convert_messages_to_langchain(messages)
-        response = structured_model.invoke(langchain_messages)
-        return response
+        client = self._get_openai_client(command)
+        llm_config = get_llm_config(command)
+
+        kwargs: Dict[str, Union[str, float, int, List, Type]] = {
+            "model": llm_config.model,
+            "messages": messages,
+            "response_format": schema,
+        }
+        if temperature is not None:
+            kwargs["temperature"] = temperature
+        if max_tokens is not None:
+            kwargs["max_completion_tokens"] = max_tokens
+
+        response = client.beta.chat.completions.parse(**kwargs)
+        return response.choices[0].message.parsed
