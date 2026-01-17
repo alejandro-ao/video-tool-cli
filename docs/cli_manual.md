@@ -44,7 +44,7 @@ Required environment variables (set in `.env` or your shell):
 # For transcription (Groq Whisper Large V3 Turbo)
 GROQ_API_KEY=your_groq_api_key
 
-# For content generation (descriptions, SEO, social posts, timestamps from transcript)
+# For content generation (descriptions, context-cards)
 OPENAI_API_KEY=your_openai_api_key
 
 # Optional: For Bunny.net uploads
@@ -292,8 +292,6 @@ video-tool video transcript
 
 ---
 
-### Content Generation Commands
-
 #### `context-cards`
 
 Generate context cards and resource mentions from a transcript.
@@ -309,10 +307,10 @@ Generate context cards and resource mentions from a transcript.
 **Example:**
 
 ```bash
-video-tool context-cards --input-transcript ./output/transcript.vtt
+video-tool video context-cards --input-transcript ./output/transcript.vtt
 
 # Custom output location
-video-tool context-cards \
+video-tool video context-cards \
   --input-transcript ./output/transcript.vtt \
   --output-path ./output/custom-context-cards.md
 ```
@@ -357,21 +355,21 @@ Links are added in order: video-specific first (code/article), then persistent l
 
 ```bash
 # Basic usage (no links)
-video-tool content description -i ./transcript.vtt
+video-tool video description -i ./transcript.vtt
 
 # With persistent links from config
-video-tool content description -i ./transcript.vtt --links
+video-tool video description -i ./transcript.vtt --links
 
 # With video-specific code link
-video-tool content description -i ./transcript.vtt --links --code-link https://github.com/user/repo
+video-tool video description -i ./transcript.vtt --links --code-link https://github.com/user/repo
 
 # With both video-specific links
-video-tool content description -i ./transcript.vtt --links \
+video-tool video description -i ./transcript.vtt --links \
   --code-link https://github.com/user/repo \
   --article-link https://blog.example.com/post
 
 # Auto-generate transcript from video
-video-tool content description -i ./video.mp4 --links
+video-tool video description -i ./video.mp4 --links
 ```
 
 **Arguments:**
@@ -578,10 +576,10 @@ video-tool video timestamps --mode clips --input ./clips
 video-tool video transcript --input ./clips/output/final-video.mp4
 
 # 5. Generate context cards
-video-tool context-cards --input-transcript ./clips/output/transcript.vtt
+video-tool video context-cards --input-transcript ./clips/output/transcript.vtt
 
 # 6. Generate description with links
-video-tool content description \
+video-tool video description \
   -i ./clips/output/transcript.vtt \
   --links \
   --code-link https://github.com/user/repo
@@ -663,8 +661,8 @@ Ensure your input directory contains `.mp4` files. The tool looks for MP4 files 
 
 Commands use different input/output patterns depending on their function:
 
-- **Video commands** (`silence-removal`, `concat`, `timestamps`, `transcript`): Use `--input`/`-i` for input and `--output-path`/`-o` for output file path
-- **Content commands** (`description`, `context-cards`): Use `--input` or `--input-transcript` for input and `--output-path` for output
+- **Processing commands** (`silence-removal`, `concat`, `timestamps`, `transcript`): Use `--input`/`-i` for input and `--output-path`/`-o` for output file path
+- **Content commands** (`description`, `context-cards`): Use `--input`/`-i` or `--input-transcript`/`-t` for input and `--output-path`/`-o` for output
 
 Output paths default to sensible locations (usually alongside the input file) if not specified.
 
@@ -688,7 +686,7 @@ video-tool video silence-removal --input "$INPUT_DIR/clip-01.mp4"
 video-tool video concat --input-dir "$INPUT_DIR" --output-path "$VIDEO_PATH" --fast-concat
 video-tool video timestamps --mode clips --input "$INPUT_DIR"
 video-tool video transcript --input "$VIDEO_PATH"
-video-tool content description -i "$TRANSCRIPT_PATH" --links --code-link "$REPO_URL"
+video-tool video description -i "$TRANSCRIPT_PATH" --links --code-link "$REPO_URL"
 
 echo "Pipeline complete!"
 ```

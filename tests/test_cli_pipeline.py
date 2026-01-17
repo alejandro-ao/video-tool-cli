@@ -37,9 +37,9 @@ def test_video_subcommands_exist():
 
 
 @pytest.mark.unit
-def test_content_subcommands_exist():
-    """Verify content subcommands are registered."""
-    result = runner.invoke(app, ["content", "--help"])
+def test_video_content_subcommands_exist():
+    """Verify description and context-cards are in video group."""
+    result = runner.invoke(app, ["video", "--help"])
     assert result.exit_code == 0
     assert "description" in result.stdout
     assert "context-cards" in result.stdout

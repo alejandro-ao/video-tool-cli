@@ -9,7 +9,7 @@ from typing import List, Optional
 import typer
 
 from video_tool import VideoProcessor
-from video_tool.cli import validate_ai_env_vars, content_app
+from video_tool.cli import validate_ai_env_vars, video_app
 from video_tool.ui import (
     ask_path,
     console,
@@ -40,7 +40,7 @@ def _find_supported_videos(directory: Path) -> List[Path]:
     return sorted(videos)
 
 
-@content_app.command("description")
+@video_app.command("description")
 def description(
     input_path: Optional[Path] = typer.Option(None, "--input", "-i", help="Input file (video/audio/vtt/md/txt)"),
     output_path: Optional[Path] = typer.Option(None, "--output-path", "-o", help="Full path for output description"),
@@ -189,7 +189,7 @@ def _update_description_metadata(output_dir: Path, transcript_file: Optional[Pat
     _write_metadata(metadata_path, existing)
 
 
-@content_app.command("context-cards")
+@video_app.command("context-cards")
 def context_cards(
     input_transcript: Optional[Path] = typer.Option(None, "--input-transcript", "-t", help="Path to transcript (.vtt)"),
     output_dir: Optional[Path] = typer.Option(None, "--output-dir", "-o", help="Output directory"),
