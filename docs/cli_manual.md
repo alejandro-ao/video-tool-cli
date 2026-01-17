@@ -215,7 +215,7 @@ Writes a `metadata.json` file alongside the concatenated video with basic detail
 Generate video chapter timestamps (useful for YouTube chapters).
 
 Two modes available:
-- **clips**: One chapter per video clip in a directory
+- **clips**: One chapter per video clip in a directory. If a transcript exists in the output directory (`transcript.vtt`), chapter titles are automatically refined using an LLM for better readability.
 - **transcript**: LLM-analyzed chapters from a VTT transcript
 
 **Required inputs:**
