@@ -153,7 +153,13 @@ def description(
             config_links = prompt_links_setup()
         links_list.extend(config_links)
 
-    step_start("Generating description", {"Transcript": str(transcript_file), "Output": final_output_path})
+    llm_config = get_llm_config("description")
+    step_start("Generating description", {
+        "Transcript": str(transcript_file),
+        "Output": final_output_path,
+        "Model": llm_config.model,
+        "Provider": llm_config.base_url,
+    })
 
     with status_spinner("Processing"):
         description_result = processor.generate_description(
@@ -260,6 +266,7 @@ def context_cards(
         "Transcript": str(transcript_file),
         "Output": final_output_path,
         "Model": llm_config.model,
+        "Provider": llm_config.base_url,
     })
 
     with status_spinner("Processing"):
