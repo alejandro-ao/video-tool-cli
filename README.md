@@ -101,6 +101,7 @@ video-tool video download --url "https://youtube.com/watch?v=..." --output-dir .
 - `video-tool video concat` - Concatenate clips into single video
 - `video-tool video timestamps` - Generate chapter timestamps
 - `video-tool video transcript` - Transcribe video/audio with Groq Whisper
+- `video-tool video extract-audio` - Extract audio to MP3
 - `video-tool video silence-removal` - Remove silent sections
 - `video-tool video download` - Download from URL
 - `video-tool video extract-audio` - Extract audio to MP3
