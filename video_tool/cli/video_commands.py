@@ -11,6 +11,7 @@ import typer
 
 from video_tool import VideoProcessor
 from video_tool.cli import validate_ai_env_vars, video_app
+from video_tool.config import get_llm_config
 from video_tool.ui import (
     ask_confirm,
     ask_path,
@@ -299,12 +300,17 @@ def timestamps(
             final_granularity = "medium"
 
     # 7. Generate timestamps
-    step_start("Generating timestamps", {
+    step_info = {
         "Mode": mode,
         "Input": str(input_path),
         "Output": str(final_output_path),
-        **({"Granularity": final_granularity} if mode == "transcript" else {}),
-    })
+    }
+    if mode == "transcript":
+        step_info["Granularity"] = final_granularity
+        llm_config = get_llm_config("timestamps")
+        step_info["Model"] = llm_config.model
+        step_info["Provider"] = llm_config.base_url
+    step_start("Generating timestamps", step_info)
 
     with status_spinner("Processing"):
         processor = VideoProcessor(str(base_dir), output_dir=str(final_output_path.parent))

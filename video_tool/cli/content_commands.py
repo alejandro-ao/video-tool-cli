@@ -10,6 +10,7 @@ import typer
 
 from video_tool import VideoProcessor
 from video_tool.cli import validate_ai_env_vars, video_app
+from video_tool.config import get_llm_config
 from video_tool.ui import (
     ask_path,
     console,
@@ -152,7 +153,13 @@ def description(
             config_links = prompt_links_setup()
         links_list.extend(config_links)
 
-    step_start("Generating description", {"Transcript": str(transcript_file), "Output": final_output_path})
+    llm_config = get_llm_config("description")
+    step_start("Generating description", {
+        "Transcript": str(transcript_file),
+        "Output": final_output_path,
+        "Model": llm_config.model,
+        "Provider": llm_config.base_url,
+    })
 
     with status_spinner("Processing"):
         description_result = processor.generate_description(
@@ -254,7 +261,13 @@ def context_cards(
     if processor is None:
         processor = VideoProcessor(str(transcript_file.parent), output_dir=str(output_dir_path))
 
-    step_start("Generating context cards", {"Transcript": str(transcript_file), "Output": final_output_path})
+    llm_config = get_llm_config("context_cards")
+    step_start("Generating context cards", {
+        "Transcript": str(transcript_file),
+        "Output": final_output_path,
+        "Model": llm_config.model,
+        "Provider": llm_config.base_url,
+    })
 
     with status_spinner("Processing"):
         cards_path = processor.generate_context_cards(str(transcript_file), output_path=final_output_path)

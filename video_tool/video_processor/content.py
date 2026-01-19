@@ -103,7 +103,7 @@ class ContentGenerationMixin:
                 logger.warning(f"Timestamps file not found: {resolved_timestamps_path}")
 
         # Build description with optional sections
-        sections = [f"# {Path(video_path).stem}", "", response.content]
+        sections = [f"# {Path(video_path).stem}", "", response]
 
         if links:
             link_list = "\n".join(f'- {link["description"]}: {link["url"]}' for link in links)
@@ -123,13 +123,9 @@ class ContentGenerationMixin:
             messages=[{"role": "user", "content": polish_description_prompt}],
         )
 
-        try:
-            polished_description = polished_description_response.content
-            if not isinstance(polished_description, str):
-                polished_description = str(polished_description)
-        except Exception as exc:
-            logger.error(f"Error extracting polished description: {exc}")
-            return ""
+        polished_description = polished_description_response
+        if not isinstance(polished_description, str):
+            polished_description = str(polished_description)
 
         resolved_output_path = Path(output_path) if output_path else self.output_dir / "description.md"
         if resolved_output_path.is_dir():
@@ -180,7 +176,7 @@ class ContentGenerationMixin:
             output_file = Path(output_path) if output_path else self.output_dir / "context-cards.md"
             output_file.parent.mkdir(parents=True, exist_ok=True)
             with open(output_file, "w", encoding="utf-8") as file:
-                file.write(response.content)
+                file.write(response)
 
             logger.info(f"Context cards generated successfully: {output_file}")
             return str(output_file)
@@ -212,7 +208,7 @@ class ContentGenerationMixin:
             output_path = Path(description_path).parent / "keywords.txt"
 
             with open(output_path, "w") as file:
-                file.write(response.content)
+                file.write(response)
 
             return str(output_path)
         except Exception as exc:
@@ -242,7 +238,7 @@ class ContentGenerationMixin:
             resolved_output_path = Path(output_path) if output_path else self.output_dir / "linkedin_post.md"
             resolved_output_path.parent.mkdir(parents=True, exist_ok=True)
             with open(resolved_output_path, "w") as file:
-                file.write(response.content)
+                file.write(response)
 
             logger.info(f"LinkedIn post generated successfully: {resolved_output_path}")
             return str(resolved_output_path)
@@ -273,7 +269,7 @@ class ContentGenerationMixin:
             resolved_output_path = Path(output_path) if output_path else self.output_dir / "twitter_post.md"
             resolved_output_path.parent.mkdir(parents=True, exist_ok=True)
             with open(resolved_output_path, "w") as file:
-                file.write(response.content)
+                file.write(response)
 
             logger.info(f"Twitter post generated successfully: {resolved_output_path}")
             return str(resolved_output_path)
@@ -411,7 +407,7 @@ class ContentGenerationMixin:
                     temperature=0.3,
                 )
 
-                summary_content = response.content
+                summary_content = response
                 if not isinstance(summary_content, str):
                     summary_content = str(summary_content)
 
