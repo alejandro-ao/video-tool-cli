@@ -8,9 +8,11 @@ from .download import DownloadMixin
 from .file_management import FileManagementMixin
 from .silence import SilenceProcessingMixin
 from .transcript import TranscriptMixin
+from .youtube import YouTubeDeploymentMixin
 
 
 class VideoProcessor(
+    YouTubeDeploymentMixin,
     BunnyDeploymentMixin,
     ContentGenerationMixin,
     TranscriptMixin,

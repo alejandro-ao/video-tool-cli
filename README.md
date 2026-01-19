@@ -10,6 +10,7 @@ Automate Alejandro's YouTube production workflow end to end. Given a directory o
 - Whisper transcription (`transcript.vtt`) via Groq
 - Markdown description and context cards derived from `prompts.yaml`
 - Optional Bunny.net deployment with independent toggles for uploading the final cut, chapters, and transcript captions
+- YouTube deployment with OAuth2 authentication for uploading videos, thumbnails, and captions
 - Optional duration CSV export for analytics
 
 ## Requirements
@@ -27,6 +28,9 @@ Automate Alejandro's YouTube production workflow end to end. Given a directory o
     - `BUNNY_VIDEO_ID` (for metadata-only updates)
   - *(Optional)* Audio enhancement:
     - `REPLICATE_API_TOKEN` (for `enhance-audio` command)
+  - *(Optional)* YouTube deployment (OAuth2, no env vars):
+    - Run `video-tool config youtube-auth --client-secrets /path/to/client_secrets.json`
+    - Credentials saved to `~/.config/video-tool/youtube_credentials.json`
 
 ## Installation
 - Using uv (editable, best for development):
@@ -70,7 +74,7 @@ Automate Alejandro's YouTube production workflow end to end. Given a directory o
 video-tool config ...                # Configuration
 video-tool pipeline ...              # Full workflow (most common)
 video-tool video <command> ...       # Video processing + content generation
-video-tool deploy <command> ...      # Bunny.net deployment
+video-tool deploy <command> ...      # Bunny.net / YouTube deployment
 ```
 
 ### Quick Start
@@ -102,19 +106,28 @@ video-tool video download --url "https://youtube.com/watch?v=..." --output-dir .
 - `video-tool video timestamps` - Generate chapter timestamps
 - `video-tool video transcript` - Transcribe video/audio with Groq Whisper
 - `video-tool video extract-audio` - Extract audio to MP3
+- `video-tool video enhance-audio` - Enhance audio quality via Replicate
 - `video-tool video silence-removal` - Remove silent sections
 - `video-tool video download` - Download from URL
-- `video-tool video extract-audio` - Extract audio to MP3
-- `video-tool video enhance-audio` - Enhance audio quality via Replicate
 
 **Content generation:**
 - `video-tool video description` - Generate video description
 - `video-tool video context-cards` - Generate context cards
 
-**Deployment:**
+**Deployment (Bunny.net):**
 - `video-tool deploy bunny-upload` - Upload video to Bunny.net
 - `video-tool deploy bunny-transcript` - Upload captions
 - `video-tool deploy bunny-chapters` - Upload chapters
+
+**Deployment (YouTube):**
+- `video-tool deploy youtube-upload` - Upload video to YouTube
+- `video-tool deploy youtube-metadata` - Update video metadata
+- `video-tool deploy youtube-transcript` - Upload captions
+
+**Configuration:**
+- `video-tool config llm` - Configure LLM settings
+- `video-tool config youtube-auth` - YouTube OAuth2 authentication
+- `video-tool config youtube-status` - Check YouTube credentials
 
 ### Outputs
 

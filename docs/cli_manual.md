@@ -55,6 +55,9 @@ BUNNY_CAPTION_LANGUAGE=en  # optional, defaults to 'en'
 
 # Optional: For audio enhancement
 REPLICATE_API_TOKEN=your_replicate_token
+
+# YouTube (OAuth2 - no env vars, one-time browser auth)
+# Run: video-tool config youtube-auth --client-secrets /path/to/client_secrets.json
 ```
 
 **API Usage by Command:**
@@ -91,18 +94,16 @@ On first run, you'll be prompted to configure:
 2. Default model name
 
 ### Managing Configuration
-Use `video-tool config` to manage settings:
-- `--show` - view current config
-- `--model`, `--base-url` - set defaults
-- `--command` - configure specific command
-- `--links` - manage persistent links
-- `--reset` - reset to defaults
+Use `video-tool config` subcommands to manage settings:
+- `video-tool config llm` - LLM and links settings
+- `video-tool config youtube-auth` - YouTube OAuth2 authentication
+- `video-tool config youtube-status` - Check YouTube credentials
 
 ## Available Commands
 
 ### Configuration
 
-#### `config`
+#### `config llm`
 
 Configure LLM and links settings for video-tool.
 
@@ -118,24 +119,24 @@ Configure LLM and links settings for video-tool.
 
 ```bash
 # Show all config (LLM + links)
-video-tool config --show
+video-tool config llm --show
 
 # Configure default model
-video-tool config --model gpt-4o
+video-tool config llm --model gpt-4o
 
 # Configure model for a specific command
-video-tool config --command description --model gpt-4o-mini
+video-tool config llm --command description --model gpt-4o-mini
 
 # Manage persistent links (interactive)
-video-tool config --links
+video-tool config llm --links
 
 # Reset to defaults
-video-tool config --reset
+video-tool config llm --reset
 ```
 
 **Persistent Links:**
 
-Use `video-tool config --links` to interactively add/edit links that will be included in descriptions when using the `--links` flag. Links are stored in `~/.config/video-tool/config.yaml`:
+Use `video-tool config llm --links` to interactively add/edit links that will be included in descriptions when using the `--links` flag. Links are stored in `~/.config/video-tool/config.yaml`:
 
 ```yaml
 llm:
@@ -150,6 +151,45 @@ links:
     url: "https://example.com/support"
   - description: "💬 Discord Server"
     url: "https://example.com/discord"
+```
+
+---
+
+#### `config youtube-auth`
+
+Authenticate with the YouTube Data API using OAuth2.
+
+**Setup (one-time):**
+1. Create OAuth2 credentials at [Google Cloud Console](https://console.cloud.google.com/)
+2. Enable YouTube Data API v3
+3. Download `client_secrets.json`
+4. Run `video-tool config youtube-auth --client-secrets /path/to/client_secrets.json`
+
+**Example:**
+
+```bash
+# First-time setup
+video-tool config youtube-auth --client-secrets ~/Downloads/client_secrets.json
+
+# Re-authenticate (uses existing client_secrets in ~/.config/video-tool/)
+video-tool config youtube-auth
+```
+
+**Arguments:**
+- `--client-secrets, -c PATH`: Path to client_secrets.json from Google Cloud Console
+
+The browser will open for OAuth consent. Grant access to upload videos and manage captions. Credentials are saved to `~/.config/video-tool/youtube_credentials.json`.
+
+---
+
+#### `config youtube-status`
+
+Check the status of YouTube API credentials.
+
+**Example:**
+
+```bash
+video-tool config youtube-status
 ```
 
 ---
@@ -620,6 +660,111 @@ video-tool bunny-chapters \
 - `--chapters-path PATH`: Path to chapters JSON file
 - `--bunny-library-id ID`: Bunny.net library ID
 - `--bunny-access-key KEY`: Bunny.net access key
+
+---
+
+#### `youtube-upload`
+
+Upload a video to YouTube (as draft/private by default).
+
+**Required setup:**
+- Run `video-tool config youtube-auth` first
+
+**Required inputs:**
+- Path to video file
+- Video title
+
+**Optional inputs:**
+- Description (text or file)
+- Tags (comma-separated or file with one tag per line)
+- Category ID (default: 27 = Education)
+- Privacy status: `private`, `unlisted`, or `public`
+- Thumbnail image (PNG/JPG, max 2MB)
+
+**Example:**
+
+```bash
+# Basic upload (private/draft)
+video-tool deploy youtube-upload -i ./output/final.mp4 --title "My Video"
+
+# Full upload with all options
+video-tool deploy youtube-upload \
+  -i ./output/final.mp4 \
+  --title "My Video Title" \
+  --description-file ./output/description.md \
+  --tags-file ./output/keywords.txt \
+  --category 27 \
+  --privacy private \
+  --thumbnail ./thumbnail.png
+
+# Interactive mode
+video-tool deploy youtube-upload
+```
+
+**Arguments:**
+- `--video-path, -i PATH`: Path to video file
+- `--title, -t TEXT`: Video title
+- `--description, -d TEXT`: Video description
+- `--description-file PATH`: Read description from file
+- `--tags TEXT`: Comma-separated tags
+- `--tags-file PATH`: Read tags from file (one per line)
+- `--category, -c INT`: YouTube category ID (default: 27)
+- `--privacy, -p TEXT`: Privacy status: private, unlisted, public
+- `--thumbnail PATH`: Thumbnail image (PNG/JPG, max 2MB)
+
+**Note:** Include timestamps in your description for automatic YouTube chapters.
+
+---
+
+#### `youtube-metadata`
+
+Update metadata for an existing YouTube video.
+
+**Example:**
+
+```bash
+# Update description
+video-tool deploy youtube-metadata \
+  --video-id VIDEO_ID \
+  --description-file ./output/description.md
+
+# Update multiple fields
+video-tool deploy youtube-metadata \
+  --video-id VIDEO_ID \
+  --title "New Title" \
+  --tags "tag1,tag2,tag3"
+```
+
+**Arguments:**
+- `--video-id, -v ID`: YouTube video ID
+- `--title, -t TEXT`: New video title
+- `--description, -d TEXT`: New description
+- `--description-file PATH`: Read description from file
+- `--tags TEXT`: Comma-separated tags
+- `--tags-file PATH`: Read tags from file
+- `--category, -c INT`: YouTube category ID
+
+---
+
+#### `youtube-transcript`
+
+Upload captions/transcript to a YouTube video.
+
+**Example:**
+
+```bash
+video-tool deploy youtube-transcript \
+  --video-id VIDEO_ID \
+  --transcript-path ./output/transcript.vtt \
+  --language en
+```
+
+**Arguments:**
+- `--video-id, -v ID`: YouTube video ID
+- `--transcript-path, -t PATH`: Path to caption file (.vtt)
+- `--language, -l CODE`: Caption language code (default: en)
+- `--name, -n TEXT`: Caption track name
+- `--draft`: Upload as draft (not visible)
 
 ---
 

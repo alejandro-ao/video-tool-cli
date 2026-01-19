@@ -28,12 +28,15 @@ pytest --cov=video_tool --cov=main  # with coverage
 - `content.py`: Description, SEO, social posts, context cards (uses prompts.yaml)
 - `transcript.py`: Groq Whisper transcription
 - `deployment.py`: Bunny.net CDN uploads
+- `youtube.py`: YouTube API uploads (OAuth2)
 - `processor.py`: Facade composing all mixins
 
 **CLI commands** (all support interactive prompts when args omitted):
 - Video: `silence-removal`, `concat`, `timestamps`, `transcript`, `extract-audio`, `thumbnail`, `enhance-audio`
 - Content: `description`, `seo`, `linkedin`, `twitter`, `context-cards`
-- Deploy: `bunny-upload`, `bunny-transcript`, `bunny-chapters`
+- Deploy (Bunny): `bunny-upload`, `bunny-transcript`, `bunny-chapters`
+- Deploy (YouTube): `youtube-upload`, `youtube-metadata`, `youtube-transcript`
+- Config: `youtube-auth`, `youtube-status`, `llm`
 - Automation: `pipeline` (orchestrates full workflow)
 
 **Outputs** go to `output/` subdirectory: `*.mp4`, `transcript.vtt`, `timestamps.json`, `description.md`, `keywords.txt`, social posts, `metadata.json`
@@ -47,6 +50,8 @@ Required in `.env`:
 Optional (Bunny.net): `BUNNY_LIBRARY_ID`, `BUNNY_ACCESS_KEY`, `BUNNY_COLLECTION_ID`
 
 Optional (audio enhancement): `REPLICATE_API_TOKEN`
+
+Optional (YouTube): OAuth2 via `video-tool config youtube-auth` (no env vars, credentials saved to `~/.config/video-tool/`)
 
 ## Testing
 
