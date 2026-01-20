@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import mimetypes
 import os
+import stat
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -100,6 +102,8 @@ class YouTubeDeploymentMixin:
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
         with open(CREDENTIALS_PATH, "w", encoding="utf-8") as f:
             json.dump(creds_data, f, indent=2)
+        # Restrict permissions to owner only (0600)
+        os.chmod(CREDENTIALS_PATH, stat.S_IRUSR | stat.S_IWUSR)
 
     @staticmethod
     def youtube_authenticate(client_secrets_path: Optional[str] = None) -> bool:
@@ -150,6 +154,8 @@ class YouTubeDeploymentMixin:
 
             with open(CREDENTIALS_PATH, "w", encoding="utf-8") as f:
                 json.dump(creds_data, f, indent=2)
+            # Restrict permissions to owner only (0600)
+            os.chmod(CREDENTIALS_PATH, stat.S_IRUSR | stat.S_IWUSR)
 
             logger.info(f"YouTube credentials saved to {CREDENTIALS_PATH}")
             return True
@@ -398,8 +404,18 @@ class YouTubeDeploymentMixin:
             logger.error(f"Caption file not found: {caption_path}")
             return False
 
+        # Detect MIME type based on extension
+        suffix = caption_file.suffix.lower()
+        caption_mime_types = {
+            ".vtt": "text/vtt",
+            ".srt": "application/x-subrip",
+            ".sbv": "text/x-youtube-sbv",
+            ".sub": "text/x-mpsub",
+        }
+        mimetype = caption_mime_types.get(suffix) or mimetypes.guess_type(str(caption_file))[0] or "application/octet-stream"
+
         try:
-            media = MediaFileUpload(str(caption_file), mimetype="text/vtt")
+            media = MediaFileUpload(str(caption_file), mimetype=mimetype)
 
             body = {
                 "snippet": {
