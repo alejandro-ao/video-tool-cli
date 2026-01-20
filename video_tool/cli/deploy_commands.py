@@ -1,4 +1,4 @@
-"""Deployment commands: bunny-upload, bunny-transcript, bunny-chapters."""
+"""Upload commands: bunny-video, bunny-transcript, bunny-chapters, youtube-video, etc."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from typing import Dict, List, Optional, Sequence, cast
 import typer
 
 from video_tool import VideoProcessor
-from video_tool.cli import validate_bunny_env_vars, deploy_app
+from video_tool.cli import validate_bunny_env_vars, upload_app
 from video_tool.ui import (
     ask_path,
     ask_text,
@@ -43,7 +43,7 @@ def _resolve_bunny_credentials(
     return library, access
 
 
-@deploy_app.command("bunny-upload")
+@upload_app.command("bunny-video")
 def bunny_upload(
     video_path: Optional[Path] = typer.Option(None, "--video-path", "-v", help="Path to video file to upload"),
     batch_dir: Optional[Path] = typer.Option(None, "--batch-dir", "-b", help="Directory of videos to upload"),
@@ -199,7 +199,7 @@ def _upload_single(
         raise typer.Exit(1)
 
 
-@deploy_app.command("bunny-transcript")
+@upload_app.command("bunny-transcript")
 def bunny_transcript(
     video_id: Optional[str] = typer.Option(None, "--video-id", "-v", help="Bunny.net video ID"),
     transcript_path: Optional[Path] = typer.Option(None, "--transcript-path", "-t", help="Path to transcript (.vtt)"),
@@ -251,7 +251,7 @@ def bunny_transcript(
         raise typer.Exit(1)
 
 
-@deploy_app.command("bunny-chapters")
+@upload_app.command("bunny-chapters")
 def bunny_chapters(
     video_id: Optional[str] = typer.Option(None, "--video-id", "-v", help="Bunny.net video ID"),
     chapters_path: Optional[Path] = typer.Option(None, "--chapters-path", "-c", help="Path to chapters JSON"),
@@ -357,3 +357,261 @@ def _write_metadata(path: Path, data: dict) -> None:
         console.print(f"  [dim]Metadata:[/dim] {path}")
     except OSError as e:
         step_warning(f"Unable to write metadata: {e}")
+
+
+# --- YouTube Commands ---
+
+
+def _check_youtube_credentials() -> bool:
+    """Check if YouTube credentials are configured."""
+    from video_tool.video_processor.youtube import CREDENTIALS_PATH
+    if not CREDENTIALS_PATH.exists():
+        step_error("YouTube credentials not found")
+        console.print("[yellow]Run 'video-tool config youtube-auth' first.[/yellow]")
+        return False
+    return True
+
+
+@upload_app.command("youtube-video")
+def youtube_upload(
+    video_path: Optional[Path] = typer.Option(None, "--video-path", "-i", help="Path to video file"),
+    title: Optional[str] = typer.Option(None, "--title", "-t", help="Video title"),
+    description: Optional[str] = typer.Option(None, "--description", "-d", help="Video description"),
+    description_file: Optional[Path] = typer.Option(None, "--description-file", help="Read description from file"),
+    tags: Optional[str] = typer.Option(None, "--tags", help="Comma-separated tags"),
+    tags_file: Optional[Path] = typer.Option(None, "--tags-file", help="Read tags from file (one per line)"),
+    category: int = typer.Option(27, "--category", "-c", help="YouTube category ID (default: 27 Education)"),
+    privacy: str = typer.Option("private", "--privacy", "-p", help="Privacy: private, unlisted, public"),
+    thumbnail: Optional[Path] = typer.Option(None, "--thumbnail", help="Path to thumbnail image (PNG/JPG, max 2MB)"),
+    metadata_path: Optional[Path] = typer.Option(None, "--metadata-path", "-m", help="Path to metadata.json"),
+) -> None:
+    """Upload video to YouTube (as draft by default).
+
+    Example:
+        video-tool deploy youtube-upload -i ./output/final.mp4 --title "My Video" --privacy private
+    """
+    if not _check_youtube_credentials():
+        raise typer.Exit(1)
+
+    # Resolve video path
+    if video_path:
+        video_file = Path(normalize_path(str(video_path)))
+    else:
+        video_path_str = ask_path("Path to video file", required=True)
+        video_file = Path(video_path_str)
+
+    if not video_file.exists() or not video_file.is_file():
+        step_error(f"Invalid video file: {video_file}")
+        raise typer.Exit(1)
+
+    # Resolve title
+    video_title = title
+    if not video_title:
+        video_title = ask_text("Video title", required=True)
+
+    # Resolve description
+    video_description = ""
+    if description_file:
+        desc_path = Path(normalize_path(str(description_file)))
+        if desc_path.exists():
+            video_description = desc_path.read_text(encoding="utf-8")
+        else:
+            step_warning(f"Description file not found: {desc_path}")
+    elif description:
+        video_description = description
+
+    # Resolve tags
+    video_tags: List[str] = []
+    if tags_file:
+        tags_path = Path(normalize_path(str(tags_file)))
+        if tags_path.exists():
+            video_tags = [
+                line.strip() for line in tags_path.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+        else:
+            step_warning(f"Tags file not found: {tags_path}")
+    elif tags:
+        video_tags = [t.strip() for t in tags.split(",") if t.strip()]
+
+    # Resolve thumbnail
+    thumb_path: Optional[str] = None
+    if thumbnail:
+        thumb_file = Path(normalize_path(str(thumbnail)))
+        if thumb_file.exists():
+            thumb_path = str(thumb_file)
+        else:
+            step_warning(f"Thumbnail not found: {thumb_file}")
+
+    # Resolve metadata path
+    default_metadata = video_file.parent / "output" / "metadata.json"
+    meta_path = Path(normalize_path(str(metadata_path))) if metadata_path else default_metadata
+
+    step_start("Uploading video to YouTube", {
+        "Video": str(video_file),
+        "Title": video_title,
+        "Privacy": privacy,
+        "Category": str(category),
+    })
+
+    with status_spinner("Uploading"):
+        processor = VideoProcessor(str(video_file.parent))
+        result = processor.upload_youtube_video(
+            video_path=str(video_file),
+            title=video_title,
+            description=video_description,
+            tags=video_tags,
+            category_id=category,
+            privacy_status=privacy,
+            thumbnail_path=thumb_path,
+        )
+
+    if result:
+        video_id = result.get("video_id", "")
+        url = result.get("url", "")
+        step_complete(f"Video uploaded (ID: {video_id})")
+        console.print(f"  [dim]URL:[/dim] {url}")
+
+        # Update metadata
+        existing = _read_metadata(meta_path) or {}
+        existing["youtube_video"] = {
+            "video_id": video_id,
+            "url": url,
+            "title": video_title,
+            "privacy_status": privacy,
+            "file": video_file.name,
+        }
+        _write_metadata(meta_path, existing)
+    else:
+        step_error("Failed to upload video to YouTube")
+        raise typer.Exit(1)
+
+
+@upload_app.command("youtube-metadata")
+def youtube_metadata(
+    video_id: Optional[str] = typer.Option(None, "--video-id", "-v", help="YouTube video ID"),
+    title: Optional[str] = typer.Option(None, "--title", "-t", help="New video title"),
+    description: Optional[str] = typer.Option(None, "--description", "-d", help="New description"),
+    description_file: Optional[Path] = typer.Option(None, "--description-file", help="Read description from file"),
+    tags: Optional[str] = typer.Option(None, "--tags", help="Comma-separated tags"),
+    tags_file: Optional[Path] = typer.Option(None, "--tags-file", help="Read tags from file (one per line)"),
+    category: Optional[int] = typer.Option(None, "--category", "-c", help="YouTube category ID"),
+) -> None:
+    """Update metadata for an existing YouTube video.
+
+    Example:
+        video-tool deploy youtube-metadata --video-id VIDEO_ID --description-file ./output/description.md
+    """
+    if not _check_youtube_credentials():
+        raise typer.Exit(1)
+
+    # Resolve video ID
+    vid_id = video_id
+    if not vid_id:
+        vid_id = ask_text("YouTube Video ID", required=True)
+
+    # Resolve description
+    new_description: Optional[str] = None
+    if description_file:
+        desc_path = Path(normalize_path(str(description_file)))
+        if desc_path.exists():
+            new_description = desc_path.read_text(encoding="utf-8")
+        else:
+            step_error(f"Description file not found: {desc_path}")
+            raise typer.Exit(1)
+    elif description:
+        new_description = description
+
+    # Resolve tags
+    new_tags: Optional[List[str]] = None
+    if tags_file:
+        tags_path = Path(normalize_path(str(tags_file)))
+        if tags_path.exists():
+            new_tags = [
+                line.strip() for line in tags_path.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+        else:
+            step_error(f"Tags file not found: {tags_path}")
+            raise typer.Exit(1)
+    elif tags:
+        new_tags = [t.strip() for t in tags.split(",") if t.strip()]
+
+    # Check at least one field to update
+    if not any([title, new_description, new_tags, category]):
+        step_error("No metadata fields specified to update")
+        console.print("[dim]Use --title, --description, --tags, or --category[/dim]")
+        raise typer.Exit(1)
+
+    step_start("Updating YouTube video metadata", {"Video ID": vid_id})
+
+    with status_spinner("Updating"):
+        processor = VideoProcessor(".")
+        success = processor.update_youtube_metadata(
+            video_id=vid_id,
+            title=title,
+            description=new_description,
+            tags=new_tags,
+            category_id=category,
+        )
+
+    if success:
+        step_complete(f"Metadata updated for video: {vid_id}")
+    else:
+        step_error("Failed to update video metadata")
+        raise typer.Exit(1)
+
+
+@upload_app.command("youtube-transcript")
+def youtube_transcript(
+    video_id: Optional[str] = typer.Option(None, "--video-id", "-v", help="YouTube video ID"),
+    transcript_path: Optional[Path] = typer.Option(None, "--transcript-path", "-t", help="Path to transcript (.vtt)"),
+    language: str = typer.Option("en", "--language", "-l", help="Caption language code"),
+    name: Optional[str] = typer.Option(None, "--name", "-n", help="Caption track name"),
+    draft: bool = typer.Option(False, "--draft", help="Upload as draft (not visible)"),
+) -> None:
+    """Upload captions/transcript to a YouTube video.
+
+    Example:
+        video-tool deploy youtube-transcript --video-id VIDEO_ID --transcript-path ./output/transcript.vtt
+    """
+    if not _check_youtube_credentials():
+        raise typer.Exit(1)
+
+    # Resolve video ID
+    vid_id = video_id
+    if not vid_id:
+        vid_id = ask_text("YouTube Video ID", required=True)
+
+    # Resolve transcript path
+    if transcript_path:
+        transcript_file = Path(normalize_path(str(transcript_path)))
+    else:
+        transcript_path_str = ask_path("Path to transcript file (.vtt)", required=True)
+        transcript_file = Path(transcript_path_str)
+
+    if not transcript_file.exists() or not transcript_file.is_file():
+        step_error(f"Invalid transcript file: {transcript_file}")
+        raise typer.Exit(1)
+
+    step_start("Uploading captions to YouTube", {
+        "Video ID": vid_id,
+        "Transcript": str(transcript_file),
+        "Language": language,
+    })
+
+    with status_spinner("Uploading"):
+        processor = VideoProcessor(str(transcript_file.parent))
+        success = processor.upload_youtube_captions(
+            video_id=vid_id,
+            caption_path=str(transcript_file),
+            language=language,
+            name=name or "",
+            is_draft=draft,
+        )
+
+    if success:
+        step_complete(f"Captions uploaded ({language}) for video: {vid_id}")
+    else:
+        step_error("Failed to upload captions")
+        raise typer.Exit(1)

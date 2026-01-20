@@ -4,7 +4,7 @@ Command structure:
     video-tool pipeline ...              # root level (most common)
     video-tool video concat ...          # video group
     video-tool video description ...
-    video-tool deploy bunny-upload ...   # deploy group
+    video-tool upload bunny-upload ...   # upload group
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ import typer
 from dotenv import load_dotenv
 
 from video_tool.logging_config import configure_logging
-from video_tool.ui import console, step_error, step_complete
+from video_tool.ui import console, step_error, step_complete, step_start
 from video_tool.config import (
     load_config,
     set_llm_config,
@@ -42,16 +42,24 @@ video_app = typer.Typer(
     no_args_is_help=True,
 )
 
-deploy_app = typer.Typer(
-    name="deploy",
-    help="Deployment commands (bunny-upload, bunny-transcript, etc.)",
+upload_app = typer.Typer(
+    name="upload",
+    help="Upload commands (bunny-video, bunny-transcript, youtube-video, etc.)",
+    rich_markup_mode="rich",
+    no_args_is_help=True,
+)
+
+config_app = typer.Typer(
+    name="config",
+    help="Configuration commands (youtube-auth, llm settings, etc.)",
     rich_markup_mode="rich",
     no_args_is_help=True,
 )
 
 # Register sub-apps
 app.add_typer(video_app, name="video")
-app.add_typer(deploy_app, name="deploy")
+app.add_typer(upload_app, name="upload")
+app.add_typer(config_app, name="config")
 
 # Global state for verbose flag
 _verbose = False
@@ -108,8 +116,8 @@ def validate_bunny_env_vars(
     return True
 
 
-@app.command("config")
-def config_command(
+@config_app.command("llm")
+def config_llm_command(
     show: bool = typer.Option(False, "--show", "-s", help="Show current config"),
     command: Optional[str] = typer.Option(None, "--command", "-c", help="Command to configure (e.g., description, seo)"),
     model: Optional[str] = typer.Option(None, "--model", "-m", help="Set model for command"),
@@ -149,7 +157,7 @@ def config_command(
         return
 
     # No flags = show help
-    console.print("Usage: video-tool config [OPTIONS]")
+    console.print("Usage: video-tool config llm [OPTIONS]")
     console.print("\nOptions:")
     console.print("  --show, -s          Show current config")
     console.print("  --command, -c TEXT  Command to configure")
@@ -157,6 +165,76 @@ def config_command(
     console.print("  --base-url, -b TEXT Set base URL")
     console.print("  --links, -l         Manage persistent links")
     console.print("  --reset             Reset to defaults")
+
+
+@config_app.command("youtube-auth")
+def config_youtube_auth(
+    client_secrets: Optional[str] = typer.Option(
+        None,
+        "--client-secrets",
+        "-c",
+        help="Path to client_secrets.json from Google Cloud Console",
+    ),
+) -> None:
+    """Authenticate with YouTube API using OAuth2.
+
+    One-time setup: downloads refresh token after browser-based consent.
+    Credentials saved to ~/.config/video-tool/youtube_credentials.json
+    """
+    from pathlib import Path
+    from video_tool.video_processor.youtube import (
+        YouTubeDeploymentMixin,
+        CLIENT_SECRETS_PATH,
+        CREDENTIALS_PATH,
+    )
+
+    # Prompt for client secrets if not provided
+    if not client_secrets:
+        if CLIENT_SECRETS_PATH.exists():
+            console.print(f"[dim]Using existing client secrets: {CLIENT_SECRETS_PATH}[/dim]")
+        else:
+            from video_tool.ui import ask_path
+            client_secrets = ask_path(
+                "Path to client_secrets.json from Google Cloud Console",
+                required=True,
+            )
+
+    step_start("YouTube OAuth2 Authentication", {
+        "Client secrets": str(client_secrets or CLIENT_SECRETS_PATH),
+        "Credentials will be saved to": str(CREDENTIALS_PATH),
+    })
+
+    console.print("\n[yellow]A browser window will open for Google OAuth consent.[/yellow]")
+    console.print("[dim]Grant access to upload videos and manage captions.[/dim]\n")
+
+    success = YouTubeDeploymentMixin.youtube_authenticate(client_secrets)
+
+    if success:
+        step_complete("YouTube authentication successful", str(CREDENTIALS_PATH))
+    else:
+        step_error("YouTube authentication failed")
+        raise typer.Exit(1)
+
+
+@config_app.command("youtube-status")
+def config_youtube_status() -> None:
+    """Check YouTube API credentials status."""
+    from video_tool.video_processor.youtube import (
+        YouTubeDeploymentMixin,
+        CLIENT_SECRETS_PATH,
+        CREDENTIALS_PATH,
+    )
+
+    status = YouTubeDeploymentMixin.get_youtube_credentials_status()
+
+    console.print("\n[bold]YouTube Credentials Status[/bold]")
+    console.print(f"  Client secrets: {'[green]Found[/green]' if status['client_secrets_exists'] else '[red]Missing[/red]'}")
+    console.print(f"    Path: {CLIENT_SECRETS_PATH}")
+    console.print(f"  Credentials: {'[green]Found[/green]' if status['credentials_exist'] else '[red]Missing[/red]'}")
+    console.print(f"    Path: {CREDENTIALS_PATH}")
+
+    if not status['credentials_exist']:
+        console.print("\n[yellow]Run 'video-tool config youtube-auth' to authenticate.[/yellow]")
 
 
 # Import command modules to register commands
