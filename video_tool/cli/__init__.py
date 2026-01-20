@@ -4,7 +4,7 @@ Command structure:
     video-tool pipeline ...              # root level (most common)
     video-tool video concat ...          # video group
     video-tool video description ...
-    video-tool deploy bunny-upload ...   # deploy group
+    video-tool upload bunny-upload ...   # upload group
 """
 
 from __future__ import annotations
@@ -42,9 +42,9 @@ video_app = typer.Typer(
     no_args_is_help=True,
 )
 
-deploy_app = typer.Typer(
-    name="deploy",
-    help="Deployment commands (bunny-upload, bunny-transcript, youtube-upload, etc.)",
+upload_app = typer.Typer(
+    name="upload",
+    help="Upload commands (bunny-upload, bunny-transcript, youtube-upload, etc.)",
     rich_markup_mode="rich",
     no_args_is_help=True,
 )
@@ -58,7 +58,7 @@ config_app = typer.Typer(
 
 # Register sub-apps
 app.add_typer(video_app, name="video")
-app.add_typer(deploy_app, name="deploy")
+app.add_typer(upload_app, name="upload")
 app.add_typer(config_app, name="config")
 
 # Global state for verbose flag

@@ -46,9 +46,9 @@ def test_video_content_subcommands_exist():
 
 
 @pytest.mark.unit
-def test_deploy_subcommands_exist():
-    """Verify deploy subcommands are registered."""
-    result = runner.invoke(app, ["deploy", "--help"])
+def test_upload_subcommands_exist():
+    """Verify upload subcommands are registered."""
+    result = runner.invoke(app, ["upload", "--help"])
     assert result.exit_code == 0
     assert "bunny-upload" in result.stdout
     assert "bunny-transcript" in result.stdout

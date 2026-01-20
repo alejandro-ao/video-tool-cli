@@ -560,7 +560,7 @@ video-tool pipeline --cli-bin ./venv/bin/video-tool
 
 ---
 
-### Deployment Commands
+### Upload Commands
 
 #### `bunny-upload`
 
@@ -685,10 +685,10 @@ Upload a video to YouTube (as draft/private by default).
 
 ```bash
 # Basic upload (private/draft)
-video-tool deploy youtube-upload -i ./output/final.mp4 --title "My Video"
+video-tool upload youtube-upload -i ./output/final.mp4 --title "My Video"
 
 # Full upload with all options
-video-tool deploy youtube-upload \
+video-tool upload youtube-upload \
   -i ./output/final.mp4 \
   --title "My Video Title" \
   --description-file ./output/description.md \
@@ -698,7 +698,7 @@ video-tool deploy youtube-upload \
   --thumbnail ./thumbnail.png
 
 # Interactive mode
-video-tool deploy youtube-upload
+video-tool upload youtube-upload
 ```
 
 **Arguments:**
@@ -724,12 +724,12 @@ Update metadata for an existing YouTube video.
 
 ```bash
 # Update description
-video-tool deploy youtube-metadata \
+video-tool upload youtube-metadata \
   --video-id VIDEO_ID \
   --description-file ./output/description.md
 
 # Update multiple fields
-video-tool deploy youtube-metadata \
+video-tool upload youtube-metadata \
   --video-id VIDEO_ID \
   --title "New Title" \
   --tags "tag1,tag2,tag3"
@@ -753,7 +753,7 @@ Upload captions/transcript to a YouTube video.
 **Example:**
 
 ```bash
-video-tool deploy youtube-transcript \
+video-tool upload youtube-transcript \
   --video-id VIDEO_ID \
   --transcript-path ./output/transcript.vtt \
   --language en

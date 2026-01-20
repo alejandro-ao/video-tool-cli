@@ -10,7 +10,7 @@ from typing import Dict, List, Optional, Sequence, cast
 import typer
 
 from video_tool import VideoProcessor
-from video_tool.cli import validate_bunny_env_vars, deploy_app
+from video_tool.cli import validate_bunny_env_vars, upload_app
 from video_tool.ui import (
     ask_path,
     ask_text,
@@ -43,7 +43,7 @@ def _resolve_bunny_credentials(
     return library, access
 
 
-@deploy_app.command("bunny-upload")
+@upload_app.command("bunny-upload")
 def bunny_upload(
     video_path: Optional[Path] = typer.Option(None, "--video-path", "-v", help="Path to video file to upload"),
     batch_dir: Optional[Path] = typer.Option(None, "--batch-dir", "-b", help="Directory of videos to upload"),
@@ -199,7 +199,7 @@ def _upload_single(
         raise typer.Exit(1)
 
 
-@deploy_app.command("bunny-transcript")
+@upload_app.command("bunny-transcript")
 def bunny_transcript(
     video_id: Optional[str] = typer.Option(None, "--video-id", "-v", help="Bunny.net video ID"),
     transcript_path: Optional[Path] = typer.Option(None, "--transcript-path", "-t", help="Path to transcript (.vtt)"),
@@ -251,7 +251,7 @@ def bunny_transcript(
         raise typer.Exit(1)
 
 
-@deploy_app.command("bunny-chapters")
+@upload_app.command("bunny-chapters")
 def bunny_chapters(
     video_id: Optional[str] = typer.Option(None, "--video-id", "-v", help="Bunny.net video ID"),
     chapters_path: Optional[Path] = typer.Option(None, "--chapters-path", "-c", help="Path to chapters JSON"),
@@ -372,7 +372,7 @@ def _check_youtube_credentials() -> bool:
     return True
 
 
-@deploy_app.command("youtube-upload")
+@upload_app.command("youtube-upload")
 def youtube_upload(
     video_path: Optional[Path] = typer.Option(None, "--video-path", "-i", help="Path to video file"),
     title: Optional[str] = typer.Option(None, "--title", "-t", help="Video title"),
@@ -487,7 +487,7 @@ def youtube_upload(
         raise typer.Exit(1)
 
 
-@deploy_app.command("youtube-metadata")
+@upload_app.command("youtube-metadata")
 def youtube_metadata(
     video_id: Optional[str] = typer.Option(None, "--video-id", "-v", help="YouTube video ID"),
     title: Optional[str] = typer.Option(None, "--title", "-t", help="New video title"),
@@ -562,7 +562,7 @@ def youtube_metadata(
         raise typer.Exit(1)
 
 
-@deploy_app.command("youtube-transcript")
+@upload_app.command("youtube-transcript")
 def youtube_transcript(
     video_id: Optional[str] = typer.Option(None, "--video-id", "-v", help="YouTube video ID"),
     transcript_path: Optional[Path] = typer.Option(None, "--transcript-path", "-t", help="Path to transcript (.vtt)"),

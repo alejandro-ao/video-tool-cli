@@ -74,7 +74,7 @@ Automate Alejandro's YouTube production workflow end to end. Given a directory o
 video-tool config ...                # Configuration
 video-tool pipeline ...              # Full workflow (most common)
 video-tool video <command> ...       # Video processing + content generation
-video-tool deploy <command> ...      # Bunny.net / YouTube deployment
+video-tool upload <command> ...      # Bunny.net / YouTube uploads
 ```
 
 ### Quick Start
@@ -114,15 +114,15 @@ video-tool video download --url "https://youtube.com/watch?v=..." --output-dir .
 - `video-tool video description` - Generate video description
 - `video-tool video context-cards` - Generate context cards
 
-**Deployment (Bunny.net):**
-- `video-tool deploy bunny-upload` - Upload video to Bunny.net
-- `video-tool deploy bunny-transcript` - Upload captions
-- `video-tool deploy bunny-chapters` - Upload chapters
+**Upload (Bunny.net):**
+- `video-tool upload bunny-upload` - Upload video to Bunny.net
+- `video-tool upload bunny-transcript` - Upload captions
+- `video-tool upload bunny-chapters` - Upload chapters
 
-**Deployment (YouTube):**
-- `video-tool deploy youtube-upload` - Upload video to YouTube
-- `video-tool deploy youtube-metadata` - Update video metadata
-- `video-tool deploy youtube-transcript` - Upload captions
+**Upload (YouTube):**
+- `video-tool upload youtube-upload` - Upload video to YouTube
+- `video-tool upload youtube-metadata` - Update video metadata
+- `video-tool upload youtube-transcript` - Upload captions
 
 **Configuration:**
 - `video-tool config llm` - Configure LLM settings
