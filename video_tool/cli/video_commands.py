@@ -693,7 +693,7 @@ def _get_media_duration(path: Path) -> Optional[float]:
             check=True,
         )
         return float(result.stdout.strip())
-    except (subprocess.CalledProcessError, ValueError):
+    except (subprocess.CalledProcessError, ValueError, OSError):
         return None
 
 
@@ -774,13 +774,18 @@ def replace_audio(
     if final_output_path.suffix.lower() != video_suffix:
         final_output_path = final_output_path.with_suffix(video_suffix)
 
+    # Guard against in-place overwrite
+    if final_output_path.resolve() == video_path.resolve():
+        step_error("Output path must be different from the input video")
+        raise typer.Exit(1)
+
     final_output_path.parent.mkdir(parents=True, exist_ok=True)
 
     # 6. Check duration mismatch
     video_duration = _get_media_duration(video_path)
     audio_duration = _get_media_duration(audio_path)
 
-    if video_duration and audio_duration:
+    if video_duration is not None and audio_duration is not None:
         diff = abs(video_duration - audio_duration)
         if diff > 1.0:
             step_warning(f"Duration mismatch: video={video_duration:.1f}s, audio={audio_duration:.1f}s (diff={diff:.1f}s)")
