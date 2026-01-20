@@ -34,8 +34,8 @@ pytest --cov=video_tool --cov=main  # with coverage
 **CLI commands** (all support interactive prompts when args omitted):
 - Video: `silence-removal`, `concat`, `timestamps`, `transcript`, `extract-audio`, `thumbnail`, `enhance-audio`
 - Content: `description`, `seo`, `linkedin`, `twitter`, `context-cards`
-- Upload (Bunny): `bunny-upload`, `bunny-transcript`, `bunny-chapters`
-- Upload (YouTube): `youtube-upload`, `youtube-metadata`, `youtube-transcript`
+- Upload (Bunny): `bunny-video`, `bunny-transcript`, `bunny-chapters`
+- Upload (YouTube): `youtube-video`, `youtube-metadata`, `youtube-transcript`
 - Config: `youtube-auth`, `youtube-status`, `llm`
 - Automation: `pipeline` (orchestrates full workflow)
 

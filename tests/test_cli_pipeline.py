@@ -50,7 +50,7 @@ def test_upload_subcommands_exist():
     """Verify upload subcommands are registered."""
     result = runner.invoke(app, ["upload", "--help"])
     assert result.exit_code == 0
-    assert "bunny-upload" in result.stdout
+    assert "bunny-video" in result.stdout
     assert "bunny-transcript" in result.stdout
     assert "bunny-chapters" in result.stdout
 

@@ -44,7 +44,7 @@ video_app = typer.Typer(
 
 upload_app = typer.Typer(
     name="upload",
-    help="Upload commands (bunny-upload, bunny-transcript, youtube-upload, etc.)",
+    help="Upload commands (bunny-video, bunny-transcript, youtube-video, etc.)",
     rich_markup_mode="rich",
     no_args_is_help=True,
 )

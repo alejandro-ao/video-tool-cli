@@ -562,7 +562,7 @@ video-tool pipeline --cli-bin ./venv/bin/video-tool
 
 ### Upload Commands
 
-#### `bunny-upload`
+#### `bunny-video`
 
 Upload a video to Bunny.net CDN.
 
@@ -579,17 +579,17 @@ Upload a video to Bunny.net CDN.
 
 ```bash
 # With environment variables set
-video-tool bunny-upload --video-path ./output/final-video.mp4
+video-tool bunny-video --video-path ./output/final-video.mp4
 
 # With explicit credentials
-video-tool bunny-upload \
+video-tool bunny-video \
   --video-path ./output/final-video.mp4 \
   --bunny-library-id 12345 \
   --bunny-access-key your_key \
   --bunny-collection-id 67890
 
 # Batch upload every MP4 in a directory
-video-tool bunny-upload \
+video-tool bunny-video \
   --batch-dir ./output/videos \
   --bunny-library-id 12345 \
   --bunny-access-key your_key
@@ -611,7 +611,7 @@ The command prints the Bunny video ID on success. Save this ID for transcript an
 Upload a caption file to an existing Bunny.net video.
 
 **Required inputs:**
-- Bunny video ID (from `bunny-upload` or an existing asset)
+- Bunny video ID (from `bunny-video` or an existing asset)
 - Path to transcript file (.vtt)
 - Bunny Library ID (or set `BUNNY_LIBRARY_ID` env var)
 - Bunny Access Key (or set `BUNNY_ACCESS_KEY` env var)
@@ -642,7 +642,7 @@ video-tool bunny-transcript \
 Upload chapter data (timestamps) to an existing Bunny.net video.
 
 **Required inputs:**
-- Bunny video ID (from `bunny-upload` or an existing asset)
+- Bunny video ID (from `bunny-video` or an existing asset)
 - Path to chapters JSON (accepts `timestamps.json` output, a list of chapter dicts, or a single chapter dict)
 - Bunny Library ID (or set `BUNNY_LIBRARY_ID` env var)
 - Bunny Access Key (or set `BUNNY_ACCESS_KEY` env var)
@@ -663,7 +663,7 @@ video-tool bunny-chapters \
 
 ---
 
-#### `youtube-upload`
+#### `youtube-video`
 
 Upload a video to YouTube (as draft/private by default).
 
@@ -685,10 +685,10 @@ Upload a video to YouTube (as draft/private by default).
 
 ```bash
 # Basic upload (private/draft)
-video-tool upload youtube-upload -i ./output/final.mp4 --title "My Video"
+video-tool upload youtube-video -i ./output/final.mp4 --title "My Video"
 
 # Full upload with all options
-video-tool upload youtube-upload \
+video-tool upload youtube-video \
   -i ./output/final.mp4 \
   --title "My Video Title" \
   --description-file ./output/description.md \
@@ -698,7 +698,7 @@ video-tool upload youtube-upload \
   --thumbnail ./thumbnail.png
 
 # Interactive mode
-video-tool upload youtube-upload
+video-tool upload youtube-video
 ```
 
 **Arguments:**
@@ -810,7 +810,7 @@ video-tool video description \
   --code-link https://github.com/user/repo
 
 # 7. Upload to Bunny.net (video upload)
-video-tool bunny-upload --video-path ./clips/output/final-video.mp4
+video-tool bunny-video --video-path ./clips/output/final-video.mp4
 
 # 10. Upload captions to Bunny.net
 video-tool bunny-transcript \

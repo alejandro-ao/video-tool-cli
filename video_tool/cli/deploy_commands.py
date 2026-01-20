@@ -1,4 +1,4 @@
-"""Deployment commands: bunny-upload, bunny-transcript, bunny-chapters."""
+"""Upload commands: bunny-video, bunny-transcript, bunny-chapters, youtube-video, etc."""
 
 from __future__ import annotations
 
@@ -43,7 +43,7 @@ def _resolve_bunny_credentials(
     return library, access
 
 
-@upload_app.command("bunny-upload")
+@upload_app.command("bunny-video")
 def bunny_upload(
     video_path: Optional[Path] = typer.Option(None, "--video-path", "-v", help="Path to video file to upload"),
     batch_dir: Optional[Path] = typer.Option(None, "--batch-dir", "-b", help="Directory of videos to upload"),
@@ -372,7 +372,7 @@ def _check_youtube_credentials() -> bool:
     return True
 
 
-@upload_app.command("youtube-upload")
+@upload_app.command("youtube-video")
 def youtube_upload(
     video_path: Optional[Path] = typer.Option(None, "--video-path", "-i", help="Path to video file"),
     title: Optional[str] = typer.Option(None, "--title", "-t", help="Video title"),

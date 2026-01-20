@@ -115,12 +115,12 @@ video-tool video download --url "https://youtube.com/watch?v=..." --output-dir .
 - `video-tool video context-cards` - Generate context cards
 
 **Upload (Bunny.net):**
-- `video-tool upload bunny-upload` - Upload video to Bunny.net
+- `video-tool upload bunny-video` - Upload video to Bunny.net
 - `video-tool upload bunny-transcript` - Upload captions
 - `video-tool upload bunny-chapters` - Upload chapters
 
 **Upload (YouTube):**
-- `video-tool upload youtube-upload` - Upload video to YouTube
+- `video-tool upload youtube-video` - Upload video to YouTube
 - `video-tool upload youtube-metadata` - Update video metadata
 - `video-tool upload youtube-transcript` - Upload captions
 
