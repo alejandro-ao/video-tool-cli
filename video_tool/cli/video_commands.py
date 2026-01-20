@@ -581,15 +581,7 @@ def enhance_audio_cmd(
             # Merge back or copy to output
             if is_video:
                 with status_spinner("Merging enhanced audio with video"):
-                    subprocess.run([
-                        "ffmpeg", "-y",
-                        "-i", str(input_path),
-                        "-i", str(enhanced_audio_path),
-                        "-c:v", "copy",
-                        "-map", "0:v:0",
-                        "-map", "1:a:0",
-                        str(final_output_path)
-                    ], check=True, capture_output=True)
+                    _replace_video_audio(input_path, enhanced_audio_path, final_output_path)
             else:
                 # Convert to original format
                 with status_spinner("Converting to output format"):
@@ -686,6 +678,134 @@ def _download_file(url: str, dest: Path) -> None:
             f.write(chunk)
 
 
+def _get_media_duration(path: Path) -> Optional[float]:
+    """Get duration of media file in seconds using ffprobe."""
+    try:
+        result = subprocess.run(
+            [
+                "ffprobe", "-v", "error",
+                "-show_entries", "format=duration",
+                "-of", "default=noprint_wrappers=1:nokey=1",
+                str(path)
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return float(result.stdout.strip())
+    except (subprocess.CalledProcessError, ValueError, OSError):
+        return None
+
+
+def _replace_video_audio(video_path: Path, audio_path: Path, output_path: Path) -> None:
+    """Replace video's audio track with new audio file using ffmpeg."""
+    subprocess.run(
+        [
+            "ffmpeg", "-y",
+            "-i", str(video_path),
+            "-i", str(audio_path),
+            "-c:v", "copy",
+            "-map", "0:v:0",
+            "-map", "1:a:0",
+            str(output_path)
+        ],
+        check=True,
+        capture_output=True,
+    )
+
+
+@video_app.command("replace-audio")
+def replace_audio(
+    video_path: Optional[Path] = typer.Option(None, "--video", "-v", help="Input video file"),
+    audio_path: Optional[Path] = typer.Option(None, "--audio", "-a", help="New audio file"),
+    output_path: Optional[Path] = typer.Option(None, "--output", "-o", help="Output video path"),
+) -> None:
+    """Replace audio track in a video with a new audio file."""
+    # 1. Get video path
+    if video_path is None:
+        video_path_str = ask_path("Path to video file", required=True)
+        video_path = Path(video_path_str)
+    else:
+        video_path = Path(normalize_path(str(video_path)))
+
+    # 2. Validate video
+    if not video_path.exists() or not video_path.is_file():
+        step_error(f"Invalid video file: {video_path}")
+        raise typer.Exit(1)
+
+    video_suffix = video_path.suffix.lower()
+    if video_suffix not in SUPPORTED_VIDEO_SUFFIXES:
+        step_error(f"Unsupported video format: {video_suffix}. Use: {SUPPORTED_VIDEO_LABEL}")
+        raise typer.Exit(1)
+
+    # 3. Get audio path
+    if audio_path is None:
+        audio_path_str = ask_path("Path to new audio file", required=True)
+        audio_path = Path(audio_path_str)
+    else:
+        audio_path = Path(normalize_path(str(audio_path)))
+
+    # 4. Validate audio
+    if not audio_path.exists() or not audio_path.is_file():
+        step_error(f"Invalid audio file: {audio_path}")
+        raise typer.Exit(1)
+
+    audio_suffix = audio_path.suffix.lower()
+    if audio_suffix not in SUPPORTED_AUDIO_SUFFIXES:
+        step_error(f"Unsupported audio format: {audio_suffix}. Use: {SUPPORTED_AUDIO_LABEL}")
+        raise typer.Exit(1)
+
+    # 5. Resolve output path
+    if output_path:
+        final_output_path = Path(normalize_path(str(output_path)))
+        if not final_output_path.is_absolute():
+            final_output_path = video_path.parent / final_output_path
+    else:
+        default_output = f"{video_path.stem}_replaced{video_suffix}"
+        output_path_str = ask_path(f"Output path (defaults to {default_output})", required=False)
+        if output_path_str:
+            final_output_path = Path(output_path_str)
+            if not final_output_path.is_absolute():
+                final_output_path = video_path.parent / final_output_path
+        else:
+            final_output_path = video_path.parent / default_output
+
+    # Match input video extension
+    if final_output_path.suffix.lower() != video_suffix:
+        final_output_path = final_output_path.with_suffix(video_suffix)
+
+    # Guard against in-place overwrite
+    if final_output_path.resolve() == video_path.resolve():
+        step_error("Output path must be different from the input video")
+        raise typer.Exit(1)
+
+    final_output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # 6. Check duration mismatch
+    video_duration = _get_media_duration(video_path)
+    audio_duration = _get_media_duration(audio_path)
+
+    if video_duration is not None and audio_duration is not None:
+        diff = abs(video_duration - audio_duration)
+        if diff > 1.0:
+            step_warning(f"Duration mismatch: video={video_duration:.1f}s, audio={audio_duration:.1f}s (diff={diff:.1f}s)")
+
+    # 7. Replace audio
+    step_start("Replacing audio", {
+        "Video": str(video_path),
+        "Audio": str(audio_path),
+        "Output": str(final_output_path),
+    })
+
+    try:
+        with status_spinner("Processing"):
+            _replace_video_audio(video_path, audio_path, final_output_path)
+        step_complete("Audio replaced", str(final_output_path))
+    except subprocess.CalledProcessError as e:
+        step_error(f"FFmpeg error: {e.stderr.decode() if e.stderr else str(e)}")
+        raise typer.Exit(1)
+
+
 # --- Metadata helpers ---
 
 
@@ -709,3 +829,398 @@ def _write_metadata(path: Path, data: dict) -> None:
         console.print(f"  [dim]Metadata:[/dim] {path}")
     except OSError as e:
         step_warning(f"Unable to write metadata: {e}")
+
+
+# --- Video Editing Commands ---
+
+
+@video_app.command("info")
+def video_info(
+    input_path: Optional[Path] = typer.Option(None, "--input", "-i", help="Input video file"),
+) -> None:
+    """Get detailed video metadata (duration, resolution, codec, etc.)."""
+    # 1. Get input path
+    if input_path is None:
+        input_path_str = ask_path("Path to video file", required=True)
+        input_path = Path(input_path_str)
+    else:
+        input_path = Path(normalize_path(str(input_path)))
+
+    # 2. Validate input
+    if not input_path.exists() or not input_path.is_file():
+        step_error(f"Invalid file: {input_path}")
+        raise typer.Exit(1)
+
+    suffix = input_path.suffix.lower()
+    if suffix not in SUPPORTED_VIDEO_SUFFIXES:
+        step_error(f"Unsupported format: {suffix}. Use video ({SUPPORTED_VIDEO_LABEL})")
+        raise typer.Exit(1)
+
+    # 3. Get info
+    step_start("Getting video info", {"Input": str(input_path)})
+
+    try:
+        processor = VideoProcessor(str(input_path.parent))
+        info = processor.get_video_info(str(input_path))
+
+        # Pretty print the info
+        console.print("\n[bold]Video Information[/bold]")
+        console.print(f"  File: {info['file_name']}")
+        console.print(f"  Size: {info['file_size_mb']} MB")
+        console.print(f"  Duration: {info['duration_formatted']}")
+        if info.get('resolution'):
+            console.print(f"  Resolution: {info['resolution']}")
+        if info.get('fps'):
+            console.print(f"  FPS: {info['fps']}")
+        if info.get('video_codec'):
+            console.print(f"  Video Codec: {info['video_codec']}")
+        if info.get('audio_codec'):
+            console.print(f"  Audio Codec: {info['audio_codec']}")
+        if info.get('audio_channels'):
+            console.print(f"  Audio Channels: {info['audio_channels']}")
+        if info.get('bit_rate'):
+            console.print(f"  Bitrate: {info['bit_rate'] // 1000} kbps")
+
+        # Also output as JSON for machine parsing
+        console.print(f"\n[dim]JSON:[/dim]")
+        console.print(json.dumps(info, indent=2))
+
+    except subprocess.CalledProcessError as e:
+        step_error(f"Failed to get video info: {e}")
+        raise typer.Exit(1)
+    except Exception as e:
+        step_error(f"Error: {e}")
+        raise typer.Exit(1)
+
+
+@video_app.command("trim")
+def video_trim(
+    input_path: Optional[Path] = typer.Option(None, "--input", "-i", help="Input video file"),
+    output_path: Optional[Path] = typer.Option(None, "--output", "-o", help="Output video file path"),
+    start: Optional[str] = typer.Option(None, "--start", "-s", help="Start timestamp (HH:MM:SS, MM:SS, or seconds)"),
+    end: Optional[str] = typer.Option(None, "--end", "-e", help="End timestamp (HH:MM:SS, MM:SS, or seconds)"),
+    gpu: bool = typer.Option(False, "--gpu", "-g", help="Use GPU acceleration"),
+) -> None:
+    """Trim video by cutting from start and/or end."""
+    # 1. Get input path
+    if input_path is None:
+        input_path_str = ask_path("Path to video file", required=True)
+        input_path = Path(input_path_str)
+    else:
+        input_path = Path(normalize_path(str(input_path)))
+
+    # 2. Validate input
+    if not input_path.exists() or not input_path.is_file():
+        step_error(f"Invalid file: {input_path}")
+        raise typer.Exit(1)
+
+    suffix = input_path.suffix.lower()
+    if suffix not in SUPPORTED_VIDEO_SUFFIXES:
+        step_error(f"Unsupported format: {suffix}. Use video ({SUPPORTED_VIDEO_LABEL})")
+        raise typer.Exit(1)
+
+    # 3. Get timestamps interactively if not provided
+    if start is None and end is None:
+        console.print("  [dim]Timestamps: HH:MM:SS, MM:SS, or seconds (e.g., 90)[/dim]")
+        start = ask_text("Start time (leave empty for beginning)", required=False)
+        end = ask_text("End time (leave empty for end of video)", required=False)
+
+    if not start and not end:
+        step_error("At least one of --start or --end must be specified")
+        raise typer.Exit(1)
+
+    # 4. Resolve output path
+    if output_path:
+        final_output_path = Path(normalize_path(str(output_path)))
+        if not final_output_path.is_absolute():
+            final_output_path = input_path.parent / final_output_path
+    else:
+        default_output = f"{input_path.stem}_trimmed.mp4"
+        output_path_str = ask_path(f"Output path (defaults to {default_output})", required=False)
+        if output_path_str:
+            final_output_path = Path(output_path_str)
+            if not final_output_path.is_absolute():
+                final_output_path = input_path.parent / final_output_path
+        else:
+            final_output_path = input_path.parent / default_output
+
+    if final_output_path.suffix.lower() != ".mp4":
+        final_output_path = final_output_path.with_suffix(".mp4")
+
+    final_output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # 5. Trim video
+    step_info = {
+        "Input": str(input_path),
+        "Output": str(final_output_path),
+    }
+    if start:
+        step_info["Start"] = start
+    if end:
+        step_info["End"] = end
+    if gpu:
+        step_info["GPU"] = "Enabled"
+    step_start("Trimming video", step_info)
+
+    try:
+        with status_spinner("Processing"):
+            processor = VideoProcessor(str(input_path.parent))
+            result = processor.trim_video(
+                str(input_path),
+                str(final_output_path),
+                start=start or None,
+                end=end or None,
+                gpu=gpu,
+            )
+        step_complete("Video trimmed", result)
+    except Exception as e:
+        step_error(f"Failed to trim video: {e}")
+        raise typer.Exit(1)
+
+
+@video_app.command("extract-segment")
+def video_extract_segment(
+    input_path: Optional[Path] = typer.Option(None, "--input", "-i", help="Input video file"),
+    output_path: Optional[Path] = typer.Option(None, "--output", "-o", help="Output video file path"),
+    start: Optional[str] = typer.Option(None, "--start", "-s", help="Start timestamp (HH:MM:SS, MM:SS, or seconds)"),
+    end: Optional[str] = typer.Option(None, "--end", "-e", help="End timestamp (HH:MM:SS, MM:SS, or seconds)"),
+    gpu: bool = typer.Option(False, "--gpu", "-g", help="Use GPU acceleration"),
+) -> None:
+    """Extract a segment from video (keep only specified range)."""
+    # 1. Get input path
+    if input_path is None:
+        input_path_str = ask_path("Path to video file", required=True)
+        input_path = Path(input_path_str)
+    else:
+        input_path = Path(normalize_path(str(input_path)))
+
+    # 2. Validate input
+    if not input_path.exists() or not input_path.is_file():
+        step_error(f"Invalid file: {input_path}")
+        raise typer.Exit(1)
+
+    suffix = input_path.suffix.lower()
+    if suffix not in SUPPORTED_VIDEO_SUFFIXES:
+        step_error(f"Unsupported format: {suffix}. Use video ({SUPPORTED_VIDEO_LABEL})")
+        raise typer.Exit(1)
+
+    # 3. Get timestamps interactively if not provided
+    if start is None:
+        console.print("  [dim]Timestamps: HH:MM:SS, MM:SS, or seconds (e.g., 90)[/dim]")
+        start = ask_text("Start time", required=True)
+    if end is None:
+        end = ask_text("End time", required=True)
+
+    # 4. Resolve output path
+    if output_path:
+        final_output_path = Path(normalize_path(str(output_path)))
+        if not final_output_path.is_absolute():
+            final_output_path = input_path.parent / final_output_path
+    else:
+        default_output = f"{input_path.stem}_segment.mp4"
+        output_path_str = ask_path(f"Output path (defaults to {default_output})", required=False)
+        if output_path_str:
+            final_output_path = Path(output_path_str)
+            if not final_output_path.is_absolute():
+                final_output_path = input_path.parent / final_output_path
+        else:
+            final_output_path = input_path.parent / default_output
+
+    if final_output_path.suffix.lower() != ".mp4":
+        final_output_path = final_output_path.with_suffix(".mp4")
+
+    final_output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # 5. Extract segment
+    step_info = {
+        "Input": str(input_path),
+        "Output": str(final_output_path),
+        "Start": start,
+        "End": end,
+    }
+    if gpu:
+        step_info["GPU"] = "Enabled"
+    step_start("Extracting segment", step_info)
+
+    try:
+        with status_spinner("Processing"):
+            processor = VideoProcessor(str(input_path.parent))
+            result = processor.extract_segment(
+                str(input_path),
+                str(final_output_path),
+                start=start,
+                end=end,
+                gpu=gpu,
+            )
+        step_complete("Segment extracted", result)
+    except Exception as e:
+        step_error(f"Failed to extract segment: {e}")
+        raise typer.Exit(1)
+
+
+@video_app.command("cut")
+def video_cut(
+    input_path: Optional[Path] = typer.Option(None, "--input", "-i", help="Input video file"),
+    output_path: Optional[Path] = typer.Option(None, "--output", "-o", help="Output video file path"),
+    cut_from: Optional[str] = typer.Option(None, "--from", "-f", help="Start of segment to remove"),
+    cut_to: Optional[str] = typer.Option(None, "--to", "-t", help="End of segment to remove"),
+    gpu: bool = typer.Option(False, "--gpu", "-g", help="Use GPU acceleration"),
+) -> None:
+    """Remove a segment from video (cut out middle portion)."""
+    # 1. Get input path
+    if input_path is None:
+        input_path_str = ask_path("Path to video file", required=True)
+        input_path = Path(input_path_str)
+    else:
+        input_path = Path(normalize_path(str(input_path)))
+
+    # 2. Validate input
+    if not input_path.exists() or not input_path.is_file():
+        step_error(f"Invalid file: {input_path}")
+        raise typer.Exit(1)
+
+    suffix = input_path.suffix.lower()
+    if suffix not in SUPPORTED_VIDEO_SUFFIXES:
+        step_error(f"Unsupported format: {suffix}. Use video ({SUPPORTED_VIDEO_LABEL})")
+        raise typer.Exit(1)
+
+    # 3. Get timestamps interactively if not provided
+    if cut_from is None:
+        console.print("  [dim]Timestamps: HH:MM:SS, MM:SS, or seconds (e.g., 90)[/dim]")
+        cut_from = ask_text("Start of segment to remove (--from)", required=True)
+    if cut_to is None:
+        cut_to = ask_text("End of segment to remove (--to)", required=True)
+
+    # 4. Resolve output path
+    if output_path:
+        final_output_path = Path(normalize_path(str(output_path)))
+        if not final_output_path.is_absolute():
+            final_output_path = input_path.parent / final_output_path
+    else:
+        default_output = f"{input_path.stem}_cut.mp4"
+        output_path_str = ask_path(f"Output path (defaults to {default_output})", required=False)
+        if output_path_str:
+            final_output_path = Path(output_path_str)
+            if not final_output_path.is_absolute():
+                final_output_path = input_path.parent / final_output_path
+        else:
+            final_output_path = input_path.parent / default_output
+
+    if final_output_path.suffix.lower() != ".mp4":
+        final_output_path = final_output_path.with_suffix(".mp4")
+
+    final_output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # 5. Cut video
+    step_info = {
+        "Input": str(input_path),
+        "Output": str(final_output_path),
+        "Remove from": cut_from,
+        "Remove to": cut_to,
+    }
+    if gpu:
+        step_info["GPU"] = "Enabled"
+    step_start("Cutting video segment", step_info)
+
+    try:
+        with status_spinner("Processing"):
+            processor = VideoProcessor(str(input_path.parent))
+            result = processor.cut_video(
+                str(input_path),
+                str(final_output_path),
+                cut_from=cut_from,
+                cut_to=cut_to,
+                gpu=gpu,
+            )
+        step_complete("Video cut", result)
+    except Exception as e:
+        step_error(f"Failed to cut video: {e}")
+        raise typer.Exit(1)
+
+
+@video_app.command("speed")
+def video_speed(
+    input_path: Optional[Path] = typer.Option(None, "--input", "-i", help="Input video file"),
+    output_path: Optional[Path] = typer.Option(None, "--output", "-o", help="Output video file path"),
+    factor: Optional[float] = typer.Option(None, "--factor", "-f", help="Speed factor (0.25-4.0). 2.0=double, 0.5=half"),
+    preserve_pitch: bool = typer.Option(True, "--preserve-pitch/--no-preserve-pitch", "-p", help="Preserve audio pitch"),
+    gpu: bool = typer.Option(False, "--gpu", "-g", help="Use GPU acceleration"),
+) -> None:
+    """Change video playback speed."""
+    # 1. Get input path
+    if input_path is None:
+        input_path_str = ask_path("Path to video file", required=True)
+        input_path = Path(input_path_str)
+    else:
+        input_path = Path(normalize_path(str(input_path)))
+
+    # 2. Validate input
+    if not input_path.exists() or not input_path.is_file():
+        step_error(f"Invalid file: {input_path}")
+        raise typer.Exit(1)
+
+    suffix = input_path.suffix.lower()
+    if suffix not in SUPPORTED_VIDEO_SUFFIXES:
+        step_error(f"Unsupported format: {suffix}. Use video ({SUPPORTED_VIDEO_LABEL})")
+        raise typer.Exit(1)
+
+    # 3. Get factor interactively if not provided
+    if factor is None:
+        console.print("  [dim]Factor: 2.0 = double speed, 0.5 = half speed[/dim]")
+        factor_str = ask_text("Speed factor (0.25-4.0)", required=True)
+        try:
+            factor = float(factor_str)
+        except ValueError:
+            step_error(f"Invalid factor: {factor_str}")
+            raise typer.Exit(1)
+
+    if factor < 0.25 or factor > 4.0:
+        step_error(f"Factor must be between 0.25 and 4.0, got {factor}")
+        raise typer.Exit(1)
+
+    # 4. Resolve output path
+    if output_path:
+        final_output_path = Path(normalize_path(str(output_path)))
+        if not final_output_path.is_absolute():
+            final_output_path = input_path.parent / final_output_path
+    else:
+        speed_label = f"{factor}x".replace(".", "_")
+        default_output = f"{input_path.stem}_{speed_label}.mp4"
+        output_path_str = ask_path(f"Output path (defaults to {default_output})", required=False)
+        if output_path_str:
+            final_output_path = Path(output_path_str)
+            if not final_output_path.is_absolute():
+                final_output_path = input_path.parent / final_output_path
+        else:
+            final_output_path = input_path.parent / default_output
+
+    if final_output_path.suffix.lower() != ".mp4":
+        final_output_path = final_output_path.with_suffix(".mp4")
+
+    final_output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # 5. Change speed
+    step_info = {
+        "Input": str(input_path),
+        "Output": str(final_output_path),
+        "Factor": f"{factor}x",
+        "Preserve Pitch": "Yes" if preserve_pitch else "No",
+    }
+    if gpu:
+        step_info["GPU"] = "Enabled"
+    step_start("Changing video speed", step_info)
+
+    try:
+        with status_spinner("Processing"):
+            processor = VideoProcessor(str(input_path.parent))
+            result = processor.change_video_speed(
+                str(input_path),
+                str(final_output_path),
+                factor=factor,
+                preserve_pitch=preserve_pitch,
+                gpu=gpu,
+            )
+        step_complete("Video speed changed", result)
+    except Exception as e:
+        step_error(f"Failed to change video speed: {e}")
+        raise typer.Exit(1)
