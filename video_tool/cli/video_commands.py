@@ -581,15 +581,7 @@ def enhance_audio_cmd(
             # Merge back or copy to output
             if is_video:
                 with status_spinner("Merging enhanced audio with video"):
-                    subprocess.run([
-                        "ffmpeg", "-y",
-                        "-i", str(input_path),
-                        "-i", str(enhanced_audio_path),
-                        "-c:v", "copy",
-                        "-map", "0:v:0",
-                        "-map", "1:a:0",
-                        str(final_output_path)
-                    ], check=True, capture_output=True)
+                    _replace_video_audio(input_path, enhanced_audio_path, final_output_path)
             else:
                 # Convert to original format
                 with status_spinner("Converting to output format"):
@@ -684,6 +676,129 @@ def _download_file(url: str, dest: Path) -> None:
     with open(dest, "wb") as f:
         for chunk in response.iter_content(chunk_size=8192):
             f.write(chunk)
+
+
+def _get_media_duration(path: Path) -> Optional[float]:
+    """Get duration of media file in seconds using ffprobe."""
+    try:
+        result = subprocess.run(
+            [
+                "ffprobe", "-v", "error",
+                "-show_entries", "format=duration",
+                "-of", "default=noprint_wrappers=1:nokey=1",
+                str(path)
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return float(result.stdout.strip())
+    except (subprocess.CalledProcessError, ValueError):
+        return None
+
+
+def _replace_video_audio(video_path: Path, audio_path: Path, output_path: Path) -> None:
+    """Replace video's audio track with new audio file using ffmpeg."""
+    subprocess.run(
+        [
+            "ffmpeg", "-y",
+            "-i", str(video_path),
+            "-i", str(audio_path),
+            "-c:v", "copy",
+            "-map", "0:v:0",
+            "-map", "1:a:0",
+            str(output_path)
+        ],
+        check=True,
+        capture_output=True,
+    )
+
+
+@video_app.command("replace-audio")
+def replace_audio(
+    video_path: Optional[Path] = typer.Option(None, "--video", "-v", help="Input video file"),
+    audio_path: Optional[Path] = typer.Option(None, "--audio", "-a", help="New audio file"),
+    output_path: Optional[Path] = typer.Option(None, "--output", "-o", help="Output video path"),
+) -> None:
+    """Replace audio track in a video with a new audio file."""
+    # 1. Get video path
+    if video_path is None:
+        video_path_str = ask_path("Path to video file", required=True)
+        video_path = Path(video_path_str)
+    else:
+        video_path = Path(normalize_path(str(video_path)))
+
+    # 2. Validate video
+    if not video_path.exists() or not video_path.is_file():
+        step_error(f"Invalid video file: {video_path}")
+        raise typer.Exit(1)
+
+    video_suffix = video_path.suffix.lower()
+    if video_suffix not in SUPPORTED_VIDEO_SUFFIXES:
+        step_error(f"Unsupported video format: {video_suffix}. Use: {SUPPORTED_VIDEO_LABEL}")
+        raise typer.Exit(1)
+
+    # 3. Get audio path
+    if audio_path is None:
+        audio_path_str = ask_path("Path to new audio file", required=True)
+        audio_path = Path(audio_path_str)
+    else:
+        audio_path = Path(normalize_path(str(audio_path)))
+
+    # 4. Validate audio
+    if not audio_path.exists() or not audio_path.is_file():
+        step_error(f"Invalid audio file: {audio_path}")
+        raise typer.Exit(1)
+
+    audio_suffix = audio_path.suffix.lower()
+    if audio_suffix not in SUPPORTED_AUDIO_SUFFIXES:
+        step_error(f"Unsupported audio format: {audio_suffix}. Use: {SUPPORTED_AUDIO_LABEL}")
+        raise typer.Exit(1)
+
+    # 5. Resolve output path
+    if output_path:
+        final_output_path = Path(normalize_path(str(output_path)))
+        if not final_output_path.is_absolute():
+            final_output_path = video_path.parent / final_output_path
+    else:
+        default_output = f"{video_path.stem}_replaced{video_suffix}"
+        output_path_str = ask_path(f"Output path (defaults to {default_output})", required=False)
+        if output_path_str:
+            final_output_path = Path(output_path_str)
+            if not final_output_path.is_absolute():
+                final_output_path = video_path.parent / final_output_path
+        else:
+            final_output_path = video_path.parent / default_output
+
+    # Match input video extension
+    if final_output_path.suffix.lower() != video_suffix:
+        final_output_path = final_output_path.with_suffix(video_suffix)
+
+    final_output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # 6. Check duration mismatch
+    video_duration = _get_media_duration(video_path)
+    audio_duration = _get_media_duration(audio_path)
+
+    if video_duration and audio_duration:
+        diff = abs(video_duration - audio_duration)
+        if diff > 1.0:
+            step_warning(f"Duration mismatch: video={video_duration:.1f}s, audio={audio_duration:.1f}s (diff={diff:.1f}s)")
+
+    # 7. Replace audio
+    step_start("Replacing audio", {
+        "Video": str(video_path),
+        "Audio": str(audio_path),
+        "Output": str(final_output_path),
+    })
+
+    try:
+        with status_spinner("Processing"):
+            _replace_video_audio(video_path, audio_path, final_output_path)
+        step_complete("Audio replaced", str(final_output_path))
+    except subprocess.CalledProcessError as e:
+        step_error(f"FFmpeg error: {e.stderr.decode() if e.stderr else str(e)}")
+        raise typer.Exit(1)
 
 
 # --- Metadata helpers ---
