@@ -160,10 +160,22 @@ links:
 Authenticate with the YouTube Data API using OAuth2.
 
 **Setup (one-time):**
-1. Create OAuth2 credentials at [Google Cloud Console](https://console.cloud.google.com/)
-2. Enable YouTube Data API v3
-3. Download `client_secrets.json`
-4. Run `video-tool config youtube-auth --client-secrets /path/to/client_secrets.json`
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new project (or select existing)
+3. Navigate to **APIs & Services** → **Library**
+4. Search for and enable **YouTube Data API v3**
+5. Go to **APIs & Services** → **Credentials**
+6. Click **Create Credentials** → **OAuth client ID**
+7. Select **Desktop app** as application type
+8. Download the `client_secrets.json` file
+9. Go to **APIs & Services** → **OAuth consent screen**
+10. Add your Google email as a **Test user** (required while app is in testing mode)
+11. Run the auth command:
+
+```bash
+video-tool config youtube-auth --client-secrets ~/Downloads/client_secrets.json
+```
 
 **Example:**
 
@@ -173,12 +185,16 @@ video-tool config youtube-auth --client-secrets ~/Downloads/client_secrets.json
 
 # Re-authenticate (uses existing client_secrets in ~/.config/video-tool/)
 video-tool config youtube-auth
+
+# Authenticate with a different Google account
+rm ~/.config/video-tool/youtube_credentials.json
+video-tool config youtube-auth
 ```
 
 **Arguments:**
 - `--client-secrets, -c PATH`: Path to client_secrets.json from Google Cloud Console
 
-The browser will open for OAuth consent. Grant access to upload videos and manage captions. Credentials are saved to `~/.config/video-tool/youtube_credentials.json`.
+The browser will open for OAuth consent. Grant access to upload videos and manage captions. Credentials are saved to `~/.config/video-tool/youtube_credentials.json` with restricted permissions (owner-only).
 
 ---
 
@@ -678,8 +694,10 @@ Upload a video to YouTube (as draft/private by default).
 - Description (text or file)
 - Tags (comma-separated or file with one tag per line)
 - Category ID (default: 27 = Education)
-- Privacy status: `private`, `unlisted`, or `public`
+- Privacy status: `private` (draft) or `unlisted` only
 - Thumbnail image (PNG/JPG, max 2MB)
+
+**Security:** Public uploads are disabled to prevent accidental publishing. Videos can only be uploaded as `private` (draft) or `unlisted`. To make a video public, change the privacy setting manually in YouTube Studio.
 
 **Example:**
 
@@ -709,7 +727,7 @@ video-tool upload youtube-video
 - `--tags TEXT`: Comma-separated tags
 - `--tags-file PATH`: Read tags from file (one per line)
 - `--category, -c INT`: YouTube category ID (default: 27)
-- `--privacy, -p TEXT`: Privacy status: private, unlisted, public
+- `--privacy, -p TEXT`: Privacy status: `private` (default) or `unlisted`
 - `--thumbnail PATH`: Thumbnail image (PNG/JPG, max 2MB)
 
 **Note:** Include timestamps in your description for automatic YouTube chapters.
