@@ -31,7 +31,7 @@ pytest --cov=video_tool --cov=main  # with coverage
 - `processor.py`: Facade composing all mixins
 
 **CLI commands** (all support interactive prompts when args omitted):
-- Video: `silence-removal`, `concat`, `timestamps`, `transcript`, `thumbnail`
+- Video: `silence-removal`, `concat`, `timestamps`, `transcript`, `extract-audio`, `thumbnail`, `enhance-audio`
 - Content: `description`, `seo`, `linkedin`, `twitter`, `context-cards`
 - Deploy: `bunny-upload`, `bunny-transcript`, `bunny-chapters`
 - Automation: `pipeline` (orchestrates full workflow)
@@ -45,6 +45,8 @@ Required in `.env`:
 - `OPENAI_API_KEY` - content generation (descriptions, SEO, social posts, timestamps)
 
 Optional (Bunny.net): `BUNNY_LIBRARY_ID`, `BUNNY_ACCESS_KEY`, `BUNNY_COLLECTION_ID`
+
+Optional (audio enhancement): `REPLICATE_API_TOKEN`
 
 ## Testing
 

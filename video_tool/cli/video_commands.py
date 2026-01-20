@@ -1,12 +1,16 @@
-"""Video processing commands: concat, timestamps, transcript, silence-removal, download."""
+"""Video processing commands: concat, timestamps, transcript, silence-removal, download, extract-audio, enhance-audio."""
 
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Optional
 
+import requests
 import typer
 
 from video_tool import VideoProcessor
@@ -416,6 +420,270 @@ def _update_transcript_metadata(transcript_path: str) -> None:
     existing["transcript"] = transcript_content
     existing["transcript_format"] = transcript_file.suffix.lstrip(".").lower()
     _write_metadata(metadata_path, existing)
+
+
+@video_app.command("extract-audio")
+def extract_audio(
+    input_path: Optional[Path] = typer.Option(None, "--input", "-i", help="Input video file"),
+    output_path: Optional[Path] = typer.Option(None, "--output", "-o", help="Output MP3 file path"),
+) -> None:
+    """Extract audio from a video file to MP3."""
+    from moviepy.video.io.VideoFileClip import VideoFileClip
+
+    # 1. Get input path
+    if input_path is None:
+        input_path_str = ask_path("Path to video file", required=True)
+        input_path = Path(input_path_str)
+    else:
+        input_path = Path(normalize_path(str(input_path)))
+
+    # 2. Validate input
+    if not input_path.exists() or not input_path.is_file():
+        step_error(f"Invalid file: {input_path}")
+        raise typer.Exit(1)
+
+    suffix = input_path.suffix.lower()
+    if suffix not in SUPPORTED_VIDEO_SUFFIXES:
+        step_error(f"Unsupported format: {suffix}. Use video ({SUPPORTED_VIDEO_LABEL})")
+        raise typer.Exit(1)
+
+    # 3. Resolve output path
+    if output_path:
+        final_output_path = Path(normalize_path(str(output_path)))
+        if not final_output_path.is_absolute():
+            final_output_path = input_path.parent / final_output_path
+    else:
+        default_output = f"{input_path.stem}.mp3"
+        output_path_str = ask_path(f"Output MP3 path (defaults to {default_output})", required=False)
+        if output_path_str:
+            final_output_path = Path(output_path_str)
+            if not final_output_path.is_absolute():
+                final_output_path = input_path.parent / final_output_path
+        else:
+            final_output_path = input_path.parent / default_output
+
+    if final_output_path.suffix.lower() != ".mp3":
+        final_output_path = final_output_path.with_suffix(".mp3")
+
+    # Ensure output directory exists
+    final_output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # 4. Extract audio
+    step_start("Extracting audio", {
+        "Input": str(input_path),
+        "Output": str(final_output_path),
+    })
+
+    with status_spinner("Processing"):
+        try:
+            with VideoFileClip(str(input_path)) as video:
+                if video.audio is None:
+                    step_error("Video has no audio track")
+                    raise typer.Exit(1)
+                video.audio.write_audiofile(str(final_output_path), logger=None)
+        except typer.Exit:
+            raise
+        except Exception as exc:
+            step_error(f"Failed to extract audio: {exc}")
+            raise typer.Exit(1)
+
+    step_complete("Audio extracted", str(final_output_path))
+
+
+@video_app.command("enhance-audio")
+def enhance_audio_cmd(
+    input_path: Optional[Path] = typer.Option(None, "--input", "-i", help="Input video/audio file"),
+    output_path: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path"),
+    denoise_only: bool = typer.Option(False, "--denoise-only", "-d", help="Only denoise, skip full enhancement"),
+) -> None:
+    """Enhance audio quality using Resemble AI (via Replicate)."""
+    # 1. Check for API token
+    api_token = os.environ.get("REPLICATE_API_TOKEN")
+    if not api_token:
+        step_error("REPLICATE_API_TOKEN environment variable not set")
+        console.print("  [dim]Get a token at https://replicate.com/account/api-tokens[/dim]")
+        raise typer.Exit(1)
+
+    # 2. Get input path
+    if input_path is None:
+        input_path_str = ask_path("Path to video or audio file", required=True)
+        input_path = Path(input_path_str)
+    else:
+        input_path = Path(normalize_path(str(input_path)))
+
+    # 3. Validate input
+    if not input_path.exists() or not input_path.is_file():
+        step_error(f"Invalid file: {input_path}")
+        raise typer.Exit(1)
+
+    suffix = input_path.suffix.lower()
+    is_audio = suffix in SUPPORTED_AUDIO_SUFFIXES
+    is_video = suffix in SUPPORTED_VIDEO_SUFFIXES
+
+    if not is_audio and not is_video:
+        step_error(f"Unsupported format: {suffix}. Use video ({SUPPORTED_VIDEO_LABEL}) or audio ({SUPPORTED_AUDIO_LABEL})")
+        raise typer.Exit(1)
+
+    # 4. Resolve output path
+    if output_path:
+        final_output_path = Path(normalize_path(str(output_path)))
+        if not final_output_path.is_absolute():
+            final_output_path = input_path.parent / final_output_path
+    else:
+        default_output = f"{input_path.stem}_enhanced{input_path.suffix}"
+        output_path_str = ask_path(f"Output path (defaults to {default_output})", required=False)
+        if output_path_str:
+            final_output_path = Path(output_path_str)
+            if not final_output_path.is_absolute():
+                final_output_path = input_path.parent / final_output_path
+        else:
+            final_output_path = input_path.parent / default_output
+
+    # Ensure output has same extension as input
+    if final_output_path.suffix.lower() != suffix:
+        final_output_path = final_output_path.with_suffix(suffix)
+
+    # Ensure output directory exists
+    final_output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # 5. Process
+    step_start("Enhancing audio", {
+        "Input": str(input_path),
+        "Output": str(final_output_path),
+        "Mode": "denoise only" if denoise_only else "full enhancement",
+    })
+
+    try:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+
+            # Extract audio if video input
+            if is_video:
+                with status_spinner("Extracting audio from video"):
+                    audio_path = temp_path / "audio.wav"
+                    subprocess.run([
+                        "ffmpeg", "-y", "-i", str(input_path),
+                        "-vn", "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2",
+                        str(audio_path)
+                    ], check=True, capture_output=True)
+            else:
+                audio_path = input_path
+
+            # Call Replicate API
+            with status_spinner("Enhancing audio via Replicate (this may take a while)"):
+                enhanced_url = _enhance_audio_replicate(audio_path, api_token, denoise_only)
+
+            # Download enhanced audio
+            with status_spinner("Downloading enhanced audio"):
+                enhanced_audio_path = temp_path / "enhanced.wav"
+                _download_file(enhanced_url, enhanced_audio_path)
+
+            # Merge back or copy to output
+            if is_video:
+                with status_spinner("Merging enhanced audio with video"):
+                    subprocess.run([
+                        "ffmpeg", "-y",
+                        "-i", str(input_path),
+                        "-i", str(enhanced_audio_path),
+                        "-c:v", "copy",
+                        "-map", "0:v:0",
+                        "-map", "1:a:0",
+                        str(final_output_path)
+                    ], check=True, capture_output=True)
+            else:
+                # Convert to original format
+                with status_spinner("Converting to output format"):
+                    subprocess.run([
+                        "ffmpeg", "-y",
+                        "-i", str(enhanced_audio_path),
+                        str(final_output_path)
+                    ], check=True, capture_output=True)
+
+        step_complete("Audio enhancement complete", str(final_output_path))
+
+    except subprocess.CalledProcessError as e:
+        step_error(f"FFmpeg error: {e.stderr.decode() if e.stderr else str(e)}")
+        raise typer.Exit(1)
+    except Exception as e:
+        step_error(f"Enhancement failed: {e}")
+        raise typer.Exit(1)
+
+
+def _enhance_audio_replicate(audio_path: Path, api_token: str, denoise_only: bool) -> str:
+    """Call Replicate API to enhance audio. Returns URL to enhanced file."""
+    import base64
+    import time
+
+    # Read and encode audio file
+    with open(audio_path, "rb") as f:
+        audio_data = base64.b64encode(f.read()).decode("utf-8")
+
+    # Determine mime type
+    suffix = audio_path.suffix.lower()
+    mime_types = {
+        ".wav": "audio/wav",
+        ".mp3": "audio/mpeg",
+        ".m4a": "audio/mp4",
+        ".flac": "audio/flac",
+        ".aac": "audio/aac",
+        ".ogg": "audio/ogg",
+    }
+    mime_type = mime_types.get(suffix, "audio/wav")
+    data_uri = f"data:{mime_type};base64,{audio_data}"
+
+    # Create prediction
+    headers = {
+        "Authorization": f"Bearer {api_token}",
+        "Content-Type": "application/json",
+    }
+
+    create_resp = requests.post(
+        "https://api.replicate.com/v1/predictions",
+        headers=headers,
+        json={
+            "version": "93266a7e7f5805fb79bcf213b1a4e0ef2e45aff3c06eefd96c59e850c87fd6a2",
+            "input": {
+                "input_audio": data_uri,
+                "solver": "Midpoint",
+                "number_function_evaluations": 64,
+                "prior_temperature": 0.5,
+                "denoise_flag": denoise_only,
+            }
+        },
+        timeout=60,
+    )
+    create_resp.raise_for_status()
+    prediction = create_resp.json()
+
+    # Poll for completion (max 10 minutes)
+    prediction_url = prediction["urls"]["get"]
+    max_wait_seconds = 600
+    start_time = time.monotonic()
+    while prediction["status"] not in ("succeeded", "failed", "canceled"):
+        if time.monotonic() - start_time > max_wait_seconds:
+            raise RuntimeError(f"Replicate prediction timed out after {max_wait_seconds}s")
+        time.sleep(2)
+        poll_resp = requests.get(prediction_url, headers=headers, timeout=30)
+        poll_resp.raise_for_status()
+        prediction = poll_resp.json()
+
+    if prediction["status"] != "succeeded":
+        error = prediction.get("error", "Unknown error")
+        raise RuntimeError(f"Replicate prediction failed: {error}")
+
+    output = prediction["output"]
+    if isinstance(output, list):
+        return output[0]
+    return output
+
+
+def _download_file(url: str, dest: Path) -> None:
+    """Download file from URL to destination path."""
+    response = requests.get(url, stream=True, timeout=300)
+    response.raise_for_status()
+    with open(dest, "wb") as f:
+        for chunk in response.iter_content(chunk_size=8192):
+            f.write(chunk)
 
 
 # --- Metadata helpers ---

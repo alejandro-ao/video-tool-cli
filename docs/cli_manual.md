@@ -52,15 +52,19 @@ BUNNY_LIBRARY_ID=your_library_id
 BUNNY_ACCESS_KEY=your_access_key
 BUNNY_COLLECTION_ID=your_collection_id  # optional
 BUNNY_CAPTION_LANGUAGE=en  # optional, defaults to 'en'
+
+# Optional: For audio enhancement
+REPLICATE_API_TOKEN=your_replicate_token
 ```
 
 **API Usage by Command:**
-| Command | Groq | OpenAI |
-|---------|------|--------|
-| `transcript` | Yes | No |
-| `description`, `context-cards` | No | Yes |
-| `timestamps` (transcript mode) | No | Yes |
-| `pipeline` | Yes | Yes |
+| Command | Groq | OpenAI | Replicate |
+|---------|------|--------|-----------|
+| `transcript` | Yes | No | No |
+| `description`, `context-cards` | No | Yes | No |
+| `timestamps` (transcript mode) | No | Yes | No |
+| `enhance-audio` | No | No | Yes |
+| `pipeline` | Yes | Yes | No |
 
 ## Configuration
 
@@ -320,6 +324,79 @@ video-tool video transcript
 - `--output-path, -o PATH`: Output VTT file path (default: input_dir/transcript.vtt)
 
 **Output:** Creates `transcript.vtt` in the chosen output directory and updates/creates `metadata.json`.
+
+---
+
+#### `extract-audio`
+
+Extract audio from a video file to MP3 format.
+
+**Required inputs:**
+- Input video file
+
+**Optional inputs:**
+- Output MP3 path (defaults to `<input_stem>.mp3` in same directory)
+
+**Example:**
+
+```bash
+# With arguments
+video-tool video extract-audio --input ./video.mp4 --output ./audio.mp3
+
+# Interactive (prompts for paths)
+video-tool video extract-audio
+```
+
+**Arguments:**
+- `--input, -i PATH`: Input video file (.mp4, .mov)
+- `--output, -o PATH`: Output MP3 file path
+
+**Output:** Creates an MP3 file at the specified location.
+
+---
+
+#### `enhance-audio`
+
+Enhance audio quality using Resemble AI's resemble-enhance model via Replicate API.
+
+Accepts video or audio files. For video input, extracts audio, enhances it, and merges back. For audio input, returns enhanced audio in the same format.
+
+**Required environment:**
+- `REPLICATE_API_TOKEN` - Get one at https://replicate.com/account/api-tokens
+
+**Supported formats:**
+- Video: `.mp4`, `.mov`
+- Audio: `.mp3`, `.wav`, `.m4a`, `.aac`, `.flac`, `.ogg`
+
+**Required inputs:**
+- Input file (video or audio)
+
+**Optional inputs:**
+- Output path (defaults to `<input_stem>_enhanced.<ext>`)
+- Denoise-only mode (skips full enhancement, faster)
+
+**Example:**
+
+```bash
+# Enhance video audio
+video-tool video enhance-audio --input ./video.mp4 --output ./video_enhanced.mp4
+
+# Enhance audio file
+video-tool video enhance-audio -i ./podcast.mp3
+
+# Denoise only (faster, less processing)
+video-tool video enhance-audio -i ./audio.wav --denoise-only
+
+# Interactive mode
+video-tool video enhance-audio
+```
+
+**Arguments:**
+- `--input, -i PATH`: Input video or audio file
+- `--output, -o PATH`: Output file path (default: `<input_stem>_enhanced.<ext>`)
+- `--denoise-only, -d`: Only denoise without full enhancement
+
+**Output:** Creates enhanced file at the specified location with improved audio quality.
 
 ---
 

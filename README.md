@@ -25,6 +25,8 @@ Automate Alejandro's YouTube production workflow end to end. Given a directory o
     - `BUNNY_COLLECTION_ID`
     - `BUNNY_CAPTION_LANGUAGE` (defaults to `en`)
     - `BUNNY_VIDEO_ID` (for metadata-only updates)
+  - *(Optional)* Audio enhancement:
+    - `REPLICATE_API_TOKEN` (for `enhance-audio` command)
 
 ## Installation
 - Using uv (editable, best for development):
@@ -101,6 +103,8 @@ video-tool video download --url "https://youtube.com/watch?v=..." --output-dir .
 - `video-tool video transcript` - Transcribe video/audio with Groq Whisper
 - `video-tool video silence-removal` - Remove silent sections
 - `video-tool video download` - Download from URL
+- `video-tool video extract-audio` - Extract audio to MP3
+- `video-tool video enhance-audio` - Enhance audio quality via Replicate
 
 **Content generation:**
 - `video-tool video description` - Generate video description
