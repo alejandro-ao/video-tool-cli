@@ -1,4 +1,4 @@
-"""Video processing commands: concat, timestamps, transcript, silence-removal, download, enhance-audio."""
+"""Video processing commands: concat, timestamps, transcript, silence-removal, download, extract-audio, enhance-audio."""
 
 from __future__ import annotations
 
@@ -465,6 +465,9 @@ def extract_audio(
     if final_output_path.suffix.lower() != ".mp3":
         final_output_path = final_output_path.with_suffix(".mp3")
 
+    # Ensure output directory exists
+    final_output_path.parent.mkdir(parents=True, exist_ok=True)
+
     # 4. Extract audio
     step_start("Extracting audio", {
         "Input": str(input_path),
@@ -473,13 +476,13 @@ def extract_audio(
 
     with status_spinner("Processing"):
         try:
-            video = VideoFileClip(str(input_path))
-            if video.audio is None:
-                video.close()
-                step_error("Video has no audio track")
-                raise typer.Exit(1)
-            video.audio.write_audiofile(str(final_output_path), logger=None)
-            video.close()
+            with VideoFileClip(str(input_path)) as video:
+                if video.audio is None:
+                    step_error("Video has no audio track")
+                    raise typer.Exit(1)
+                video.audio.write_audiofile(str(final_output_path), logger=None)
+        except typer.Exit:
+            raise
         except Exception as exc:
             step_error(f"Failed to extract audio: {exc}")
             raise typer.Exit(1)
@@ -539,6 +542,9 @@ def enhance_audio_cmd(
     # Ensure output has same extension as input
     if final_output_path.suffix.lower() != suffix:
         final_output_path = final_output_path.with_suffix(suffix)
+
+    # Ensure output directory exists
+    final_output_path.parent.mkdir(parents=True, exist_ok=True)
 
     # 5. Process
     step_start("Enhancing audio", {
@@ -614,7 +620,14 @@ def _enhance_audio_replicate(audio_path: Path, api_token: str, denoise_only: boo
 
     # Determine mime type
     suffix = audio_path.suffix.lower()
-    mime_types = {".wav": "audio/wav", ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".flac": "audio/flac"}
+    mime_types = {
+        ".wav": "audio/wav",
+        ".mp3": "audio/mpeg",
+        ".m4a": "audio/mp4",
+        ".flac": "audio/flac",
+        ".aac": "audio/aac",
+        ".ogg": "audio/ogg",
+    }
     mime_type = mime_types.get(suffix, "audio/wav")
     data_uri = f"data:{mime_type};base64,{audio_data}"
 
@@ -642,9 +655,13 @@ def _enhance_audio_replicate(audio_path: Path, api_token: str, denoise_only: boo
     create_resp.raise_for_status()
     prediction = create_resp.json()
 
-    # Poll for completion
+    # Poll for completion (max 10 minutes)
     prediction_url = prediction["urls"]["get"]
+    max_wait_seconds = 600
+    start_time = time.monotonic()
     while prediction["status"] not in ("succeeded", "failed", "canceled"):
+        if time.monotonic() - start_time > max_wait_seconds:
+            raise RuntimeError(f"Replicate prediction timed out after {max_wait_seconds}s")
         time.sleep(2)
         poll_resp = requests.get(prediction_url, headers=headers, timeout=30)
         poll_resp.raise_for_status()
