@@ -197,9 +197,9 @@ class YouTubeDeploymentMixin:
             logger.error(f"Video file not found: {video_path}")
             return None
 
-        # Validate privacy status
-        if privacy_status not in ("private", "unlisted", "public"):
-            logger.warning(f"Invalid privacy status '{privacy_status}', using 'private'")
+        # Validate privacy status - only private/unlisted allowed (public disabled for safety)
+        if privacy_status not in ("private", "unlisted"):
+            logger.warning(f"Invalid privacy status '{privacy_status}', using 'private'. Public uploads are disabled.")
             privacy_status = "private"
 
         body = {

@@ -381,7 +381,7 @@ def youtube_upload(
     tags: Optional[str] = typer.Option(None, "--tags", help="Comma-separated tags"),
     tags_file: Optional[Path] = typer.Option(None, "--tags-file", help="Read tags from file (one per line)"),
     category: int = typer.Option(27, "--category", "-c", help="YouTube category ID (default: 27 Education)"),
-    privacy: str = typer.Option("private", "--privacy", "-p", help="Privacy: private, unlisted, public"),
+    privacy: str = typer.Option("private", "--privacy", "-p", help="Privacy: private (draft) or unlisted only"),
     thumbnail: Optional[Path] = typer.Option(None, "--thumbnail", help="Path to thumbnail image (PNG/JPG, max 2MB)"),
     metadata_path: Optional[Path] = typer.Option(None, "--metadata-path", "-m", help="Path to metadata.json"),
 ) -> None:
@@ -446,6 +446,11 @@ def youtube_upload(
     # Resolve metadata path
     default_metadata = video_file.parent / "output" / "metadata.json"
     meta_path = Path(normalize_path(str(metadata_path))) if metadata_path else default_metadata
+
+    # Validate privacy - only allow private or unlisted (no public for safety)
+    if privacy not in ("private", "unlisted"):
+        step_error(f"Invalid privacy '{privacy}'. Only 'private' or 'unlisted' allowed (public disabled for safety)")
+        raise typer.Exit(1)
 
     step_start("Uploading video to YouTube", {
         "Video": str(video_file),
