@@ -36,38 +36,50 @@ python main.py <command> [options]
 python -m video_tool.cli <command> [options]
 ```
 
-## Environment Setup
+## API Keys Setup
 
-Required environment variables (set in `.env` or your shell):
+Configure API keys using the interactive setup:
 
 ```bash
-# For transcription (Groq Whisper Large V3 Turbo)
-GROQ_API_KEY=your_groq_api_key
-
-# For content generation (descriptions, context-cards)
-OPENAI_API_KEY=your_openai_api_key
-
-# Optional: For Bunny.net uploads
-BUNNY_LIBRARY_ID=your_library_id
-BUNNY_ACCESS_KEY=your_access_key
-BUNNY_COLLECTION_ID=your_collection_id  # optional
-BUNNY_CAPTION_LANGUAGE=en  # optional, defaults to 'en'
-
-# Optional: For audio enhancement
-REPLICATE_API_TOKEN=your_replicate_token
-
-# YouTube (OAuth2 - no env vars, one-time browser auth)
-# Run: video-tool config youtube-auth --client-secrets /path/to/client_secrets.json
+video-tool config keys
 ```
 
-**API Usage by Command:**
-| Command | Groq | OpenAI | Replicate |
-|---------|------|--------|-----------|
-| `transcript` | Yes | No | No |
-| `description`, `context-cards` | No | Yes | No |
-| `timestamps` (transcript mode) | No | Yes | No |
-| `enhance-audio` | No | No | Yes |
-| `pipeline` | Yes | Yes | No |
+This prompts for each key and saves them securely to `~/.config/video-tool/credentials.yaml` (with 0600 permissions).
+
+```bash
+# Show configured keys (masked)
+video-tool config keys --show
+
+# Clear all stored credentials
+video-tool config keys --reset
+```
+
+### Just-in-Time Prompting
+
+If a required key is missing when running a command, you'll be prompted to enter it:
+
+```
+Info: Groq API key not found
+Get a key at https://console.groq.com/keys
+Groq API Key: <enter key>
+```
+
+The key is saved automatically for future use.
+
+**API Keys Required by Command:**
+
+| Command | Groq | OpenAI | Replicate | Notes |
+|---------|:----:|:------:|:---------:|-------|
+| `transcript` | ✓ | | | Groq Whisper |
+| `timestamps` (clips mode) | | | | No API needed |
+| `timestamps` (transcript mode) | | ✓ | | LLM analysis |
+| `description` (from VTT/text) | | ✓ | | LLM generation |
+| `description` (from video) | ✓ | ✓ | | Transcribe + generate |
+| `context-cards` (from VTT) | | ✓ | | LLM generation |
+| `context-cards` (from video) | ✓ | ✓ | | Transcribe + generate |
+| `concat` | | | | FFmpeg only |
+| `enhance-audio` | | | ✓ | Replicate API |
+| `pipeline` | ✓ | ✓ | | Full workflow |
 
 ## Configuration
 
@@ -95,6 +107,7 @@ On first run, you'll be prompted to configure:
 
 ### Managing Configuration
 Use `video-tool config` subcommands to manage settings:
+- `video-tool config keys` - API keys management
 - `video-tool config llm` - LLM and links settings
 - `video-tool config youtube-auth` - YouTube OAuth2 authentication
 - `video-tool config youtube-status` - Check YouTube credentials
@@ -102,6 +115,46 @@ Use `video-tool config` subcommands to manage settings:
 ## Available Commands
 
 ### Configuration
+
+#### `config keys`
+
+Manage API keys for video-tool services. Keys are stored in `~/.config/video-tool/credentials.yaml` with secure permissions (0600).
+
+**Options:**
+- `--show, -s`: Display current keys (masked)
+- `--reset`: Clear all stored credentials
+
+**Example:**
+
+```bash
+# Interactive setup - prompts for all keys
+video-tool config keys
+
+# Show current keys (masked: sk-pr...xyz)
+video-tool config keys --show
+
+# Clear all stored credentials
+video-tool config keys --reset
+```
+
+**Output of `--show`:**
+
+```
+API Keys
+Credentials file: ~/.config/video-tool/credentials.yaml
+
+  Openai Api Key: sk-p...CCcA
+  Groq Api Key: gsk_...eNR0
+  Bunny Library Id: Not set
+  Bunny Access Key: Not set
+  Replicate Api Token: Not set
+```
+
+**Notes:**
+- Required keys (OpenAI, Groq) prompt until valid; optional keys can be skipped with Enter
+- Keys are validated on input (rejects empty, placeholder values)
+
+---
 
 #### `config llm`
 
@@ -584,31 +637,29 @@ Upload a video to Bunny.net CDN.
 
 **Required inputs:**
 - Path to video file (or a directory when using `--batch-dir`)
-- Bunny Library ID (or set `BUNNY_LIBRARY_ID` env var)
-- Bunny Access Key (or set `BUNNY_ACCESS_KEY` env var)
+- Bunny Library ID (configure via `video-tool config keys` or `--bunny-library-id`)
+- Bunny Access Key (configure via `video-tool config keys` or `--bunny-access-key`)
 
 **Optional inputs:**
-- Bunny Collection ID (or set `BUNNY_COLLECTION_ID` env var)
+- Bunny Collection ID
 - Batch upload directory (`--batch-dir`) to upload every `.mp4` in a folder
 
 **Example:**
 
 ```bash
-# With environment variables set
-video-tool bunny-video --video-path ./output/final-video.mp4
+# With credentials configured via `config keys`
+video-tool upload bunny-video --video-path ./output/final-video.mp4
 
 # With explicit credentials
-video-tool bunny-video \
+video-tool upload bunny-video \
   --video-path ./output/final-video.mp4 \
   --bunny-library-id 12345 \
   --bunny-access-key your_key \
   --bunny-collection-id 67890
 
 # Batch upload every MP4 in a directory
-video-tool bunny-video \
-  --batch-dir ./output/videos \
-  --bunny-library-id 12345 \
-  --bunny-access-key your_key
+video-tool upload bunny-video \
+  --batch-dir ./output/videos
 ```
 
 **Arguments:**
@@ -629,16 +680,15 @@ Upload a caption file to an existing Bunny.net video.
 **Required inputs:**
 - Bunny video ID (from `bunny-video` or an existing asset)
 - Path to transcript file (.vtt)
-- Bunny Library ID (or set `BUNNY_LIBRARY_ID` env var)
-- Bunny Access Key (or set `BUNNY_ACCESS_KEY` env var)
+- Bunny credentials (configure via `video-tool config keys`)
 
 **Optional inputs:**
-- Caption language code (defaults to `'en'` or `BUNNY_CAPTION_LANGUAGE`)
+- Caption language code (defaults to `en`)
 
 **Example:**
 
 ```bash
-video-tool bunny-transcript \
+video-tool upload bunny-transcript \
   --video-id 4ce7321f-... \
   --transcript-path ./clips/output/transcript.vtt \
   --language en
@@ -648,8 +698,8 @@ video-tool bunny-transcript \
 - `--video-id ID`: Existing Bunny.net video ID
 - `--transcript-path PATH`: Path to transcript file (.vtt)
 - `--language CODE`: Caption language code (default: en)
-- `--bunny-library-id ID`: Bunny.net library ID
-- `--bunny-access-key KEY`: Bunny.net access key
+- `--bunny-library-id ID`: Bunny.net library ID (optional if configured)
+- `--bunny-access-key KEY`: Bunny.net access key (optional if configured)
 
 ---
 
@@ -660,13 +710,12 @@ Upload chapter data (timestamps) to an existing Bunny.net video.
 **Required inputs:**
 - Bunny video ID (from `bunny-video` or an existing asset)
 - Path to chapters JSON (accepts `timestamps.json` output, a list of chapter dicts, or a single chapter dict)
-- Bunny Library ID (or set `BUNNY_LIBRARY_ID` env var)
-- Bunny Access Key (or set `BUNNY_ACCESS_KEY` env var)
+- Bunny credentials (configure via `video-tool config keys`)
 
 **Example:**
 
 ```bash
-video-tool bunny-chapters \
+video-tool upload bunny-chapters \
   --video-id 4ce7321f-... \
   --chapters-path ./clips/output/timestamps.json
 ```
@@ -674,8 +723,8 @@ video-tool bunny-chapters \
 **Arguments:**
 - `--video-id ID`: Existing Bunny.net video ID
 - `--chapters-path PATH`: Path to chapters JSON file
-- `--bunny-library-id ID`: Bunny.net library ID
-- `--bunny-access-key KEY`: Bunny.net access key
+- `--bunny-library-id ID`: Bunny.net library ID (optional if configured)
+- `--bunny-access-key KEY`: Bunny.net access key (optional if configured)
 
 ---
 
@@ -880,9 +929,18 @@ clips/
 
 ## Troubleshooting
 
-### "Missing required environment variables"
+### "API key not found" or "API key not configured"
 
-Make sure you have set `OPENAI_API_KEY` and `GROQ_API_KEY` in your `.env` file or environment.
+Configure your API keys using one of these methods:
+
+```bash
+video-tool config keys
+```
+
+Check current configuration:
+```bash
+video-tool config keys --show
+```
 
 ### "Invalid input directory"
 

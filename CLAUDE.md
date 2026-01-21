@@ -36,22 +36,22 @@ pytest --cov=video_tool --cov=main  # with coverage
 - Content: `description`, `seo`, `linkedin`, `twitter`, `context-cards`
 - Upload (Bunny): `bunny-video`, `bunny-transcript`, `bunny-chapters`
 - Upload (YouTube): `youtube-video`, `youtube-metadata`, `youtube-transcript`
-- Config: `youtube-auth`, `youtube-status`, `llm`
+- Config: `keys`, `llm`, `youtube-auth`, `youtube-status`
 - Automation: `pipeline` (orchestrates full workflow)
 
 **Outputs** go to `output/` subdirectory: `*.mp4`, `transcript.vtt`, `timestamps.json`, `description.md`, `keywords.txt`, social posts, `metadata.json`
 
 ## Environment
 
-Required in `.env`:
-- `GROQ_API_KEY` - transcription (Groq Whisper Large V3 Turbo)
-- `OPENAI_API_KEY` - content generation (descriptions, SEO, social posts, timestamps)
+API keys via `video-tool config keys`:
+- Groq API key - transcription (Groq Whisper Large V3 Turbo)
+- OpenAI API key - content generation (descriptions, SEO, social posts, timestamps)
+- Optional: Bunny.net credentials (library ID, access key, collection ID)
+- Optional: Replicate API token (audio enhancement)
 
-Optional (Bunny.net): `BUNNY_LIBRARY_ID`, `BUNNY_ACCESS_KEY`, `BUNNY_COLLECTION_ID`
+Credentials stored in `~/.config/video-tool/credentials.yaml` (0600 perms).
 
-Optional (audio enhancement): `REPLICATE_API_TOKEN`
-
-Optional (YouTube): OAuth2 via `video-tool config youtube-auth` (no env vars, credentials saved to `~/.config/video-tool/`)
+YouTube: OAuth2 via `video-tool config youtube-auth` (saved to `~/.config/video-tool/`)
 
 ## Testing
 

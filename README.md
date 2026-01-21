@@ -17,20 +17,12 @@ Automate Alejandro's YouTube production workflow end to end. Given a directory o
 - Python 3.11+
 - `ffmpeg` available on the system path
 - `yt-dlp` for video downloads (installed automatically)
-- Environment variables:
-  - `GROQ_API_KEY` (transcription via Groq Whisper Large V3 Turbo)
-  - `OPENAI_API_KEY` (content generation: descriptions, context cards, timestamps)
-  - *(Optional)* Bunny Stream deployment:
-    - `BUNNY_LIBRARY_ID`
-    - `BUNNY_ACCESS_KEY`
-    - `BUNNY_COLLECTION_ID`
-    - `BUNNY_CAPTION_LANGUAGE` (defaults to `en`)
-    - `BUNNY_VIDEO_ID` (for metadata-only updates)
-  - *(Optional)* Audio enhancement:
-    - `REPLICATE_API_TOKEN` (for `enhance-audio` command)
-  - *(Optional)* YouTube deployment (OAuth2, no env vars):
-    - Run `video-tool config youtube-auth --client-secrets /path/to/client_secrets.json`
-    - Credentials saved to `~/.config/video-tool/youtube_credentials.json`
+- API keys (configured via `video-tool config keys`):
+  - Groq API key (transcription via Groq Whisper Large V3 Turbo)
+  - OpenAI API key (content generation: descriptions, context cards, timestamps)
+  - *(Optional)* Bunny.net credentials (library ID, access key, collection ID)
+  - *(Optional)* Replicate API token (audio enhancement)
+  - *(Optional)* YouTube: Run `video-tool config youtube-auth` (OAuth2)
 
 ## Installation
 - Using uv (editable, best for development):
@@ -79,7 +71,11 @@ video-tool upload <command> ...      # Bunny.net / YouTube uploads
 
 ### Quick Start
 
-1. Export the required API keys
+1. Configure API keys:
+   ```bash
+   video-tool config keys
+   ```
+
 2. Run the full pipeline:
    ```bash
    video-tool pipeline -i /path/to/clips
@@ -125,6 +121,7 @@ video-tool video download --url "https://youtube.com/watch?v=..." --output-dir .
 - `video-tool upload youtube-transcript` - Upload captions
 
 **Configuration:**
+- `video-tool config keys` - Manage API keys (interactive setup, show, reset)
 - `video-tool config llm` - Configure LLM settings
 - `video-tool config youtube-auth` - YouTube OAuth2 authentication
 - `video-tool config youtube-status` - Check YouTube credentials
