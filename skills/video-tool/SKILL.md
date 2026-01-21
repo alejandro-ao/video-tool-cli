@@ -44,19 +44,39 @@ uv tool install git+https://github.com/alejandro-ao/video-tool-cli.git
 
 ### API Keys Setup
 
-Configure API keys using interactive setup:
+Configure API keys (choose one method):
 
+**Option 1: Non-interactive (recommended for Claude Code)**
+```bash
+video-tool config keys --set groq_api_key=YOUR_KEY
+video-tool config keys --set openai_api_key=YOUR_KEY
+# Multiple at once:
+video-tool config keys --set groq_api_key=xxx --set openai_api_key=yyy
+```
+
+**Option 2: Edit credentials file directly**
+If users prefer not to share keys with Claude Code, they can edit directly:
+```bash
+# File: ~/.config/video-tool/credentials.yaml
+openai_api_key: sk-xxx
+groq_api_key: gsk_xxx
+bunny_library_id: xxx
+bunny_access_key: xxx
+replicate_api_token: xxx
+```
+
+**Option 3: Interactive setup**
 ```bash
 video-tool config keys
 ```
 
-This prompts for:
-- **Groq API key** - Required for transcription (Whisper)
-- **OpenAI API key** - Required for content generation (descriptions, timestamps)
-- **Bunny.net credentials** - Optional, for CDN uploads
-- **Replicate API token** - Optional, for audio enhancement
+Required keys:
+- **groq_api_key** - Transcription (Whisper)
+- **openai_api_key** - Content generation (descriptions, timestamps)
 
-Keys are stored securely in `~/.config/video-tool/credentials.yaml`.
+Optional keys:
+- **bunny_library_id**, **bunny_access_key** - Bunny.net CDN uploads
+- **replicate_api_token** - Audio enhancement
 
 ```bash
 video-tool config keys --show   # View configured keys (masked)
@@ -86,8 +106,9 @@ video-tool config keys --reset  # Clear all credentials
 **Example flow when auth fails:**
 1. Command fails with "AUTHENTICATION REQUIRED"
 2. Use AskUserQuestion to ask user for the required API key
-3. If user provides key, tell them to run: `video-tool config keys`
-4. Then retry the original command
+3. If user provides key, run: `video-tool config keys --set KEY_NAME=VALUE`
+4. If user prefers not to share key, tell them to edit `~/.config/video-tool/credentials.yaml` directly
+5. Then retry the original command
 
 ### YouTube Authentication
 
@@ -296,11 +317,12 @@ video-tool pipeline -i ./clips/ -o ./output/ -t "Video Title" -y
 ### Configuration
 
 ```bash
-video-tool config keys             # Configure API keys (interactive setup)
-video-tool config keys --show      # View configured keys
-video-tool config llm              # Configure LLM settings and persistent links
-video-tool config youtube-auth     # Set up YouTube OAuth2
-video-tool config youtube-status   # Check YouTube credentials
+video-tool config keys                        # Configure API keys (interactive)
+video-tool config keys --set KEY=VALUE        # Set key non-interactively
+video-tool config keys --show                 # View configured keys
+video-tool config llm                         # Configure LLM settings and persistent links
+video-tool config youtube-auth                # Set up YouTube OAuth2
+video-tool config youtube-status              # Check YouTube credentials
 ```
 
 ---

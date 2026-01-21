@@ -357,6 +357,26 @@ def clear_credentials() -> None:
         CREDENTIALS_PATH.unlink()
 
 
+def set_credential(key: str, value: str) -> bool:
+    """Set a single credential non-interactively.
+
+    Args:
+        key: Credential key name (e.g., "openai_api_key")
+        value: The credential value
+
+    Returns:
+        True if valid and saved, False otherwise
+    """
+    if key not in CREDENTIAL_KEYS:
+        return False
+    if not _is_valid_credential(value):
+        return False
+    creds = load_credentials()
+    creds[key] = value
+    save_credentials(creds)
+    return True
+
+
 def mask_credential(value: str) -> str:
     """Mask a credential for display (show first 4 and last 4 chars)."""
     if not value or len(value) < 12:

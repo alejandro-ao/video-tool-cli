@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import os
 import sys
-from typing import Optional
+from typing import List, Optional
 
 import typer
 from dotenv import load_dotenv
@@ -33,6 +33,7 @@ from video_tool.config import (
     clear_credentials,
     mask_credential,
     prompt_and_save_credential,
+    set_credential,
 )
 
 # Create main app and sub-apps
@@ -220,14 +221,38 @@ def config_llm_command(
 def config_keys_command(
     show: bool = typer.Option(False, "--show", "-s", help="Show current API keys (masked)"),
     reset: bool = typer.Option(False, "--reset", help="Clear all stored credentials"),
+    set_creds: Optional[List[str]] = typer.Option(
+        None, "--set", help="Set credential non-interactively (KEY=VALUE)"
+    ),
 ) -> None:
     """Manage API keys for video-tool services.
 
     Keys are stored in ~/.config/video-tool/credentials.yaml with secure permissions.
+
+    Use --set for non-interactive setup:
+        video-tool config keys --set groq_api_key=gsk_xxx
+        video-tool config keys --set groq_api_key=xxx --set openai_api_key=yyy
     """
     if reset:
         clear_credentials()
         step_complete("Credentials cleared", str(CREDENTIALS_PATH))
+        return
+
+    # Handle non-interactive --set
+    if set_creds:
+        for item in set_creds:
+            if "=" not in item:
+                step_error("Invalid format", f"Expected KEY=VALUE, got: {item}")
+                raise typer.Exit(1)
+            key, value = item.split("=", 1)
+            if key not in CREDENTIAL_KEYS:
+                valid_keys = ", ".join(CREDENTIAL_KEYS.keys())
+                step_error("Invalid key", f"'{key}' not in: {valid_keys}")
+                raise typer.Exit(1)
+            if not set_credential(key, value):
+                step_error("Invalid value", f"Value for '{key}' is invalid")
+                raise typer.Exit(1)
+            step_complete("Set", f"{key}")
         return
 
     if show:
