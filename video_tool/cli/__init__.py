@@ -210,7 +210,6 @@ def config_keys_command(
     """Manage API keys for video-tool services.
 
     Keys are stored in ~/.config/video-tool/credentials.yaml with secure permissions.
-    Environment variables take priority over stored keys.
     """
     if reset:
         clear_credentials()
@@ -221,18 +220,12 @@ def config_keys_command(
         console.print("\n[bold]API Keys[/bold]")
         console.print(f"[dim]Credentials file: {CREDENTIALS_PATH}[/dim]\n")
 
-        for key, env_var in CREDENTIAL_KEYS.items():
+        for key in CREDENTIAL_KEYS:
             label = key.replace("_", " ").title()
             value = get_credential(key)
-            source = ""
-
-            if os.getenv(env_var):
-                source = " [dim](from env)[/dim]"
-            elif value:
-                source = " [dim](from file)[/dim]"
 
             if value:
-                console.print(f"  {label}: [green]{mask_credential(value)}[/green]{source}")
+                console.print(f"  {label}: [green]{mask_credential(value)}[/green]")
             else:
                 console.print(f"  {label}: [red]Not set[/red]")
         return

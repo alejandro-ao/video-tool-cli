@@ -283,7 +283,7 @@ def _is_valid_credential(value: Optional[str]) -> bool:
 
 
 def get_credential(key: str) -> Optional[str]:
-    """Get credential: env var > credentials file.
+    """Get credential from credentials file.
 
     Args:
         key: Credential key name (e.g., "openai_api_key")
@@ -291,10 +291,6 @@ def get_credential(key: str) -> Optional[str]:
     Returns:
         The credential value or None if not found/invalid
     """
-    env_var = CREDENTIAL_KEYS.get(key, key.upper())
-    if val := os.getenv(env_var):
-        if _is_valid_credential(val):
-            return val
     creds = load_credentials()
     val = creds.get(key)
     if _is_valid_credential(val):

@@ -45,16 +45,15 @@ Automate Alejandro's YouTube production workflow end to end. Given a directory o
   video-tool --help
   ```
 - Install directly from GitHub (no clone):
-  - Replace `<username>/<repo>` and a tag like `v0.1.0` or a commit SHA.
   ```bash
-  # pipx
-  pipx install "video-tool @ git+https://github.com/<username>/<repo>.git@v0.1.0"
+  # uv tools (recommended)
+  uv tool install git+https://github.com/alejandro-ao/video-tool-cli.git
 
-  # uv tools
-  uv tool install "video-tool @ git+https://github.com/<username>/<repo>.git@v0.1.0"
+  # pipx
+  pipx install git+https://github.com/alejandro-ao/video-tool-cli.git
 
   # pip
-  pip install "video-tool @ git+https://github.com/<username>/<repo>.git@v0.1.0"
+  pip install git+https://github.com/alejandro-ao/video-tool-cli.git
   ```
   If the command is not found after install, please restart your terminal and ensure your tool bin directory is on PATH (e.g., `~/.local/bin` for uv tools, or your Python user bin on macOS like `~/Library/Python/3.11/bin`).
 
@@ -136,6 +135,13 @@ All outputs are written to an `output/` subdirectory:
 - Context cards: `output/context-cards.md`
 
 All actions are logged to `video_processor.log`.
+
+## Claude Code Skill
+
+This tool is available as a Claude Code skill. Add it via:
+```bash
+/install-skill https://github.com/alejandro-ao/skills
+```
 
 ## Additional Tools
 - `VideoProcessor.extract_duration_csv()` exports `video_metadata.csv` summarizing clip lengths and creation dates across a directory tree.
