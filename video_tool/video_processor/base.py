@@ -12,7 +12,7 @@ import yaml
 from openai import OpenAI
 from pydantic import BaseModel
 
-from video_tool.config import get_llm_config
+from video_tool.config import get_llm_config, get_credential
 
 from .shared import Groq, logger
 
@@ -34,7 +34,9 @@ class VideoProcessorBase:
         # Note: output_dir is created lazily when needed, not in __init__
         self.video_title = video_title.strip() if video_title else None
         self.show_external_logs = show_external_logs
-        self.groq = Groq()
+        # Initialize Groq client with credential from config/env
+        groq_key = get_credential("groq_api_key")
+        self.groq = Groq(api_key=groq_key) if groq_key else None
         self.prompts = self._load_prompts()
         self.setup_logging()
         self._preferred_output_filename = (
@@ -149,7 +151,10 @@ class VideoProcessorBase:
     def _get_openai_client(self, command: str) -> OpenAI:
         """Return an OpenAI client configured for the given command."""
         llm_config = get_llm_config(command)
-        return OpenAI(base_url=llm_config.base_url)
+        return OpenAI(
+            api_key=get_credential("openai_api_key"),
+            base_url=llm_config.base_url,
+        )
 
     def _invoke_openai_chat(
         self,

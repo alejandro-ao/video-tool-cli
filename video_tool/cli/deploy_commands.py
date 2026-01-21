@@ -11,6 +11,7 @@ import typer
 
 from video_tool import VideoProcessor
 from video_tool.cli import validate_bunny_env_vars, upload_app
+from video_tool.config import get_credential, prompt_and_save_credential
 from video_tool.ui import (
     ask_path,
     ask_text,
@@ -19,6 +20,7 @@ from video_tool.ui import (
     status_spinner,
     step_complete,
     step_error,
+    step_info,
     step_start,
     step_warning,
 )
@@ -31,14 +33,16 @@ def _resolve_bunny_credentials(
     library_id: Optional[str] = None,
     access_key: Optional[str] = None,
 ) -> tuple[str, str]:
-    """Resolve Bunny credentials from args/env and prompt if missing."""
-    library = (library_id or os.getenv("BUNNY_LIBRARY_ID") or "").strip()
-    access = (access_key or os.getenv("BUNNY_ACCESS_KEY") or "").strip()
+    """Resolve Bunny credentials from args/env/config and prompt if missing."""
+    library = (library_id or get_credential("bunny_library_id") or "").strip()
+    access = (access_key or get_credential("bunny_access_key") or "").strip()
 
     if not library:
-        library = ask_text("Bunny Library ID", required=True) or ""
+        step_info("Bunny Library ID not found")
+        library = prompt_and_save_credential("bunny_library_id", "Bunny Library ID", hide_input=False) or ""
     if not access:
-        access = ask_text("Bunny Access Key", required=True) or ""
+        step_info("Bunny Access Key not found")
+        access = prompt_and_save_credential("bunny_access_key", "Bunny Access Key") or ""
 
     return library, access
 
@@ -89,7 +93,7 @@ def bunny_upload(
 
     # Get credentials
     library_id, access_key = _resolve_bunny_credentials(bunny_library_id, bunny_access_key)
-    collection_id = (bunny_collection_id or os.getenv("BUNNY_COLLECTION_ID") or "").strip() or None
+    collection_id = (bunny_collection_id or get_credential("bunny_collection_id") or "").strip() or None
 
     # Batch upload
     if batch_path:

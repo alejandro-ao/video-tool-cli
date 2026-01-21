@@ -77,6 +77,11 @@ def step_warning(message: str) -> None:
     console.print(f"[yellow]Warning:[/yellow] {message}")
 
 
+def step_info(message: str) -> None:
+    """Print an info message."""
+    console.print(f"[cyan]Info:[/cyan] {message}")
+
+
 def pipeline_header(title: str, config: Dict[str, Any]) -> None:
     """Print a pipeline configuration panel.
 

@@ -17,7 +17,7 @@ import typer
 from dotenv import load_dotenv
 
 from video_tool.logging_config import configure_logging
-from video_tool.ui import console, step_error, step_complete, step_start
+from video_tool.ui import console, step_error, step_complete, step_start, step_info
 from video_tool.config import (
     load_config,
     set_llm_config,
@@ -25,6 +25,14 @@ from video_tool.config import (
     get_llm_config,
     prompt_links_setup,
     CONFIG_PATH,
+    CREDENTIALS_PATH,
+    CREDENTIAL_KEYS,
+    get_credential,
+    load_credentials,
+    save_credentials,
+    clear_credentials,
+    mask_credential,
+    prompt_and_save_credential,
 )
 
 # Create main app and sub-apps
@@ -90,11 +98,29 @@ def main_callback(
     configure_logging(verbose=verbose)
 
 
+def ensure_openai_key() -> bool:
+    """Ensure OpenAI key exists, prompting if needed."""
+    if get_credential("openai_api_key"):
+        return True
+    step_info("OpenAI API key not found")
+    console.print("[dim]Get a key at https://platform.openai.com/api-keys[/dim]")
+    return prompt_and_save_credential("openai_api_key", "OpenAI API Key") is not None
+
+
+def ensure_groq_key() -> bool:
+    """Ensure Groq key exists, prompting if needed."""
+    if get_credential("groq_api_key"):
+        return True
+    step_info("Groq API key not found")
+    console.print("[dim]Get a key at https://console.groq.com/keys[/dim]")
+    return prompt_and_save_credential("groq_api_key", "Groq API Key") is not None
+
+
 def validate_ai_env_vars() -> bool:
-    """Check that required AI API keys are set."""
-    missing = [var for var in ("OPENAI_API_KEY", "GROQ_API_KEY") if not os.getenv(var)]
-    if missing:
-        step_error(f"Missing required environment variables: {', '.join(missing)}")
+    """Ensure required AI API keys exist, prompting if needed."""
+    if not ensure_openai_key():
+        return False
+    if not ensure_groq_key():
         return False
     return True
 
@@ -103,11 +129,11 @@ def validate_bunny_env_vars(
     library_id: Optional[str] = None,
     access_key: Optional[str] = None,
 ) -> bool:
-    """Check that Bunny.net credentials are available."""
+    """Check that Bunny.net credentials are available (no prompting)."""
     missing = []
-    if not (library_id or os.getenv("BUNNY_LIBRARY_ID")):
+    if not (library_id or get_credential("bunny_library_id")):
         missing.append("BUNNY_LIBRARY_ID")
-    if not (access_key or os.getenv("BUNNY_ACCESS_KEY")):
+    if not (access_key or get_credential("bunny_access_key")):
         missing.append("BUNNY_ACCESS_KEY")
 
     if missing:
@@ -165,6 +191,83 @@ def config_llm_command(
     console.print("  --base-url, -b TEXT Set base URL")
     console.print("  --links, -l         Manage persistent links")
     console.print("  --reset             Reset to defaults")
+
+
+@config_app.command("keys")
+def config_keys_command(
+    show: bool = typer.Option(False, "--show", "-s", help="Show current API keys (masked)"),
+    reset: bool = typer.Option(False, "--reset", help="Clear all stored credentials"),
+) -> None:
+    """Manage API keys for video-tool services.
+
+    Keys are stored in ~/.config/video-tool/credentials.yaml with secure permissions.
+    Environment variables take priority over stored keys.
+    """
+    if reset:
+        clear_credentials()
+        step_complete("Credentials cleared", str(CREDENTIALS_PATH))
+        return
+
+    if show:
+        console.print("\n[bold]API Keys[/bold]")
+        console.print(f"[dim]Credentials file: {CREDENTIALS_PATH}[/dim]\n")
+
+        for key, env_var in CREDENTIAL_KEYS.items():
+            label = key.replace("_", " ").title()
+            value = get_credential(key)
+            source = ""
+
+            if os.getenv(env_var):
+                source = " [dim](from env)[/dim]"
+            elif value:
+                source = " [dim](from file)[/dim]"
+
+            if value:
+                console.print(f"  {label}: [green]{mask_credential(value)}[/green]{source}")
+            else:
+                console.print(f"  {label}: [red]Not set[/red]")
+        return
+
+    # Interactive setup
+    console.print("\n[bold]API Keys Configuration[/bold]")
+    console.print(f"[dim]Credentials will be saved to: {CREDENTIALS_PATH}[/dim]")
+    console.print("[dim]Press Enter to skip optional keys, Ctrl+C to cancel[/dim]\n")
+
+    # Required keys
+    console.print("[bold]Required:[/bold]")
+
+    if not get_credential("openai_api_key"):
+        console.print("[dim]https://platform.openai.com/api-keys[/dim]")
+        prompt_and_save_credential("openai_api_key", "OpenAI API Key", required=True)
+    else:
+        console.print(f"  OpenAI API Key: [green]Already set[/green]")
+
+    if not get_credential("groq_api_key"):
+        console.print("[dim]https://console.groq.com/keys[/dim]")
+        prompt_and_save_credential("groq_api_key", "Groq API Key", required=True)
+    else:
+        console.print(f"  Groq API Key: [green]Already set[/green]")
+
+    # Optional keys
+    console.print("\n[bold]Optional:[/bold]")
+
+    if not get_credential("bunny_library_id"):
+        prompt_and_save_credential("bunny_library_id", "Bunny Library ID", required=False, hide_input=False)
+    else:
+        console.print(f"  Bunny Library ID: [green]Already set[/green]")
+
+    if not get_credential("bunny_access_key"):
+        prompt_and_save_credential("bunny_access_key", "Bunny Access Key", required=False)
+    else:
+        console.print(f"  Bunny Access Key: [green]Already set[/green]")
+
+    if not get_credential("replicate_api_token"):
+        console.print("[dim]https://replicate.com/account/api-tokens[/dim]")
+        prompt_and_save_credential("replicate_api_token", "Replicate API Token", required=False)
+    else:
+        console.print(f"  Replicate API Token: [green]Already set[/green]")
+
+    step_complete("Credentials saved", str(CREDENTIALS_PATH))
 
 
 @config_app.command("youtube-auth")

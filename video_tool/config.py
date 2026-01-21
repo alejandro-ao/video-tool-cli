@@ -1,7 +1,9 @@
-"""Configuration management for video-tool LLM settings."""
+"""Configuration management for video-tool LLM settings and credentials."""
 
 from __future__ import annotations
 
+import os
+import stat
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -10,9 +12,20 @@ import yaml
 
 CONFIG_DIR = Path.home() / ".config" / "video-tool"
 CONFIG_PATH = CONFIG_DIR / "config.yaml"
+CREDENTIALS_PATH = CONFIG_DIR / "credentials.yaml"
 
 DEFAULT_BASE_URL = "https://api.openai.com/v1"
 DEFAULT_MODEL = "gpt-4o"
+
+# Maps credential key names to environment variable names
+CREDENTIAL_KEYS = {
+    "openai_api_key": "OPENAI_API_KEY",
+    "groq_api_key": "GROQ_API_KEY",
+    "bunny_library_id": "BUNNY_LIBRARY_ID",
+    "bunny_access_key": "BUNNY_ACCESS_KEY",
+    "bunny_collection_id": "BUNNY_COLLECTION_ID",
+    "replicate_api_token": "REPLICATE_API_TOKEN",
+}
 
 
 @dataclass
@@ -230,3 +243,126 @@ def prompt_optional_llm_setup() -> bool:
     save_config(config)
     console.print(f"\n[green]LLM config saved to {CONFIG_PATH}[/green]\n")
     return True
+
+
+# --- Credential Management ---
+
+
+def load_credentials() -> dict:
+    """Load credentials from yaml file."""
+    if not CREDENTIALS_PATH.exists():
+        return {}
+    try:
+        with open(CREDENTIALS_PATH) as f:
+            return yaml.safe_load(f) or {}
+    except (OSError, yaml.YAMLError):
+        return {}
+
+
+def save_credentials(creds: dict) -> None:
+    """Save credentials with secure permissions (0600)."""
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    with open(CREDENTIALS_PATH, "w") as f:
+        yaml.safe_dump(creds, f, default_flow_style=False, sort_keys=False)
+    os.chmod(CREDENTIALS_PATH, stat.S_IRUSR | stat.S_IWUSR)
+
+
+def _is_valid_credential(value: Optional[str]) -> bool:
+    """Check if a credential value looks valid (not empty, not placeholder)."""
+    if not value:
+        return False
+    value = value.strip()
+    # Reject empty, ellipsis literals, or placeholder-looking values
+    invalid_values = {"", "...", "Ellipsis", "None", "null", "undefined"}
+    if value in invalid_values:
+        return False
+    # Must be at least a few characters
+    if len(value) < 4:
+        return False
+    return True
+
+
+def get_credential(key: str) -> Optional[str]:
+    """Get credential: env var > credentials file.
+
+    Args:
+        key: Credential key name (e.g., "openai_api_key")
+
+    Returns:
+        The credential value or None if not found/invalid
+    """
+    env_var = CREDENTIAL_KEYS.get(key, key.upper())
+    if val := os.getenv(env_var):
+        if _is_valid_credential(val):
+            return val
+    creds = load_credentials()
+    val = creds.get(key)
+    if _is_valid_credential(val):
+        return val
+    return None
+
+
+def prompt_and_save_credential(
+    key: str,
+    label: str,
+    required: bool = True,
+    hide_input: bool = True,
+) -> Optional[str]:
+    """Prompt user for credential and save it.
+
+    Args:
+        key: Credential key name (e.g., "openai_api_key")
+        label: Human-readable label for the prompt
+        required: Whether the credential is required
+        hide_input: Whether to hide input (for API keys)
+
+    Returns:
+        The credential value or None if skipped
+    """
+    import typer
+
+    prompt_text = f"{label}"
+    if not required:
+        prompt_text += " (optional, press Enter to skip)"
+
+    while True:
+        try:
+            value = typer.prompt(prompt_text, default="", hide_input=hide_input)
+        except typer.Abort:
+            return None
+
+        value = value.strip() if value else ""
+
+        # Empty input
+        if not value:
+            if required:
+                typer.echo("This field is required. Please enter a value.")
+                continue
+            return None
+
+        # Validate it looks like a real credential
+        if not _is_valid_credential(value):
+            typer.echo("Invalid value. Please enter a valid API key.")
+            continue
+
+        break
+
+    # Save to credentials file
+    creds = load_credentials()
+    creds[key] = value
+    save_credentials(creds)
+
+    return value
+
+
+def clear_credentials() -> None:
+    """Remove all stored credentials."""
+    if CREDENTIALS_PATH.exists():
+        CREDENTIALS_PATH.unlink()
+
+
+def mask_credential(value: str) -> str:
+    """Mask a credential for display (show first 4 and last 4 chars)."""
+    if not value or len(value) < 12:
+        return "***"
+    return f"{value[:4]}...{value[-4:]}"

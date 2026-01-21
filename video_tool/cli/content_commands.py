@@ -9,7 +9,7 @@ from typing import List, Optional
 import typer
 
 from video_tool import VideoProcessor
-from video_tool.cli import validate_ai_env_vars, video_app
+from video_tool.cli import ensure_openai_key, ensure_groq_key, video_app
 from video_tool.config import get_llm_config
 from video_tool.ui import (
     ask_path,
@@ -51,9 +51,6 @@ def description(
     article_link: Optional[str] = typer.Option(None, "--article-link", help="Link to written article"),
 ) -> None:
     """Generate video description from transcript or media file."""
-    if not validate_ai_env_vars():
-        raise typer.Exit(1)
-
     # Ensure config exists (first-time setup if needed)
     ensure_config()
 
@@ -82,6 +79,14 @@ def description(
         media_file = input_path
     else:
         step_error(f"Unsupported file type: {suffix}")
+        raise typer.Exit(1)
+
+    # Validate keys based on input type
+    # Always need OpenAI for LLM description generation
+    if not ensure_openai_key():
+        raise typer.Exit(1)
+    # Need Groq if we have media file (will generate transcript)
+    if media_file and not ensure_groq_key():
         raise typer.Exit(1)
 
     # Determine default output path
@@ -202,9 +207,6 @@ def context_cards(
     output_path: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path"),
 ) -> None:
     """Generate context cards from transcript or media file."""
-    if not validate_ai_env_vars():
-        raise typer.Exit(1)
-
     transcript_file: Optional[Path] = None
     media_file: Optional[Path] = None
     transcript_generated = False
@@ -228,6 +230,14 @@ def context_cards(
         media_file = input_path
     else:
         step_error(f"Unsupported file type: {suffix}. Use VTT transcript or video/audio.")
+        raise typer.Exit(1)
+
+    # Validate keys based on input type
+    # Always need OpenAI for LLM context card generation
+    if not ensure_openai_key():
+        raise typer.Exit(1)
+    # Need Groq if we have media file (will generate transcript)
+    if media_file and not ensure_groq_key():
         raise typer.Exit(1)
 
     # Determine default output path

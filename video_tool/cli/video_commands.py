@@ -14,8 +14,8 @@ import requests
 import typer
 
 from video_tool import VideoProcessor
-from video_tool.cli import validate_ai_env_vars, video_app
-from video_tool.config import get_llm_config
+from video_tool.cli import validate_ai_env_vars, ensure_groq_key, ensure_openai_key, video_app
+from video_tool.config import get_llm_config, get_credential, prompt_and_save_credential
 from video_tool.ui import (
     ask_confirm,
     ask_path,
@@ -128,9 +128,6 @@ def concat(
     fast_concat: Optional[bool] = typer.Option(None, "--fast-concat/--no-fast-concat", "-f", help="Use fast concatenation (skip reprocessing)"),
 ) -> None:
     """Concatenate videos into a single file."""
-    if not validate_ai_env_vars():
-        raise typer.Exit(1)
-
     if input_dir is None:
         input_dir_str = ask_path("Input directory (containing videos to concatenate)", required=True)
         input_dir = Path(input_dir_str)
@@ -245,8 +242,8 @@ def timestamps(
         step_error(f"Invalid mode: {mode}. Must be 'clips' or 'transcript'")
         raise typer.Exit(1)
 
-    # 2. Validate AI env only for transcript mode
-    if mode == "transcript" and not validate_ai_env_vars():
+    # 2. Validate OpenAI key only for transcript mode (uses LLM)
+    if mode == "transcript" and not ensure_openai_key():
         raise typer.Exit(1)
 
     # 3. Get input path
@@ -345,8 +342,8 @@ def transcript(
     input_path: Optional[Path] = typer.Option(None, "--input", "-i", help="Input video or audio file"),
     output_path: Optional[Path] = typer.Option(None, "--output-path", "-o", help="Output VTT file path"),
 ) -> None:
-    """Generate VTT transcript from video or audio using Whisper."""
-    if not validate_ai_env_vars():
+    """Generate VTT transcript from video or audio using Groq Whisper."""
+    if not ensure_groq_key():
         raise typer.Exit(1)
 
     # 1. Get input path
@@ -497,12 +494,15 @@ def enhance_audio_cmd(
     denoise_only: bool = typer.Option(False, "--denoise-only", "-d", help="Only denoise, skip full enhancement"),
 ) -> None:
     """Enhance audio quality using Resemble AI (via Replicate)."""
-    # 1. Check for API token
-    api_token = os.environ.get("REPLICATE_API_TOKEN")
+    # 1. Check for API token - prompt if not found
+    api_token = get_credential("replicate_api_token")
     if not api_token:
-        step_error("REPLICATE_API_TOKEN environment variable not set")
+        step_warning("Replicate API token not found")
         console.print("  [dim]Get a token at https://replicate.com/account/api-tokens[/dim]")
-        raise typer.Exit(1)
+        api_token = prompt_and_save_credential("replicate_api_token", "Replicate API Token")
+        if not api_token:
+            step_error("Replicate API token is required for audio enhancement")
+            raise typer.Exit(1)
 
     # 2. Get input path
     if input_path is None:
