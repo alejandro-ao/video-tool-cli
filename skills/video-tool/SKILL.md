@@ -89,26 +89,53 @@ video-tool config keys --reset  # Clear all credentials
 
 1. **DO NOT** try to work around the issue by writing custom scripts
 2. **DO NOT** try to call APIs directly
-3. **INSTEAD**, ask the user to provide their API key using AskUserQuestion tool
-4. Then run `video-tool config keys` with the user's input
+3. **INSTEAD**, offer the user two options using AskUserQuestion:
+
+**Option A: Provide key to Claude (convenient)**
+- User gives you the API key directly
+- You run: `video-tool config keys --set KEY_NAME=VALUE`
+- Faster, but the key is visible in the conversation
+
+**Option B: User configures privately (more secure)**
+- User runs the command themselves or edits the file directly
+- Key never appears in the conversation with Claude
+- Tell user to run: `video-tool config keys` (interactive)
+- Or edit: `~/.config/video-tool/credentials.yaml`
+
+**Example AskUserQuestion prompt:**
+"This command requires a [Groq/OpenAI] API key. How would you like to configure it?"
+- Option 1: "I'll provide the key" - convenient but key visible to Claude
+- Option 2: "I'll configure it myself" - more private, key stays hidden from Claude
+
+After user configures (either way), retry the original command.
 
 **Commands that require API keys:**
 - `video-tool video transcript` → Requires **Groq API key**
-- `video-tool video description` → Requires **OpenAI API key** (and Groq if given video/audio)
-- `video-tool video timestamps -m transcript` → Requires **OpenAI API key**
-- `video-tool video context-cards` → Requires **OpenAI API key**
-- `video-tool video seo` → Requires **OpenAI API key**
-- `video-tool video linkedin` → Requires **OpenAI API key**
-- `video-tool video twitter` → Requires **OpenAI API key**
+- `video-tool video timestamps -m transcript` → Requires **OpenAI API key** (structured output)
 - `video-tool upload bunny-*` → Requires **Bunny.net credentials**
 - `video-tool video enhance-audio` → Requires **Replicate API token**
 
-**Example flow when auth fails:**
-1. Command fails with "AUTHENTICATION REQUIRED"
-2. Use AskUserQuestion to ask user for the required API key
-3. If user provides key, run: `video-tool config keys --set KEY_NAME=VALUE`
-4. If user prefers not to share key, tell them to edit `~/.config/video-tool/credentials.yaml` directly
-5. Then retry the original command
+---
+
+## Content Generation: CLI Commands vs Direct Generation
+
+Some CLI commands use OpenAI to generate content. When Claude runs this skill, it's often better for Claude to generate content directly instead of calling another LLM.
+
+### Use CLI command (requires OpenAI API key):
+- `video timestamps -m transcript` - Uses structured output for precise JSON
+
+### Generate directly as Claude (no OpenAI needed):
+For these tasks, read the transcript/timestamps and generate content using the linked templates:
+
+- **Description**: See [templates/description.md](templates/description.md)
+- **SEO Keywords**: See [templates/seo-keywords.md](templates/seo-keywords.md)
+- **LinkedIn/Twitter Posts**: See [templates/social-posts.md](templates/social-posts.md)
+- **Context Cards**: See [templates/context-cards.md](templates/context-cards.md)
+
+### Note on CLI commands
+The CLI has commands like `video description`, `video seo`, `video linkedin`, `video twitter`, `video context-cards` that use OpenAI. These exist for manual CLI usage. If user explicitly requests a CLI command, honor the request (it may require OpenAI key). Otherwise, generate content directly.
+
+---
 
 ### YouTube Authentication
 
@@ -220,7 +247,7 @@ Swap audio track in a video.
 video-tool video replace-audio -v video.mp4 -a new_audio.mp3 -o output.mp4
 ```
 
-### Transcription & Content Generation
+### Transcription & Timestamps
 
 #### Generate Transcript
 Create VTT captions using Groq Whisper (requires Groq API key).
@@ -242,24 +269,6 @@ video-tool video timestamps -m transcript -i transcript.vtt -o timestamps.json -
 | `-m, --mode` | `clips` or `transcript` |
 | `-g, --granularity` | `low`, `medium`, `high` (transcript mode) |
 | `-n, --notes` | Additional instructions for LLM |
-
-#### Generate Description
-Create video description with optional links (requires OpenAI API key).
-```bash
-video-tool video description -i transcript.vtt -o description.md -t timestamps.json -l
-```
-| Option | Description |
-|--------|-------------|
-| `-t, --timestamps` | Include chapter timestamps |
-| `-l, --links` | Include persistent links from config |
-| `--code-link` | Link to code repository |
-| `--article-link` | Link to article |
-
-#### Generate Context Cards
-Create info cards from content.
-```bash
-video-tool video context-cards -i transcript.vtt -o cards.json
-```
 
 ### Uploads
 
