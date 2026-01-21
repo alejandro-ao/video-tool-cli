@@ -1,6 +1,6 @@
 {
   "name": "video-tool",
   "description": "AI-powered video processing toolkit - download videos, remove silence, trim/cut, extract audio, transcribe, generate descriptions, upload to YouTube and Bunny.net",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "skills": "./skills/"
 }

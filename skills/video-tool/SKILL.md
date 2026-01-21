@@ -137,6 +137,20 @@ The CLI has commands like `video description`, `video seo`, `video linkedin`, `v
 
 ---
 
+## Output Location
+
+Before generating files (transcripts, descriptions, timestamps, etc.), if not especified before, ask the user where to save them using AskUserQuestion.
+
+**Example prompt:**
+"Where should I save the output files?"
+- Option 1: "Current directory" - save in `.` or `./output/`
+- Option 2: "Same folder as video" - save alongside the source video
+- Option 3: "I'll specify a path" - user provides custom location
+
+**Default behavior if user doesn't specify:** Ask rather than assuming temp directory.
+
+---
+
 ### YouTube Authentication
 
 For YouTube uploads, run OAuth2 setup:
