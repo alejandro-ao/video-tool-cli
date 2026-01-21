@@ -37,6 +37,9 @@ video-tool = "video_tool.cli:main"
 where = ["."]
 include = ["video_tool*", "mcp_server*"]
 
+[tool.setuptools.package-data]
+video_tool = ["prompts.yaml"]
+
 [tool.uv.workspace]
 members = ["mcp_server"]
 
