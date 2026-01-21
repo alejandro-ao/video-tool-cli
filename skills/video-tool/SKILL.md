@@ -23,21 +23,19 @@ AI-powered video processing toolkit with ffmpeg operations, Whisper transcriptio
 ## Installation Check
 
 ```bash
-!`which video-tool > /dev/null && echo "INSTALLED: $(video-tool --version 2>/dev/null || echo 'ready')" || echo "NOT INSTALLED"`
+!`which video-tool`
 ```
+
+If not installed, automatically install it using the commands below.
 
 ## Installation
 
-If not installed, run:
-
 ```bash
-# Requires Python 3.11+ and uv
-uv tool install git+https://github.com/alejandro-ao/video-tool-cli.git
+# Install uv if not present
+!`which uv || curl -LsSf https://astral.sh/uv/install.sh | sh`
 
-# Or for development
-git clone git@github.com:alejandro-ao/video-tool-cli.git
-cd video-tool-cli
-uv tool install --editable .
+# Install video-tool
+uv tool install git+https://github.com/alejandro-ao/video-tool-cli.git
 ```
 
 ### Dependencies
