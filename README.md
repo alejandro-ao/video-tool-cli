@@ -138,10 +138,20 @@ All actions are logged to `video_processor.log`.
 
 ## Claude Code Skill
 
-This tool is available as a Claude Code skill. Add it via:
+This tool is available as a Claude Code skill.
+
+**From marketplace:**
 ```bash
-/install-skill https://github.com/alejandro-ao/skills
+/plugin marketplace add alejandro-ao/skills
+/plugin install video-tool@alejandro-ao-skills
 ```
+
+**Direct from this repo:**
+```bash
+/install-skill https://github.com/alejandro-ao/video-tool-cli
+```
+
+The skill definition lives in `skills/video-tool/`.
 
 ## Additional Tools
 - `VideoProcessor.extract_duration_csv()` exports `video_metadata.csv` summarizing clip lengths and creation dates across a directory tree.
