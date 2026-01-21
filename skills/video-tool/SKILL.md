@@ -21,19 +21,18 @@ allowed-tools: Bash(which:*), Bash(curl:*), Bash(uv:*), Bash(video-tool:*)
 
 AI-powered video processing toolkit with ffmpeg operations, Whisper transcription, and content generation.
 
-## Installation Check
+## Installation Status
 
-```bash
-!`which video-tool`
-```
+video-tool: !`which video-tool > /dev/null && echo "INSTALLED" || echo "NOT INSTALLED - run installation below"`
+uv: !`which uv > /dev/null && echo "INSTALLED" || echo "NOT INSTALLED"`
 
-If not installed, automatically install it using the commands below.
+If video-tool is not installed, run the installation commands below before proceeding.
 
 ## Installation
 
 ```bash
-# Install uv if not present
-!`which uv || curl -LsSf https://astral.sh/uv/install.sh | sh`
+# Install uv first (if not installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Install video-tool
 uv tool install git+https://github.com/alejandro-ao/video-tool-cli.git
