@@ -38,8 +38,11 @@ def _check_bunny_credentials(
     library = (library_id or get_credential("bunny_library_id") or "").strip()
     access = (access_key or get_credential("bunny_access_key") or "").strip()
     if not library or not access:
-        step_error("Bunny credentials not configured")
-        console.print("[dim]Set BUNNY_LIBRARY_ID/BUNNY_ACCESS_KEY or run 'video-tool config keys'[/dim]")
+        console.print("\n[bold red]═══ AUTHENTICATION REQUIRED ═══[/bold red]")
+        console.print("[red]Error: Bunny.net credentials not configured[/red]")
+        console.print("\n[bold yellow]To fix this, run:[/bold yellow]")
+        console.print("[bold cyan]  video-tool config keys[/bold cyan]")
+        console.print("\n[dim]This command will prompt you for your Bunny.net credentials.[/dim]\n")
         return False
     return True
 
@@ -55,8 +58,11 @@ def _resolve_bunny_credentials(
     # In non-interactive mode, fail if credentials missing
     if not sys.stdin.isatty():
         if not library or not access:
-            step_error("Bunny credentials not configured")
-            console.print("[dim]Set BUNNY_LIBRARY_ID/BUNNY_ACCESS_KEY or run 'video-tool config keys'[/dim]")
+            console.print("\n[bold red]═══ AUTHENTICATION REQUIRED ═══[/bold red]")
+            console.print("[red]Error: Bunny.net credentials not configured[/red]")
+            console.print("\n[bold yellow]To fix this, run:[/bold yellow]")
+            console.print("[bold cyan]  video-tool config keys[/bold cyan]")
+            console.print("\n[dim]This command will prompt you for your Bunny.net credentials.[/dim]\n")
             raise typer.Exit(1)
         return library, access
 

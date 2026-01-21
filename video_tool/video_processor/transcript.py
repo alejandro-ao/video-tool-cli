@@ -18,8 +18,16 @@ class TranscriptMixin:
         Accepts video files (extracts audio) or audio files directly (skips extraction).
         """
         if not self.groq:
-            logger.error("Groq API key not configured. Set GROQ_API_KEY or run 'video-tool config keys'.")
-            raise RuntimeError("Groq API key not configured")
+            error_msg = (
+                "\n═══ AUTHENTICATION REQUIRED ═══\n"
+                "Error: Groq API key not configured\n\n"
+                "To fix this, run:\n"
+                "  video-tool config keys\n\n"
+                "This command will prompt you for your Groq API key.\n"
+                "Get your key at: https://console.groq.com/keys\n"
+            )
+            logger.error(error_msg)
+            raise RuntimeError("AUTHENTICATION_REQUIRED: Groq API key not configured. Run 'video-tool config keys' to fix.")
         if video_path is None:
             candidate_path = self._find_existing_output()
             if candidate_path:

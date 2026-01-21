@@ -14,7 +14,7 @@ description: |
   - Generate video descriptions, timestamps, or context cards
   - Upload videos to YouTube or Bunny.net CDN
   - Get video metadata (duration, resolution, codec)
-allowed-tools: Bash(which:*), Bash(curl:*), Bash(uv:*), Bash(video-tool:*)
+allowed-tools: Bash(which:*), Bash(curl:*), Bash(uv:*), Bash(video-tool:*), AskUserQuestion(*)
 ---
 
 # Video Tool CLI
@@ -62,6 +62,32 @@ Keys are stored securely in `~/.config/video-tool/credentials.yaml`.
 video-tool config keys --show   # View configured keys (masked)
 video-tool config keys --reset  # Clear all credentials
 ```
+
+## IMPORTANT: Handling Authentication Errors
+
+**When a command fails with "AUTHENTICATION REQUIRED" or "API key not configured":**
+
+1. **DO NOT** try to work around the issue by writing custom scripts
+2. **DO NOT** try to call APIs directly
+3. **INSTEAD**, ask the user to provide their API key using AskUserQuestion tool
+4. Then run `video-tool config keys` with the user's input
+
+**Commands that require API keys:**
+- `video-tool video transcript` → Requires **Groq API key**
+- `video-tool video description` → Requires **OpenAI API key** (and Groq if given video/audio)
+- `video-tool video timestamps -m transcript` → Requires **OpenAI API key**
+- `video-tool video context-cards` → Requires **OpenAI API key**
+- `video-tool video seo` → Requires **OpenAI API key**
+- `video-tool video linkedin` → Requires **OpenAI API key**
+- `video-tool video twitter` → Requires **OpenAI API key**
+- `video-tool upload bunny-*` → Requires **Bunny.net credentials**
+- `video-tool video enhance-audio` → Requires **Replicate API token**
+
+**Example flow when auth fails:**
+1. Command fails with "AUTHENTICATION REQUIRED"
+2. Use AskUserQuestion to ask user for the required API key
+3. If user provides key, tell them to run: `video-tool config keys`
+4. Then retry the original command
 
 ### YouTube Authentication
 

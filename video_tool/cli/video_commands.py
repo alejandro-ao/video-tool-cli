@@ -497,8 +497,12 @@ def enhance_audio_cmd(
     # 1. Check for API token - prompt interactively if possible
     api_token = get_credential("replicate_api_token")
     if not api_token:
-        step_error("Replicate API token not configured")
-        console.print("[dim]Set REPLICATE_API_TOKEN or run 'video-tool config keys'[/dim]")
+        console.print("\n[bold red]═══ AUTHENTICATION REQUIRED ═══[/bold red]")
+        console.print("[red]Error: Replicate API token not configured[/red]")
+        console.print("\n[bold yellow]To fix this, run:[/bold yellow]")
+        console.print("[bold cyan]  video-tool config keys[/bold cyan]")
+        console.print("\n[dim]This command will prompt you for your Replicate API token.[/dim]")
+        console.print("[dim]Get your token at: https://replicate.com/account/api-tokens[/dim]\n")
         if not sys.stdin.isatty():
             raise typer.Exit(1)
         api_token = prompt_and_save_credential("replicate_api_token", "Replicate API Token")

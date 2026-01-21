@@ -107,8 +107,13 @@ def ensure_openai_key() -> bool:
     """Ensure OpenAI key exists, prompting interactively if possible."""
     if get_credential("openai_api_key"):
         return True
-    step_error("OpenAI API key not configured")
-    console.print("[dim]Set OPENAI_API_KEY or run 'video-tool config keys'[/dim]")
+    # Clear, structured error for both humans and AI assistants
+    console.print("\n[bold red]═══ AUTHENTICATION REQUIRED ═══[/bold red]")
+    console.print("[red]Error: OpenAI API key not configured[/red]")
+    console.print("\n[bold yellow]To fix this, run:[/bold yellow]")
+    console.print("[bold cyan]  video-tool config keys[/bold cyan]")
+    console.print("\n[dim]This command will prompt you for your OpenAI API key.[/dim]")
+    console.print("[dim]Get your key at: https://platform.openai.com/api-keys[/dim]\n")
     if not _is_interactive():
         return False
     return prompt_and_save_credential("openai_api_key", "OpenAI API Key") is not None
@@ -118,8 +123,13 @@ def ensure_groq_key() -> bool:
     """Ensure Groq key exists, prompting interactively if possible."""
     if get_credential("groq_api_key"):
         return True
-    step_error("Groq API key not configured")
-    console.print("[dim]Set GROQ_API_KEY or run 'video-tool config keys'[/dim]")
+    # Clear, structured error for both humans and AI assistants
+    console.print("\n[bold red]═══ AUTHENTICATION REQUIRED ═══[/bold red]")
+    console.print("[red]Error: Groq API key not configured[/red]")
+    console.print("\n[bold yellow]To fix this, run:[/bold yellow]")
+    console.print("[bold cyan]  video-tool config keys[/bold cyan]")
+    console.print("\n[dim]This command will prompt you for your Groq API key.[/dim]")
+    console.print("[dim]Get your key at: https://console.groq.com/keys[/dim]\n")
     if not _is_interactive():
         return False
     return prompt_and_save_credential("groq_api_key", "Groq API Key") is not None
@@ -146,7 +156,11 @@ def validate_bunny_env_vars(
         missing.append("BUNNY_ACCESS_KEY")
 
     if missing:
-        step_error(f"Missing Bunny credentials: {', '.join(missing)}")
+        console.print("\n[bold red]═══ AUTHENTICATION REQUIRED ═══[/bold red]")
+        console.print(f"[red]Error: Missing Bunny credentials: {', '.join(missing)}[/red]")
+        console.print("\n[bold yellow]To fix this, run:[/bold yellow]")
+        console.print("[bold cyan]  video-tool config keys[/bold cyan]")
+        console.print("\n[dim]This command will prompt you for your Bunny.net credentials.[/dim]\n")
         return False
     return True
 
