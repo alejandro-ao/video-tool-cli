@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-`main.py` is the interactive CLI that coordinates every processing stage. Core logic lives in `video_tool/video_processor.py`, which bundles operations such as silence removal, concatenation, transcription, and content generation while persisting logs to `video_processor.log`. The MCP tooling and server adapters are organized under `mcp_server/`, and automation helpers sit in `scripts/` for ad-hoc workflows. Tests, fixtures, and sample assets reside in `tests/`, with reusable data under `tests/test_data/`.
+`main.py` is the interactive CLI that coordinates every processing stage. Core logic lives in `video_tool/video_processor.py`, which bundles operations such as silence removal, concatenation, transcription, and content generation while persisting logs to `video_processor.log`. Automation helpers sit in `scripts/` for ad-hoc workflows. Tests, fixtures, and sample assets reside in `tests/`, with reusable data under `tests/test_data/`.
 
 ## Build, Test, and Development Commands
 Install runtime dependencies with:
