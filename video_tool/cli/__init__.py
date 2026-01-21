@@ -98,21 +98,30 @@ def main_callback(
     configure_logging(verbose=verbose)
 
 
+def _is_interactive() -> bool:
+    """Check if running in an interactive terminal."""
+    return sys.stdin.isatty()
+
+
 def ensure_openai_key() -> bool:
-    """Ensure OpenAI key exists, prompting if needed."""
+    """Ensure OpenAI key exists, prompting interactively if possible."""
     if get_credential("openai_api_key"):
         return True
-    step_info("OpenAI API key not found")
-    console.print("[dim]Get a key at https://platform.openai.com/api-keys[/dim]")
+    step_error("OpenAI API key not configured")
+    console.print("[dim]Set OPENAI_API_KEY or run 'video-tool config keys'[/dim]")
+    if not _is_interactive():
+        return False
     return prompt_and_save_credential("openai_api_key", "OpenAI API Key") is not None
 
 
 def ensure_groq_key() -> bool:
-    """Ensure Groq key exists, prompting if needed."""
+    """Ensure Groq key exists, prompting interactively if possible."""
     if get_credential("groq_api_key"):
         return True
-    step_info("Groq API key not found")
-    console.print("[dim]Get a key at https://console.groq.com/keys[/dim]")
+    step_error("Groq API key not configured")
+    console.print("[dim]Set GROQ_API_KEY or run 'video-tool config keys'[/dim]")
+    if not _is_interactive():
+        return False
     return prompt_and_save_credential("groq_api_key", "Groq API Key") is not None
 
 

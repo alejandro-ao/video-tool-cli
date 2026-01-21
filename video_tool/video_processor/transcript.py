@@ -17,6 +17,9 @@ class TranscriptMixin:
 
         Accepts video files (extracts audio) or audio files directly (skips extraction).
         """
+        if not self.groq:
+            logger.error("Groq API key not configured. Set GROQ_API_KEY or run 'video-tool config keys'.")
+            raise RuntimeError("Groq API key not configured")
         if video_path is None:
             candidate_path = self._find_existing_output()
             if candidate_path:

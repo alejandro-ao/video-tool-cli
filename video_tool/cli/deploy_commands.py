@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, cast
 
@@ -29,14 +30,37 @@ from video_tool.video_processor.constants import SUPPORTED_VIDEO_SUFFIXES
 SUPPORTED_VIDEO_LABEL = ", ".join(ext.lstrip(".").upper() for ext in SUPPORTED_VIDEO_SUFFIXES)
 
 
+def _check_bunny_credentials(
+    library_id: Optional[str] = None,
+    access_key: Optional[str] = None,
+) -> bool:
+    """Check if Bunny credentials are available (no prompting)."""
+    library = (library_id or get_credential("bunny_library_id") or "").strip()
+    access = (access_key or get_credential("bunny_access_key") or "").strip()
+    if not library or not access:
+        step_error("Bunny credentials not configured")
+        console.print("[dim]Set BUNNY_LIBRARY_ID/BUNNY_ACCESS_KEY or run 'video-tool config keys'[/dim]")
+        return False
+    return True
+
+
 def _resolve_bunny_credentials(
     library_id: Optional[str] = None,
     access_key: Optional[str] = None,
 ) -> tuple[str, str]:
-    """Resolve Bunny credentials from args/env/config and prompt if missing."""
+    """Resolve Bunny credentials from args/env/config, prompting interactively if possible."""
     library = (library_id or get_credential("bunny_library_id") or "").strip()
     access = (access_key or get_credential("bunny_access_key") or "").strip()
 
+    # In non-interactive mode, fail if credentials missing
+    if not sys.stdin.isatty():
+        if not library or not access:
+            step_error("Bunny credentials not configured")
+            console.print("[dim]Set BUNNY_LIBRARY_ID/BUNNY_ACCESS_KEY or run 'video-tool config keys'[/dim]")
+            raise typer.Exit(1)
+        return library, access
+
+    # Interactive mode: prompt for missing credentials
     if not library:
         step_info("Bunny Library ID not found")
         library = prompt_and_save_credential("bunny_library_id", "Bunny Library ID", hide_input=False) or ""

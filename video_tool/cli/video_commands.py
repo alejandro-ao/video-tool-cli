@@ -494,11 +494,13 @@ def enhance_audio_cmd(
     denoise_only: bool = typer.Option(False, "--denoise-only", "-d", help="Only denoise, skip full enhancement"),
 ) -> None:
     """Enhance audio quality using Resemble AI (via Replicate)."""
-    # 1. Check for API token - prompt if not found
+    # 1. Check for API token - prompt interactively if possible
     api_token = get_credential("replicate_api_token")
     if not api_token:
-        step_warning("Replicate API token not found")
-        console.print("  [dim]Get a token at https://replicate.com/account/api-tokens[/dim]")
+        step_error("Replicate API token not configured")
+        console.print("[dim]Set REPLICATE_API_TOKEN or run 'video-tool config keys'[/dim]")
+        if not sys.stdin.isatty():
+            raise typer.Exit(1)
         api_token = prompt_and_save_credential("replicate_api_token", "Replicate API Token")
         if not api_token:
             step_error("Replicate API token is required for audio enhancement")
