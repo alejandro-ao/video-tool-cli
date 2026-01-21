@@ -13,6 +13,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional
 
+import questionary
+from questionary import Style as QStyle
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
@@ -21,6 +23,15 @@ from rich.table import Table
 
 # Singleton console instance
 console = Console()
+
+# Style for questionary prompts (matches Rich cyan theme)
+CHOICE_STYLE = QStyle([
+    ("qmark", "fg:cyan bold"),
+    ("question", "fg:cyan bold"),
+    ("pointer", "fg:cyan bold"),
+    ("highlighted", "fg:cyan bold"),
+    ("selected", "fg:green"),
+])
 
 
 @contextmanager
@@ -229,7 +240,7 @@ def ask_confirm(prompt_text: str, default: bool = False) -> bool:
 
 
 def ask_choice(prompt_text: str, choices: List[str], default: Optional[str] = None) -> str:
-    """Prompt for a choice from a list.
+    """Prompt for a choice using arrow-key navigation.
 
     Args:
         prompt_text: Prompt text to display
@@ -237,24 +248,18 @@ def ask_choice(prompt_text: str, choices: List[str], default: Optional[str] = No
         default: Default choice if blank
 
     Returns:
-        Selected choice
+        Selected choice (lowercased)
     """
-    choices_str = "/".join(choices)
-    while True:
-        if default:
-            response = Prompt.ask(
-                f"[bold cyan]{prompt_text}[/bold cyan] ({choices_str})",
-                default=default,
-                console=console,
-            ).strip().lower()
-        else:
-            response = Prompt.ask(
-                f"[bold cyan]{prompt_text}[/bold cyan] ({choices_str})",
-                console=console,
-            ).strip().lower()
+    result = questionary.select(
+        prompt_text,
+        choices=choices,
+        default=default,
+        style=CHOICE_STYLE,
+        use_arrow_keys=True,
+        use_jk_keys=True,
+    ).ask()
 
-        if response in [c.lower() for c in choices]:
-            return response
-        if not response and default:
-            return default
-        console.print(f"[yellow]Please choose from: {choices_str}[/yellow]")
+    if result is None:
+        raise KeyboardInterrupt()
+
+    return result.lower()
