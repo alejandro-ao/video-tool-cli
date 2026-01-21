@@ -14,6 +14,7 @@ description: |
   - Generate video descriptions, timestamps, or context cards
   - Upload videos to YouTube or Bunny.net CDN
   - Get video metadata (duration, resolution, codec)
+allowed-tools: Bash(which:*), Bash(curl:*), Bash(uv:*), Bash(video-tool:*)
 ---
 
 # Video Tool CLI
