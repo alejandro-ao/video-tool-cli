@@ -30,6 +30,7 @@ polish_description: |
   3. Ensure that the description is clear, concise, and easy to read
   4. Maintain the same structure and style as the example below (including emojis, sections, and formatting)
   5. IMPORTANT: The "Topics Covered" section must have EXACTLY 3 bullet points maximum. Each bullet should be very concise (under 10 words).
+  6. If the original description contains a "Timestamps" section, preserve it exactly as-is at the end of the output.
 
   <EXAMPLE>
   Discover how to build AI-powered apps efficiently: generate a Product Requirements Document (PRD) with TRAE, develop a Next.js app with in-memory authentication, and rigorously test edge cases using TestSprite's automated AI test suite.
@@ -45,6 +46,12 @@ polish_description: |
   - AI coding assistants (TRAE vs Cursor)
   - Next.js app with in-memory auth
   - Automated testing with Playwright
+
+  ---
+  ⏱️ *Timestamps*
+  00:00:00 - Intro
+  00:01:23 - Set up the project
+  00:03:45 - Build the feature
   </EXAMPLE>
 
   <ORIGINAL DESCRIPTION>{description}</ORIGINAL DESCRIPTION>
