@@ -138,7 +138,41 @@ All actions are logged to `video_processor.log`.
 
 ## Claude Code Skill
 
-This tool is available as a Claude Code skill.
+This tool is available as a [Claude Code](https://claude.ai/code) skill. Skills extend Claude's capabilities with specialized tools—once installed, you can ask Claude to perform video tasks in natural language.
+
+### What You Can Ask Claude To Do
+
+**Video Processing:**
+- Download videos from YouTube and 1000+ sites
+- Remove silence, trim, cut, or extract segments
+- Concatenate multiple videos
+- Extract audio to MP3, enhance/denoise audio
+- Change playback speed, get video metadata
+
+**Transcription & Timestamps:**
+- Generate VTT transcripts (via Groq Whisper)
+- Create chapter timestamps from transcript or clip names
+
+**Content Generation:**
+- Generate descriptions, SEO keywords, social posts
+- Create context cards for video segments
+
+**Uploads:**
+- Upload to YouTube (private/unlisted) with metadata and captions
+- Upload to Bunny.net CDN (video, transcript, chapters)
+
+**Full Pipeline:**
+- Orchestrate entire workflow: concat → timestamps → transcript → content → upload
+
+### Example Prompts
+
+```
+"Download this YouTube video and transcribe it"
+"Remove silence from video.mp4 and upload to Bunny"
+"Generate a description and timestamps for my video"
+```
+
+### Installation
 
 **From marketplace:**
 ```bash
