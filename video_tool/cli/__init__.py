@@ -1,10 +1,10 @@
 """Typer-based CLI for video-tool.
 
 Command structure:
-    video-tool pipeline ...              # root level (most common)
-    video-tool video concat ...          # video group
-    video-tool video description ...
-    video-tool upload bunny-upload ...   # upload group
+    video-tool pipeline ...                # root level (most common)
+    video-tool video concat ...            # video group (FFmpeg operations)
+    video-tool generate description ...    # generate group (AI content)
+    video-tool upload bunny-upload ...     # upload group
 """
 
 from __future__ import annotations
@@ -46,7 +46,14 @@ app = typer.Typer(
 
 video_app = typer.Typer(
     name="video",
-    help="Video processing and content generation commands",
+    help="Video processing commands (FFmpeg operations)",
+    rich_markup_mode="rich",
+    no_args_is_help=True,
+)
+
+generate_app = typer.Typer(
+    name="generate",
+    help="AI-powered content generation (transcripts, descriptions, context cards)",
     rich_markup_mode="rich",
     no_args_is_help=True,
 )
@@ -67,6 +74,7 @@ config_app = typer.Typer(
 
 # Register sub-apps
 app.add_typer(video_app, name="video")
+app.add_typer(generate_app, name="generate")
 app.add_typer(upload_app, name="upload")
 app.add_typer(config_app, name="config")
 
@@ -383,7 +391,7 @@ def config_youtube_status() -> None:
 
 # Import command modules to register commands
 from video_tool.cli import video_commands  # noqa: E402, F401
-from video_tool.cli import content_commands  # noqa: E402, F401
+from video_tool.cli import generate_commands  # noqa: E402, F401
 from video_tool.cli import deploy_commands  # noqa: E402, F401
 from video_tool.cli import pipeline  # noqa: E402, F401
 

@@ -1,4 +1,4 @@
-"""Content generation commands: description, context-cards."""
+"""AI-powered content generation commands: transcript, description, context-cards."""
 
 from __future__ import annotations
 
@@ -9,8 +9,8 @@ from typing import List, Optional
 import typer
 
 from video_tool import VideoProcessor
-from video_tool.cli import ensure_openai_key, ensure_groq_key, video_app
-from video_tool.config import get_llm_config
+from video_tool.cli import generate_app, ensure_openai_key, ensure_groq_key
+from video_tool.config import get_llm_config, ensure_config, get_links, prompt_links_setup
 from video_tool.ui import (
     ask_path,
     console,
@@ -21,7 +21,6 @@ from video_tool.ui import (
     step_start,
     step_warning,
 )
-from video_tool.config import ensure_config, get_links, prompt_links_setup
 from video_tool.video_processor.constants import (
     SUPPORTED_VIDEO_SUFFIXES,
     SUPPORTED_AUDIO_SUFFIXES,
@@ -41,7 +40,89 @@ def _find_supported_videos(directory: Path) -> List[Path]:
     return sorted(videos)
 
 
-@video_app.command("description")
+@generate_app.command("transcript")
+def transcript(
+    input_path: Optional[Path] = typer.Option(None, "--input", "-i", help="Input video or audio file"),
+    output_path: Optional[Path] = typer.Option(None, "--output-path", "-o", help="Output VTT file path"),
+) -> None:
+    """Generate VTT transcript from video or audio using Groq Whisper."""
+    if not ensure_groq_key():
+        raise typer.Exit(1)
+
+    # 1. Get input path
+    if input_path is None:
+        input_path_str = ask_path("Path to video or audio file", required=True)
+        input_path = Path(input_path_str)
+    else:
+        input_path = Path(normalize_path(str(input_path)))
+
+    # 2. Validate input
+    if not input_path.exists() or not input_path.is_file():
+        step_error(f"Invalid file: {input_path}")
+        raise typer.Exit(1)
+
+    suffix = input_path.suffix.lower()
+    is_audio = suffix in SUPPORTED_AUDIO_SUFFIXES
+    is_video = suffix in SUPPORTED_VIDEO_SUFFIXES
+
+    if not is_audio and not is_video:
+        step_error(f"Unsupported format: {suffix}. Use video ({SUPPORTED_VIDEO_LABEL}) or audio ({SUPPORTED_AUDIO_LABEL})")
+        raise typer.Exit(1)
+
+    base_dir = input_path.parent
+
+    # 3. Resolve output path
+    if output_path:
+        final_output_path = Path(normalize_path(str(output_path)))
+        if not final_output_path.is_absolute():
+            final_output_path = base_dir / final_output_path
+    else:
+        output_path_str = ask_path("Output VTT path (defaults to transcript.vtt)", required=False)
+        if output_path_str:
+            final_output_path = Path(output_path_str)
+            if not final_output_path.is_absolute():
+                final_output_path = base_dir / final_output_path
+        else:
+            final_output_path = base_dir / "transcript.vtt"
+
+    if final_output_path.suffix.lower() != ".vtt":
+        final_output_path = final_output_path.with_suffix(".vtt")
+
+    # 4. Generate transcript
+    step_start("Generating transcript", {
+        "Input": str(input_path),
+        "Type": "audio" if is_audio else "video",
+        "Output": str(final_output_path),
+    })
+
+    with status_spinner("Transcribing"):
+        processor = VideoProcessor(str(base_dir), output_dir=str(final_output_path.parent))
+        transcript_result = processor.generate_transcript(
+            video_path=str(input_path),
+            output_path=str(final_output_path),
+        )
+
+    step_complete("Transcript generated", transcript_result)
+    _update_transcript_metadata(transcript_result)
+
+
+def _update_transcript_metadata(transcript_path: str) -> None:
+    """Update metadata.json with transcript info."""
+    transcript_file = Path(transcript_path)
+    metadata_path = transcript_file.parent / "metadata.json"
+
+    try:
+        transcript_content = transcript_file.read_text(encoding="utf-8")
+    except OSError:
+        return
+
+    existing = _read_metadata(metadata_path) or {}
+    existing["transcript"] = transcript_content
+    existing["transcript_format"] = transcript_file.suffix.lstrip(".").lower()
+    _write_metadata(metadata_path, existing)
+
+
+@generate_app.command("description")
 def description(
     input_path: Optional[Path] = typer.Option(None, "--input", "-i", help="Input file (video/audio/vtt/md/txt)"),
     output_path: Optional[Path] = typer.Option(None, "--output-path", "-o", help="Full path for output description"),
@@ -201,7 +282,7 @@ def _update_description_metadata(output_dir: Path, transcript_file: Optional[Pat
     _write_metadata(metadata_path, existing)
 
 
-@video_app.command("context-cards")
+@generate_app.command("context-cards")
 def context_cards(
     input_path: Optional[Path] = typer.Option(None, "--input", "-i", help="Input file (video/audio/vtt)"),
     output_path: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path"),

@@ -110,7 +110,7 @@ video-tool config keys --reset  # Clear all credentials
 After user configures (either way), retry the original command.
 
 **Commands that require API keys:**
-- `video-tool video transcript` → Requires **Groq API key**
+- `video-tool generate transcript` → Requires **Groq API key**
 - `video-tool video timestamps -m transcript` → Requires **OpenAI API key** (structured output)
 - `video-tool upload bunny-*` → Requires **Bunny.net credentials**
 - `video-tool video enhance-audio` → Requires **Replicate API token**
@@ -133,7 +133,7 @@ For these tasks, read the transcript/timestamps and generate content using the l
 - **Context Cards**: See [templates/context-cards.md](templates/context-cards.md)
 
 ### Note on CLI commands
-The CLI has commands like `video description`, `video seo`, `video linkedin`, `video twitter`, `video context-cards` that use OpenAI. These exist for manual CLI usage. If user explicitly requests a CLI command, honor the request (it may require OpenAI key). Otherwise, generate content directly.
+The CLI has commands like `generate description`, `generate context-cards` that use OpenAI. These exist for manual CLI usage. If user explicitly requests a CLI command, honor the request (it may require OpenAI key). Otherwise, generate content directly.
 
 ---
 
@@ -266,7 +266,7 @@ video-tool video replace-audio -v video.mp4 -a new_audio.mp3 -o output.mp4
 #### Generate Transcript
 Create VTT captions using Groq Whisper (requires Groq API key).
 ```bash
-video-tool video transcript -i video.mp4 -o transcript.vtt
+video-tool generate transcript -i video.mp4 -o transcript.vtt
 ```
 
 #### Generate Timestamps

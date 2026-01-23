@@ -32,8 +32,8 @@ pytest --cov=video_tool --cov=main  # with coverage
 - `processor.py`: Facade composing all mixins
 
 **CLI commands** (all support interactive prompts when args omitted):
-- Video: `silence-removal`, `concat`, `timestamps`, `transcript`, `extract-audio`, `thumbnail`, `enhance-audio`
-- Content: `description`, `seo`, `linkedin`, `twitter`, `context-cards`
+- Video: `silence-removal`, `concat`, `timestamps`, `extract-audio`, `thumbnail`, `enhance-audio`
+- Generate: `transcript`, `description`, `context-cards`
 - Upload (Bunny): `bunny-video`, `bunny-transcript`, `bunny-chapters`
 - Upload (YouTube): `youtube-video`, `youtube-metadata`, `youtube-transcript`
 - Config: `keys`, `llm`, `youtube-auth`, `youtube-status`

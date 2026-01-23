@@ -10,7 +10,7 @@ video-tool video download -u "https://youtube.com/watch?v=XXX" -o ./downloads -n
 video-tool video silence-removal -i ./downloads/my-video.mp4 -o ./output/cleaned.mp4
 
 # Generate transcript
-video-tool video transcript -i ./output/cleaned.mp4 -o ./output/transcript.vtt
+video-tool generate transcript -i ./output/cleaned.mp4 -o ./output/transcript.vtt
 ```
 
 ## Extract and Enhance Audio
@@ -36,10 +36,10 @@ video-tool video concat -i ./clips/ -o ./output/full.mp4 -f
 video-tool video timestamps -m clips -i ./clips/ -o ./output/timestamps.json
 
 # Generate transcript
-video-tool video transcript -i ./output/full.mp4 -o ./output/transcript.vtt
+video-tool generate transcript -i ./output/full.mp4 -o ./output/transcript.vtt
 
 # Generate description with chapters
-video-tool video description -i ./output/transcript.vtt -t ./output/timestamps.json -o ./output/description.md
+video-tool generate description -i ./output/transcript.vtt -t ./output/timestamps.json -o ./output/description.md
 
 # Upload to YouTube
 video-tool upload youtube-video -i ./output/full.mp4 -t "My Video" --description-file ./output/description.md -p private

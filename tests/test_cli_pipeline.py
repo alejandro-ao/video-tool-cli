@@ -33,14 +33,25 @@ def test_video_subcommands_exist():
     assert result.exit_code == 0
     assert "concat" in result.stdout
     assert "timestamps" in result.stdout
-    assert "transcript" in result.stdout
 
 
 @pytest.mark.unit
-def test_video_content_subcommands_exist():
-    """Verify description and context-cards are in video group."""
+def test_video_content_commands_moved():
+    """Verify content commands moved from video to generate."""
     result = runner.invoke(app, ["video", "--help"])
     assert result.exit_code == 0
+    assert "transcript" not in result.stdout
+    assert "description" not in result.stdout
+    assert "context-cards" not in result.stdout
+    assert "timestamps" in result.stdout  # Should remain
+
+
+@pytest.mark.unit
+def test_generate_subcommands_exist():
+    """Verify generate subcommands registered."""
+    result = runner.invoke(app, ["generate", "--help"])
+    assert result.exit_code == 0
+    assert "transcript" in result.stdout
     assert "description" in result.stdout
     assert "context-cards" in result.stdout
 
