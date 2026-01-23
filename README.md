@@ -1,6 +1,6 @@
 # Video Processing Tool
 
-Automate Alejandro's YouTube production workflow end to end. Given a directory of source MP4 clips, the script can clean the footage, join the clips, create chapter timestamps, transcribe the final video, and generate all supporting copy for publishing.
+Automate your YouTube production workflow end to end. Given a directory of source MP4 clips, the tool can clean the footage, join the clips, create chapter timestamps, transcribe the final video, and generate all supporting copy for publishing.
 
 ## Features
 - **Video download** from YouTube and 1000+ sites via yt-dlp
@@ -169,7 +169,7 @@ This tool is available as a [Claude Code](https://claude.ai/code) skill. Skills 
 ```
 "Download this YouTube video and transcribe it"
 "Remove silence from video.mp4 and upload to Bunny"
-"Generate a description and timestamps for my video"
+"Generate a description and timestamps for this video"
 ```
 
 ### Installation
