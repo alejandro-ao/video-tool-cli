@@ -350,6 +350,81 @@ video-tool config youtube-status              # Check YouTube credentials
 
 ---
 
+## Command Templates for Skills
+
+Common tasks that other skills can reference by name.
+
+### Transcribe Video
+Generate VTT transcript from video/audio file.
+```bash
+video-tool generate transcript -i <INPUT_FILE> -o <OUTPUT_FILE>
+```
+**Inputs:**
+- `<INPUT_FILE>`: Path to video or audio file
+- `<OUTPUT_FILE>`: Path to output VTT file
+
+**Requirements:** Groq API key
+
+---
+
+### Concatenate Videos
+Join multiple video clips into single file.
+```bash
+video-tool video concat -i <INPUT_DIR> -o <OUTPUT_FILE> --fast-concat
+```
+**Inputs:**
+- `<INPUT_DIR>`: Directory with numbered clips (01-*.mp4, 02-*.mp4, etc.)
+- `<OUTPUT_FILE>`: Path to output video file
+- `--fast-concat`: Skip reprocessing (optional, recommended for speed)
+
+**Note:** Clips must be named with numeric prefixes for correct ordering.
+
+---
+
+### Generate Timestamps from Clips
+Create chapter timestamps from clip filenames.
+```bash
+video-tool video timestamps --mode clips -i <INPUT_DIR> -o <OUTPUT_FILE>
+```
+**Inputs:**
+- `<INPUT_DIR>`: Directory with numbered clips
+- `<OUTPUT_FILE>`: Path to output JSON file
+
+**Output Format:**
+```json
+{
+  "timestamps": [
+    {"time": "00:00:00", "title": "Introduction"},
+    {"time": "00:05:30", "title": "Main Content"}
+  ]
+}
+```
+
+---
+
+### Upload to YouTube
+Upload video with metadata to YouTube.
+```bash
+video-tool upload youtube-video \
+  -i <VIDEO_FILE> \
+  -t "<TITLE>" \
+  --description-file <DESCRIPTION_FILE> \
+  --tags-file <TAGS_FILE> \
+  --privacy <PRIVACY>
+```
+**Inputs:**
+- `<VIDEO_FILE>`: Path to video file
+- `<TITLE>`: Video title (quoted)
+- `<DESCRIPTION_FILE>`: Path to markdown description file
+- `<TAGS_FILE>`: Path to text file with tags (one per line)
+- `<PRIVACY>`: `private`, `unlisted`, or `public`
+
+**Requirements:** YouTube OAuth2 authentication (`video-tool config youtube-auth`)
+
+**Output:** JSON with video_id and url (save to youtube-upload.json for publish skill)
+
+---
+
 ## Common Workflows
 
 See [workflows.md](workflows.md) for detailed examples.
