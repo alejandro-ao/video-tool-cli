@@ -13,6 +13,7 @@ description: |
   - Generate transcripts/captions (VTT)
   - Generate video descriptions, timestamps, or context cards
   - Upload videos to YouTube or Bunny.net CDN
+  - Post social updates to X (Twitter) or LinkedIn
   - Get video metadata (duration, resolution, codec)
 allowed-tools: Bash(which:*), Bash(curl:*), Bash(uv:*), Bash(video-tool:*), AskUserQuestion(*)
 ---
@@ -109,11 +110,13 @@ video-tool config keys --reset  # Clear all credentials
 
 After user configures (either way), retry the original command.
 
-**Commands that require API keys:**
+**Commands that require credentials:**
 - `video-tool generate transcript` → Requires **Groq API key**
 - `video-tool video timestamps -m transcript` → Requires **OpenAI API key** (structured output)
 - `video-tool upload bunny-*` → Requires **Bunny.net credentials**
 - `video-tool video enhance-audio` → Requires **Replicate API token**
+- `video-tool upload x` / `video-tool upload twitter` → Requires **X OAuth credentials** (run `video-tool config x-auth`)
+- `video-tool upload linkedin` → Requires **LinkedIn access token + author URN** (run `video-tool config keys` or pass flags)
 
 ---
 
@@ -167,13 +170,13 @@ video-tool config youtube-auth
 #### Download Video
 Download from YouTube or other supported sites.
 ```bash
-video-tool video download -u "URL" -o ./output -n "filename"
+video-tool video download -u "URL" -o ./output/my-video.mp4
+video-tool video download -u "URL" -o ./output/%(title)s.%(ext)s
 ```
 | Option | Description |
 |--------|-------------|
 | `-u, --url` | Video URL |
-| `-o, --output-dir` | Output directory |
-| `-n, --name` | Output filename (without extension) |
+| `-o, --output-path` | Output file path (directory uses title template; default is `./output/%(title)s.%(ext)s`) |
 
 #### Get Video Info
 Get metadata: duration, resolution, codec, bitrate.
@@ -323,6 +326,32 @@ video-tool upload bunny-transcript -v VIDEO_ID -t transcript.vtt
 video-tool upload bunny-chapters -v VIDEO_ID -c timestamps.json
 ```
 
+#### X (Twitter) Post
+Post a thread to X (Twitter) (requires X OAuth via `video-tool config x-auth`).
+```bash
+video-tool upload x --text "First post" --thread-item "Follow-up" --video-path video.mp4
+video-tool upload twitter --text-file post.txt --thread-file thread.txt
+```
+| Option | Description |
+|--------|-------------|
+| `--text` / `--text-file` | First post text |
+| `--thread-item` / `--thread-file` | Additional thread items (repeatable or `---` delimiter) |
+| `--video-path` / `--video-url` | Video file or URL to include |
+| `--output-dir` | Output directory for metadata |
+
+#### LinkedIn Post
+Publish a LinkedIn post (requires LinkedIn credentials via `video-tool config keys`).
+```bash
+video-tool upload linkedin --text-file post.md --video-path video.mp4
+```
+| Option | Description |
+|--------|-------------|
+| `--text` / `--text-file` | Post text |
+| `--video-path` / `--video-url` | Video file or URL to include |
+| `--output-dir` | Output directory for metadata |
+| `--access-token` | Override access token |
+| `--author-urn` | Override author URN |
+
 ### Full Pipeline
 
 Run complete workflow: concat → timestamps → transcript → content → optional upload.
@@ -344,6 +373,7 @@ video-tool config keys                        # Configure API keys (interactive)
 video-tool config keys --set KEY=VALUE        # Set key non-interactively
 video-tool config keys --show                 # View configured keys
 video-tool config llm                         # Configure LLM settings and persistent links
+video-tool config x-auth                      # Set up X OAuth credentials
 video-tool config youtube-auth                # Set up YouTube OAuth2
 video-tool config youtube-status              # Check YouTube credentials
 ```
