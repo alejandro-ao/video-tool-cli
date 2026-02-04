@@ -316,11 +316,14 @@ def config_keys_command(
     else:
         console.print(f"  Replicate API Token: [green]Already set[/green]")
 
-    if not get_credential("x_bearer_token"):
-        console.print("[dim]https://developer.x.com/en/docs/x-api[/dim]")
-        prompt_and_save_credential("x_bearer_token", "X API Bearer Token", required=False)
+    # X OAuth - point to x-auth command
+    x_creds = ["x_api_key", "x_api_secret", "x_access_token", "x_access_token_secret"]
+    x_configured = all(get_credential(k) for k in x_creds)
+    if x_configured:
+        console.print("  X (Twitter) OAuth: [green]Already configured[/green]")
     else:
-        console.print(f"  X API Bearer Token: [green]Already set[/green]")
+        console.print("  X (Twitter) OAuth: [yellow]Not configured[/yellow]")
+        console.print("[dim]  Run 'video-tool config x-auth' to set up X authentication[/dim]")
 
     if not get_credential("linkedin_access_token"):
         console.print("[dim]https://www.linkedin.com/developers/apps[/dim]")
@@ -409,6 +412,111 @@ def config_youtube_status() -> None:
 
     if not status['credentials_exist']:
         console.print("\n[yellow]Run 'video-tool config youtube-auth' to authenticate.[/yellow]")
+
+
+@config_app.command("x-auth")
+def config_x_auth() -> None:
+    """Authenticate with X (Twitter) API using OAuth 1.0a.
+
+    This sets up the 4 credentials needed for X API access:
+    - API Key (Consumer Key)
+    - API Secret (Consumer Secret)
+    - Access Token
+    - Access Token Secret
+
+    Get these from https://developer.x.com/en/portal/dashboard
+    """
+    import webbrowser
+    from requests_oauthlib import OAuth1Session
+
+    console.print("\n[bold]X (Twitter) OAuth Setup[/bold]")
+    console.print("[dim]You'll need a Twitter Developer account and an app with OAuth 1.0a enabled.[/dim]")
+    console.print("[dim]Get credentials at: https://developer.x.com/en/portal/dashboard[/dim]\n")
+
+    # Get API key and secret
+    api_key = get_credential("x_api_key")
+    if api_key:
+        console.print(f"  API Key: [green]Already set ({mask_credential(api_key)})[/green]")
+        from video_tool.ui import ask_confirm
+        if not ask_confirm("Re-enter API credentials?", default=False):
+            # Check if all creds exist
+            if all(get_credential(k) for k in ["x_api_key", "x_api_secret", "x_access_token", "x_access_token_secret"]):
+                step_complete("X OAuth credentials already configured")
+                return
+    else:
+        console.print("[dim]Enter your app's API Key and Secret from the Developer Portal.[/dim]")
+
+    api_key = prompt_and_save_credential("x_api_key", "API Key (Consumer Key)", required=True, hide_input=False)
+    if not api_key:
+        step_error("API Key is required")
+        raise typer.Exit(1)
+
+    api_secret = prompt_and_save_credential("x_api_secret", "API Secret (Consumer Secret)", required=True)
+    if not api_secret:
+        step_error("API Secret is required")
+        raise typer.Exit(1)
+
+    # Check if user already has access tokens
+    console.print("\n[bold]Access Tokens[/bold]")
+    console.print("[dim]You can get these from the Developer Portal (Keys and tokens > Access Token and Secret)[/dim]")
+    console.print("[dim]Or use the OAuth flow to generate new ones.[/dim]\n")
+
+    from video_tool.ui import ask_confirm
+    if ask_confirm("Do you have Access Token and Secret already?", default=True):
+        access_token = prompt_and_save_credential("x_access_token", "Access Token", required=True, hide_input=False)
+        if not access_token:
+            step_error("Access Token is required")
+            raise typer.Exit(1)
+
+        access_token_secret = prompt_and_save_credential("x_access_token_secret", "Access Token Secret", required=True)
+        if not access_token_secret:
+            step_error("Access Token Secret is required")
+            raise typer.Exit(1)
+
+        step_complete("X OAuth credentials saved", str(CREDENTIALS_PATH))
+        return
+
+    # OAuth flow
+    console.print("\n[yellow]Starting OAuth authorization flow...[/yellow]")
+
+    request_token_url = "https://api.twitter.com/oauth/request_token"
+    authorization_url = "https://api.twitter.com/oauth/authorize"
+    access_token_url = "https://api.twitter.com/oauth/access_token"
+
+    try:
+        oauth = OAuth1Session(api_key, client_secret=api_secret, callback_uri="oob")
+        fetch_response = oauth.fetch_request_token(request_token_url)
+        resource_owner_key = fetch_response.get("oauth_token")
+        resource_owner_secret = fetch_response.get("oauth_token_secret")
+
+        auth_url = oauth.authorization_url(authorization_url)
+        console.print(f"\n[bold]Open this URL to authorize:[/bold]\n{auth_url}\n")
+
+        webbrowser.open(auth_url)
+
+        verifier = typer.prompt("Enter the PIN from Twitter")
+
+        oauth = OAuth1Session(
+            api_key,
+            client_secret=api_secret,
+            resource_owner_key=resource_owner_key,
+            resource_owner_secret=resource_owner_secret,
+            verifier=verifier,
+        )
+        oauth_tokens = oauth.fetch_access_token(access_token_url)
+
+        # Save the tokens
+        creds = load_credentials()
+        creds["x_access_token"] = oauth_tokens["oauth_token"]
+        creds["x_access_token_secret"] = oauth_tokens["oauth_token_secret"]
+        save_credentials(creds)
+
+        step_complete("X OAuth credentials saved", str(CREDENTIALS_PATH))
+
+    except Exception as e:
+        step_error(f"OAuth flow failed: {e}")
+        console.print("[dim]Try entering Access Token and Secret manually instead.[/dim]")
+        raise typer.Exit(1)
 
 
 # Import command modules to register commands

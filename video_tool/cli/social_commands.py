@@ -172,7 +172,6 @@ def post_twitter(
     video_path: Optional[Path] = typer.Option(None, "--video-path", help="Path to video to upload"),
     video_url: Optional[str] = typer.Option(None, "--video-url", help="Video URL to include"),
     output_dir: Optional[Path] = typer.Option(None, "--output-dir", help="Output directory for metadata"),
-    access_token: Optional[str] = typer.Option(None, "--access-token", help="X API bearer token"),
 ) -> None:
     """Post a thread to X (Twitter)."""
     primary_text = _load_text(text, text_file)
@@ -189,9 +188,14 @@ def post_twitter(
     resolved_video = _validate_video_path(video_path)
     resolved_output_dir = _resolve_output_dir(output_dir, resolved_video)
 
-    token = (access_token or get_credential("x_bearer_token") or "").strip()
-    if not token:
-        step_error("X API bearer token not configured. Run 'video-tool config keys'.")
+    # Check X OAuth credentials
+    missing_creds = []
+    for key in ["x_api_key", "x_api_secret", "x_access_token", "x_access_token_secret"]:
+        if not get_credential(key):
+            missing_creds.append(key)
+    if missing_creds:
+        step_error(f"X OAuth credentials not configured: {', '.join(missing_creds)}")
+        console.print("[dim]Run 'video-tool config x-auth' to authenticate.[/dim]")
         raise typer.Exit(1)
 
     step_warning("This will publish immediately to X (Twitter).")
@@ -200,7 +204,6 @@ def post_twitter(
     processor = VideoProcessor(str(Path.cwd()), output_dir=str(resolved_output_dir))
     result = processor.post_x_thread(
         thread,
-        access_token=token,
         video_path=str(resolved_video) if resolved_video else None,
     )
 

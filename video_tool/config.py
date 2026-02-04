@@ -25,7 +25,10 @@ CREDENTIAL_KEYS = {
     "bunny_access_key": "BUNNY_ACCESS_KEY",
     "bunny_collection_id": "BUNNY_COLLECTION_ID",
     "replicate_api_token": "REPLICATE_API_TOKEN",
-    "x_bearer_token": "X_BEARER_TOKEN",
+    "x_api_key": "X_API_KEY",
+    "x_api_secret": "X_API_SECRET",
+    "x_access_token": "X_ACCESS_TOKEN",
+    "x_access_token_secret": "X_ACCESS_TOKEN_SECRET",
     "linkedin_access_token": "LINKEDIN_ACCESS_TOKEN",
     "linkedin_author_urn": "LINKEDIN_AUTHOR_URN",
 }

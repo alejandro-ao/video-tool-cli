@@ -26,11 +26,11 @@ def test_linkedin_requires_text():
 
 
 @pytest.mark.unit
-def test_twitter_requires_token():
+def test_twitter_requires_oauth_credentials():
     with patch("video_tool.cli.social_commands.get_credential", return_value=None):
         result = runner.invoke(app, ["upload", "twitter", "--text", "hello"])
         assert result.exit_code == 1
-        assert "token" in result.stdout.lower() or "bearer" in result.stdout.lower()
+        assert "oauth" in result.stdout.lower() or "x_api_key" in result.stdout.lower()
 
 
 @pytest.mark.unit
