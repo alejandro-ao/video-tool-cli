@@ -7,6 +7,7 @@ from .deployment import BunnyDeploymentMixin
 from .download import DownloadMixin
 from .editing import EditingMixin
 from .file_management import FileManagementMixin
+from .social import SocialDeploymentMixin
 from .silence import SilenceProcessingMixin
 from .transcript import TranscriptMixin
 from .youtube import YouTubeDeploymentMixin
@@ -16,6 +17,7 @@ class VideoProcessor(
     EditingMixin,
     YouTubeDeploymentMixin,
     BunnyDeploymentMixin,
+    SocialDeploymentMixin,
     ContentGenerationMixin,
     TranscriptMixin,
     ConcatenationMixin,

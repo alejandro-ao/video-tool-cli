@@ -64,6 +64,8 @@ def test_upload_subcommands_exist():
     assert "bunny-video" in result.stdout
     assert "bunny-transcript" in result.stdout
     assert "bunny-chapters" in result.stdout
+    assert "twitter" in result.stdout or "x" in result.stdout
+    assert "linkedin" in result.stdout
 
 
 @pytest.mark.unit

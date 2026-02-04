@@ -316,6 +316,28 @@ def config_keys_command(
     else:
         console.print(f"  Replicate API Token: [green]Already set[/green]")
 
+    if not get_credential("x_bearer_token"):
+        console.print("[dim]https://developer.x.com/en/docs/x-api[/dim]")
+        prompt_and_save_credential("x_bearer_token", "X API Bearer Token", required=False)
+    else:
+        console.print(f"  X API Bearer Token: [green]Already set[/green]")
+
+    if not get_credential("linkedin_access_token"):
+        console.print("[dim]https://www.linkedin.com/developers/apps[/dim]")
+        prompt_and_save_credential("linkedin_access_token", "LinkedIn Access Token", required=False)
+    else:
+        console.print(f"  LinkedIn Access Token: [green]Already set[/green]")
+
+    if not get_credential("linkedin_author_urn"):
+        prompt_and_save_credential(
+            "linkedin_author_urn",
+            "LinkedIn Author URN (e.g., urn:li:person:...)",
+            required=False,
+            hide_input=False,
+        )
+    else:
+        console.print(f"  LinkedIn Author URN: [green]Already set[/green]")
+
     step_complete("Credentials saved", str(CREDENTIALS_PATH))
 
 
@@ -394,6 +416,7 @@ from video_tool.cli import video_commands  # noqa: E402, F401
 from video_tool.cli import generate_commands  # noqa: E402, F401
 from video_tool.cli import deploy_commands  # noqa: E402, F401
 from video_tool.cli import pipeline  # noqa: E402, F401
+from video_tool.cli import social_commands  # noqa: E402, F401
 
 
 def main() -> None:

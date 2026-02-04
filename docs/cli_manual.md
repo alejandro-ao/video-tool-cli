@@ -273,14 +273,13 @@ Download video from a URL (YouTube, etc.) using yt-dlp.
 - Video URL
 
 **Optional inputs:**
-- Output directory (prompts if not provided)
-- Output filename
+- Output file path (defaults to `./output/%(title)s.%(ext)s`)
 
 **Example:**
 
 ```bash
 # With arguments
-video-tool video download --url "https://youtube.com/watch?v=..." --output-dir ./downloads --name "my-video"
+video-tool video download --url "https://youtube.com/watch?v=..." --output-path ./downloads/my-video.mp4
 
 # Interactive (prompts for missing inputs)
 video-tool video download
@@ -288,8 +287,7 @@ video-tool video download
 
 **Arguments:**
 - `--url, -u URL`: Video URL to download
-- `--output-dir, -o PATH`: Output directory
-- `--name, -n TEXT`: Output filename (without extension)
+- `--output-path, -o PATH`: Output file path (if a directory is provided, the video title is used)
 
 ---
 

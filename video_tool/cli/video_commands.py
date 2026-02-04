@@ -38,32 +38,36 @@ SUPPORTED_AUDIO_LABEL = ", ".join(ext.lstrip(".").upper() for ext in SUPPORTED_A
 @video_app.command("download")
 def download(
     url: Optional[str] = typer.Option(None, "--url", "-u", help="Video URL to download"),
-    output_dir: Optional[Path] = typer.Option(None, "--output-dir", "-o", help="Output directory"),
-    name: Optional[str] = typer.Option(None, "--name", "-n", help="Output filename"),
+    output_path: Optional[Path] = typer.Option(None, "--output-path", "-o", help="Output file path"),
 ) -> None:
     """Download video from URL (YouTube, etc.)."""
     if url is None:
         url = ask_text("Video URL", required=True)
 
-    if output_dir is None:
-        output_dir_str = ask_path("Output directory", required=True)
-        output_dir = Path(output_dir_str)
+    default_output = Path("output") / "%(title)s.%(ext)s"
+
+    if output_path is None:
+        output_path_str = ask_path(f"Output file path (default: {default_output})", required=False)
+        output_path = Path(output_path_str) if output_path_str else default_output
     else:
-        output_dir = Path(normalize_path(str(output_dir)))
+        output_path = Path(normalize_path(str(output_path)))
 
-    output_dir.mkdir(parents=True, exist_ok=True)
+    output_template = output_path
+    if output_template.exists() and output_template.is_dir():
+        output_template = output_template / "%(title)s.%(ext)s"
+    else:
+        template_str = str(output_template)
+        if "%(title)s" not in template_str and "%(ext)s" not in template_str:
+            if output_template.suffix == "":
+                output_template = output_template.with_suffix(".mp4")
 
-    filename = name
-    if filename and not filename.endswith(".mp4"):
-        filename += ".mp4"
+    output_template.parent.mkdir(parents=True, exist_ok=True)
 
-    step_start("Downloading video", {"URL": url, "Output": str(output_dir)})
-    if filename:
-        console.print(f"  [dim]Filename:[/dim] {filename}")
+    step_start("Downloading video", {"URL": url, "Output": str(output_template)})
 
     with status_spinner("Downloading"):
-        processor = VideoProcessor(str(output_dir))
-        processor.download_video(url, output_dir, filename)
+        processor = VideoProcessor(str(output_template.parent))
+        processor.download_video(url, output_template)
 
     step_complete("Download complete")
 

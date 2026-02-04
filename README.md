@@ -89,7 +89,7 @@ video-tool upload <command> ...      # Bunny.net / YouTube uploads
 Download from YouTube and 1000+ supported sites:
 
 ```bash
-video-tool video download --url "https://youtube.com/watch?v=..." --output-dir ./downloads
+video-tool video download --url "https://youtube.com/watch?v=..." --output-path ./downloads/my-video.mp4
 ```
 
 **Supported sites include:** YouTube, Vimeo, Twitter/X, TikTok, Instagram, Facebook, Twitch, Reddit, Dailymotion, and [1000+ more](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md).

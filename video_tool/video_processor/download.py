@@ -11,30 +11,25 @@ from .shared import logger
 class DownloadMixin:
     """YouTube/URL video download helpers."""
 
-    def download_video(
-        self, url: str, output_dir: Path, filename: str | None = None
-    ) -> Path:
+    def download_video(self, url: str, output_template: str | Path) -> Path:
         """Download video from URL using yt-dlp.
 
         Args:
             url: Video URL to download
-            output_dir: Directory to save the video
-            filename: Optional output filename (uses video title if not specified)
+            output_template: Output file path or template
 
         Returns:
-            Path to downloaded file or output directory
+            Path to output template
         """
-        output_dir.mkdir(parents=True, exist_ok=True)
+        output_path = Path(output_template)
+        if output_path.exists() and output_path.is_dir():
+            output_path = output_path / "%(title)s.%(ext)s"
 
-        if filename:
-            if not filename.endswith(".mp4"):
-                filename += ".mp4"
-            output_template = str(output_dir / filename)
-        else:
-            output_template = str(output_dir / "%(title)s.%(ext)s")
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_template = str(output_path)
 
         logger.info(f"Downloading video from {url}")
-        logger.info(f"Output directory: {output_dir}")
+        logger.info(f"Output template: {output_template}")
 
         cmd = [
             "yt-dlp",
@@ -49,4 +44,4 @@ class DownloadMixin:
             url,
         ]
         subprocess.run(cmd, check=True)
-        return output_dir
+        return output_path
