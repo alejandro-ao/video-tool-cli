@@ -37,7 +37,12 @@ SUPPORTED_AUDIO_LABEL = ", ".join(ext.lstrip(".").upper() for ext in SUPPORTED_A
 
 @video_app.command("download")
 def download(
-    url: Optional[str] = typer.Option(None, "--url", "-u", help="Video URL to download"),
+    url: Optional[str] = typer.Option(
+        None,
+        "--url",
+        "-u",
+        help="Video URL to download (quote URLs in zsh to avoid globbing)",
+    ),
     output_path: Optional[Path] = typer.Option(None, "--output-path", "-o", help="Output file path"),
 ) -> None:
     """Download video from URL (YouTube, etc.)."""

@@ -285,6 +285,8 @@ video-tool video download --url "https://youtube.com/watch?v=..." --output-path 
 video-tool video download
 ```
 
+Note: In zsh, wrap URLs with `?` or `&` in quotes (or prefix with `noglob`) to avoid shell globbing errors.
+
 **Arguments:**
 - `--url, -u URL`: Video URL to download
 - `--output-path, -o PATH`: Output file path (if a directory is provided, the video title is used)
