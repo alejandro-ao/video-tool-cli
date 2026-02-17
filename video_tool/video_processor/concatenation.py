@@ -389,8 +389,8 @@ class ConcatenationMixin:
 
             timestamps.append(
                 {
-                    "start": f"{start_time//3600:02d}:{(start_time%3600)//60:02d}:{start_time%60:02d}",
-                    "end": f"{end_time//3600:02d}:{(end_time%3600)//60:02d}:{end_time%60:02d}",
+                    "start": self._format_seconds_as_hms(float(start_time)),
+                    "end": self._format_seconds_as_hms(float(end_time)),
                     "title": video_file.stem,
                 }
             )
@@ -618,12 +618,12 @@ class ConcatenationMixin:
             return None
 
     def _format_seconds_as_hms(self, seconds: float) -> str:
-        """Format seconds into HH:MM:SS (zero-padded)."""
-        total_seconds = max(0, int(seconds))
-        hours = total_seconds // 3600
-        minutes = (total_seconds % 3600) // 60
-        secs = total_seconds % 60
-        return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+        """Format seconds into HH:MM:SS.mmm (zero-padded)."""
+        total_milliseconds = max(0, int(round(seconds * 1000)))
+        hours, remainder = divmod(total_milliseconds, 3_600_000)
+        minutes, remainder = divmod(remainder, 60_000)
+        secs, milliseconds = divmod(remainder, 1_000)
+        return f"{hours:02d}:{minutes:02d}:{secs:02d}.{milliseconds:03d}"
 
     def _parse_vtt_timestamp(self, timestamp: str) -> float:
         """Convert a VTT timestamp (HH:MM:SS.mmm) to seconds."""

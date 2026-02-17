@@ -64,12 +64,12 @@ class TestGenerateTimestamps:
             
             # Verify cumulative timing
             timestamps = timestamps_data[0]['timestamps']
-            assert timestamps[0]['start'] == "00:00:00"
-            assert timestamps[0]['end'] == "00:05:00"
-            assert timestamps[1]['start'] == "00:05:00"
-            assert timestamps[1]['end'] == "00:12:30"
-            assert timestamps[2]['start'] == "00:12:30"
-            assert timestamps[2]['end'] == "00:22:30"
+            assert timestamps[0]['start'] == "00:00:00.000"
+            assert timestamps[0]['end'] == "00:05:00.000"
+            assert timestamps[1]['start'] == "00:05:00.000"
+            assert timestamps[1]['end'] == "00:12:30.000"
+            assert timestamps[2]['start'] == "00:12:30.000"
+            assert timestamps[2]['end'] == "00:22:30.000"
     
     def test_generate_timestamps_fallback_to_original(self, temp_dir, mock_video_processor):
         """Test timestamp generation falls back to original videos when no processed videos."""
@@ -95,8 +95,8 @@ class TestGenerateTimestamps:
             
             timestamps = timestamps_data[0]['timestamps']
             assert len(timestamps) == 2
-            assert timestamps[0]['end'] == "00:04:00"
-            assert timestamps[1]['end'] == "00:10:00"
+            assert timestamps[0]['end'] == "00:04:00.000"
+            assert timestamps[1]['end'] == "00:10:00.000"
     
     def test_generate_timestamps_no_videos(self, temp_dir, mock_video_processor):
         """Test timestamp generation with no video files."""
@@ -152,8 +152,8 @@ class TestGenerateTimestamps:
 
             mock_structured.return_value = SimpleNamespace(
                 chapters=[
-                    SimpleNamespace(start="00:00:00", end="00:02:00", title="Workflow Overview"),
-                    SimpleNamespace(start="00:02:00", end="00:05:00", title="Content Generation Deep Dive"),
+                    SimpleNamespace(start="00:00:00.000", end="00:02:00.000", title="Workflow Overview"),
+                    SimpleNamespace(start="00:02:00.000", end="00:05:00.000", title="Content Generation Deep Dive"),
                 ]
             )
 
@@ -196,12 +196,12 @@ class TestGenerateTimestamps:
                 Exception("Length limit"),
                 SimpleNamespace(
                     chapters=[
-                        SimpleNamespace(start="00:00:00", end="00:01:00", title="Introduction Overview"),
+                        SimpleNamespace(start="00:00:00.000", end="00:01:00.000", title="Introduction Overview"),
                     ]
                 ),
                 SimpleNamespace(
                     chapters=[
-                        SimpleNamespace(start="00:01:00", end="00:02:00", title="Deep Dive Topic"),
+                        SimpleNamespace(start="00:01:00.000", end="00:02:00.000", title="Deep Dive Topic"),
                     ]
                 ),
             ]
@@ -250,9 +250,9 @@ class TestGenerateTimestamps:
 
         data = json.loads(timestamps_file.read_text())
         timestamps = data[0]["timestamps"]
-        assert timestamps[0]["start"] == "00:00:00"
-        assert timestamps[1]["start"] == "00:02:00"
-        assert timestamps[-1]["end"] == "00:10:00"
+        assert timestamps[0]["start"] == "00:00:00.000"
+        assert timestamps[1]["start"] == "00:02:00.000"
+        assert timestamps[-1]["end"] == "00:10:00.000"
         assert data[0]["metadata"]["chapter_source"] == "transcript"
         assert data[0]["metadata"]["transcript_path"] == str(transcript_file)
         assert result["metadata"]["transcript_generated"] is False
@@ -292,7 +292,7 @@ class TestGenerateTimestamps:
         assert timestamps_file.exists()
 
         data = json.loads(timestamps_file.read_text())
-        assert data[0]["timestamps"][1]["start"] == "00:03:00"
+        assert data[0]["timestamps"][1]["start"] == "00:03:00.000"
         assert data[0]["metadata"]["transcript_path"] == str(transcript_file)
         assert data[0]["metadata"]["transcript_generated"] is True
         mock_generate.assert_called_once()

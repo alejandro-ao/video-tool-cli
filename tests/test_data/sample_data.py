@@ -170,18 +170,18 @@ SAMPLE_TIMESTAMPS = [
     {
         "timestamps": [
             {
-                "start": "00:00:00",
-                "end": "00:05:00",
+                "start": "00:00:00.000",
+                "end": "00:05:00.000",
                 "title": "test_video_01"
             },
             {
-                "start": "00:05:00",
-                "end": "00:12:30",
+                "start": "00:05:00.000",
+                "end": "00:12:30.000",
                 "title": "test_video_02"
             },
             {
-                "start": "00:12:30",
-                "end": "00:22:30",
+                "start": "00:12:30.000",
+                "end": "00:22:30.000",
                 "title": "test_video_03"
             }
         ],

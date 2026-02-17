@@ -198,8 +198,8 @@ class MockTimestampGenerator:
             end_time = current_time + duration
             
             timestamps.append({
-                "start": f"{start_time//3600:02d}:{(start_time%3600)//60:02d}:{start_time%60:02d}",
-                "end": f"{end_time//3600:02d}:{(end_time%3600)//60:02d}:{end_time%60:02d}",
+                "start": f"{start_time//3600:02d}:{(start_time%3600)//60:02d}:{start_time%60:02d}.000",
+                "end": f"{end_time//3600:02d}:{(end_time%3600)//60:02d}:{end_time%60:02d}.000",
                 "title": Path(video_file).stem
             })
             
