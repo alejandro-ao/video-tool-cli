@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 import mimetypes
 import os
+import re
 import stat
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -27,6 +29,10 @@ YOUTUBE_SCOPES = [
 CONFIG_DIR = Path.home() / ".config" / "video-tool"
 CLIENT_SECRETS_PATH = CONFIG_DIR / "client_secrets.json"
 CREDENTIALS_PATH = CONFIG_DIR / "youtube_credentials.json"
+YOUTUBE_PROFILES_DIR = CONFIG_DIR / "youtube"
+ACTIVE_PROFILE_PATH = YOUTUBE_PROFILES_DIR / "active-profile.txt"
+DEFAULT_YOUTUBE_PROFILE = "default"
+LEGACY_YOUTUBE_PROFILE = "legacy"
 
 # YouTube category IDs (common ones)
 YOUTUBE_CATEGORIES = {
@@ -52,16 +58,111 @@ YOUTUBE_CATEGORIES = {
 class YouTubeDeploymentMixin:
     """Handle YouTube video uploads, metadata, and caption management."""
 
-    def _get_youtube_service(self) -> Optional[Resource]:
+    @staticmethod
+    def _normalize_youtube_profile_name(profile: Optional[str]) -> str:
+        value = (profile or DEFAULT_YOUTUBE_PROFILE).strip().lower()
+        value = re.sub(r"[^a-z0-9._-]+", "-", value).strip("._-")
+        return value or DEFAULT_YOUTUBE_PROFILE
+
+    @classmethod
+    def get_effective_youtube_profile(cls, profile: Optional[str] = None) -> str:
+        if profile:
+            return cls._normalize_youtube_profile_name(profile)
+
+        if ACTIVE_PROFILE_PATH.exists():
+            active = ACTIVE_PROFILE_PATH.read_text(encoding="utf-8").strip()
+            if active:
+                return cls._normalize_youtube_profile_name(active)
+
+        if CREDENTIALS_PATH.exists():
+            return LEGACY_YOUTUBE_PROFILE
+
+        return DEFAULT_YOUTUBE_PROFILE
+
+    @classmethod
+    def get_youtube_credentials_path(cls, profile: Optional[str] = None) -> Path:
+        effective_profile = cls.get_effective_youtube_profile(profile)
+        if effective_profile == LEGACY_YOUTUBE_PROFILE:
+            return CREDENTIALS_PATH
+        return YOUTUBE_PROFILES_DIR / f"{effective_profile}.json"
+
+    @classmethod
+    def set_active_youtube_profile(cls, profile: str) -> Path:
+        effective_profile = cls._normalize_youtube_profile_name(profile)
+        YOUTUBE_PROFILES_DIR.mkdir(parents=True, exist_ok=True)
+        ACTIVE_PROFILE_PATH.write_text(f"{effective_profile}\n", encoding="utf-8")
+        os.chmod(ACTIVE_PROFILE_PATH, stat.S_IRUSR | stat.S_IWUSR)
+        return ACTIVE_PROFILE_PATH
+
+    @staticmethod
+    def _read_credentials_file(path: Path) -> Optional[Dict]:
+        if not path.exists():
+            return None
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except (OSError, json.JSONDecodeError):
+            return None
+
+    @classmethod
+    def list_youtube_profiles(cls) -> List[Dict[str, Optional[str]]]:
+        profiles: List[Dict[str, Optional[str]]] = []
+        active_profile = cls.get_effective_youtube_profile()
+
+        if YOUTUBE_PROFILES_DIR.exists():
+            for path in sorted(YOUTUBE_PROFILES_DIR.glob("*.json")):
+                data = cls._read_credentials_file(path) or {}
+                name = path.stem
+                profiles.append(
+                    {
+                        "name": name,
+                        "path": str(path),
+                        "channel_id": data.get("channel_id"),
+                        "channel_title": data.get("channel_title"),
+                        "is_active": "true" if name == active_profile else "false",
+                    }
+                )
+
+        if CREDENTIALS_PATH.exists():
+            data = cls._read_credentials_file(CREDENTIALS_PATH) or {}
+            profiles.append(
+                {
+                    "name": LEGACY_YOUTUBE_PROFILE,
+                    "path": str(CREDENTIALS_PATH),
+                    "channel_id": data.get("channel_id"),
+                    "channel_title": data.get("channel_title"),
+                    "is_active": "true" if active_profile == LEGACY_YOUTUBE_PROFILE else "false",
+                }
+            )
+
+        return profiles
+
+    @classmethod
+    def _fetch_authenticated_channel_info(cls, credentials: Credentials) -> Dict[str, str]:
+        service = build("youtube", "v3", credentials=credentials)
+        response = service.channels().list(part="id,snippet", mine=True).execute()
+        items = response.get("items") or []
+        if not items:
+            return {}
+        channel = items[0]
+        snippet = channel.get("snippet") or {}
+        return {
+            "channel_id": channel.get("id", ""),
+            "channel_title": snippet.get("title", ""),
+        }
+
+    def _get_youtube_service(self, youtube_profile: Optional[str] = None) -> Optional[Resource]:
         """Load credentials and build YouTube API service."""
-        if not CREDENTIALS_PATH.exists():
+        credentials_path = self.get_youtube_credentials_path(youtube_profile)
+        if not credentials_path.exists():
             logger.error(
-                "YouTube credentials not found. Run 'video-tool config youtube-auth' first."
+                "YouTube credentials not found for profile '%s'. Run 'video-tool config youtube-auth' first."
+                % self.get_effective_youtube_profile(youtube_profile)
             )
             return None
 
         try:
-            with open(CREDENTIALS_PATH, "r", encoding="utf-8") as f:
+            with open(credentials_path, "r", encoding="utf-8") as f:
                 creds_data = json.load(f)
 
             credentials = Credentials(
@@ -78,7 +179,11 @@ class YouTubeDeploymentMixin:
                 from google.auth.transport.requests import Request
                 credentials.refresh(Request())
                 # Save refreshed credentials
-                self._save_youtube_credentials(credentials, creds_data)
+                self._save_youtube_credentials(
+                    credentials,
+                    creds_data,
+                    credentials_path=credentials_path,
+                )
 
             return build("youtube", "v3", credentials=credentials)
 
@@ -88,9 +193,13 @@ class YouTubeDeploymentMixin:
 
     def _save_youtube_credentials(
         self, credentials: Credentials, existing_data: Optional[Dict] = None
+        , profile: Optional[str] = None,
+        credentials_path: Optional[Path] = None,
     ) -> None:
         """Save credentials to disk."""
         creds_data = existing_data or {}
+        target_path = credentials_path or self.get_youtube_credentials_path(profile)
+        effective_profile = self.get_effective_youtube_profile(profile)
         creds_data.update({
             "token": credentials.token,
             "refresh_token": credentials.refresh_token,
@@ -98,19 +207,27 @@ class YouTubeDeploymentMixin:
             "client_id": credentials.client_id,
             "client_secret": credentials.client_secret,
         })
+        if effective_profile != LEGACY_YOUTUBE_PROFILE:
+            creds_data["profile"] = effective_profile
 
-        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        with open(CREDENTIALS_PATH, "w", encoding="utf-8") as f:
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(target_path, "w", encoding="utf-8") as f:
             json.dump(creds_data, f, indent=2)
         # Restrict permissions to owner only (0600)
-        os.chmod(CREDENTIALS_PATH, stat.S_IRUSR | stat.S_IWUSR)
+        os.chmod(target_path, stat.S_IRUSR | stat.S_IWUSR)
 
     @staticmethod
-    def youtube_authenticate(client_secrets_path: Optional[str] = None) -> bool:
+    def youtube_authenticate(
+        client_secrets_path: Optional[str] = None,
+        profile: Optional[str] = None,
+        set_active: bool = True,
+    ) -> bool:
         """Run OAuth2 flow and save credentials.
 
         Args:
             client_secrets_path: Path to client_secrets.json from Google Cloud Console
+            profile: Named YouTube auth profile
+            set_active: Whether to mark this profile as the active default
 
         Returns:
             True if authentication succeeded
@@ -143,6 +260,12 @@ class YouTubeDeploymentMixin:
                 success_message="Authentication successful! You can close this window.",
             )
 
+            profile_name = YouTubeDeploymentMixin.get_effective_youtube_profile(profile)
+            if profile_name == LEGACY_YOUTUBE_PROFILE:
+                profile_name = DEFAULT_YOUTUBE_PROFILE
+            credentials_path = YouTubeDeploymentMixin.get_youtube_credentials_path(profile_name)
+            channel_info = YouTubeDeploymentMixin._fetch_authenticated_channel_info(credentials)
+
             # Save credentials
             creds_data = {
                 "token": credentials.token,
@@ -150,14 +273,21 @@ class YouTubeDeploymentMixin:
                 "token_uri": credentials.token_uri,
                 "client_id": credentials.client_id,
                 "client_secret": credentials.client_secret,
+                "profile": profile_name,
+                "authenticated_at": dt.datetime.now(dt.UTC).isoformat(),
+                **channel_info,
             }
 
-            with open(CREDENTIALS_PATH, "w", encoding="utf-8") as f:
+            credentials_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(credentials_path, "w", encoding="utf-8") as f:
                 json.dump(creds_data, f, indent=2)
             # Restrict permissions to owner only (0600)
-            os.chmod(CREDENTIALS_PATH, stat.S_IRUSR | stat.S_IWUSR)
+            os.chmod(credentials_path, stat.S_IRUSR | stat.S_IWUSR)
 
-            logger.info(f"YouTube credentials saved to {CREDENTIALS_PATH}")
+            if set_active:
+                YouTubeDeploymentMixin.set_active_youtube_profile(profile_name)
+
+            logger.info(f"YouTube credentials saved to {credentials_path}")
             return True
 
         except Exception as e:
@@ -173,6 +303,7 @@ class YouTubeDeploymentMixin:
         category_id: int = 27,  # Education
         privacy_status: str = "private",
         thumbnail_path: Optional[str] = None,
+        youtube_profile: Optional[str] = None,
     ) -> Optional[Dict[str, str]]:
         """Upload a video to YouTube.
 
@@ -188,7 +319,7 @@ class YouTubeDeploymentMixin:
         Returns:
             Dict with video_id and url, or None on failure
         """
-        youtube = self._get_youtube_service()
+        youtube = self._get_youtube_service(youtube_profile)
         if not youtube:
             return None
 
@@ -247,13 +378,18 @@ class YouTubeDeploymentMixin:
 
             # Upload thumbnail if provided
             if thumbnail_path:
-                self.upload_youtube_thumbnail(video_id, thumbnail_path)
+                self.upload_youtube_thumbnail(
+                    video_id,
+                    thumbnail_path,
+                    youtube_profile=youtube_profile,
+                )
 
             return {
                 "video_id": video_id,
                 "url": f"https://www.youtube.com/watch?v={video_id}",
                 "title": title,
                 "privacy_status": privacy_status,
+                "profile": self.get_effective_youtube_profile(youtube_profile),
             }
 
         except HttpError as e:
@@ -270,6 +406,7 @@ class YouTubeDeploymentMixin:
         description: Optional[str] = None,
         tags: Optional[List[str]] = None,
         category_id: Optional[int] = None,
+        youtube_profile: Optional[str] = None,
     ) -> bool:
         """Update metadata for an existing YouTube video.
 
@@ -283,7 +420,7 @@ class YouTubeDeploymentMixin:
         Returns:
             True if update succeeded
         """
-        youtube = self._get_youtube_service()
+        youtube = self._get_youtube_service(youtube_profile)
         if not youtube:
             return False
 
@@ -333,6 +470,7 @@ class YouTubeDeploymentMixin:
         self,
         video_id: str,
         thumbnail_path: str,
+        youtube_profile: Optional[str] = None,
     ) -> bool:
         """Upload or update thumbnail for a YouTube video.
 
@@ -343,7 +481,7 @@ class YouTubeDeploymentMixin:
         Returns:
             True if upload succeeded
         """
-        youtube = self._get_youtube_service()
+        youtube = self._get_youtube_service(youtube_profile)
         if not youtube:
             return False
 
@@ -382,6 +520,7 @@ class YouTubeDeploymentMixin:
         language: str = "en",
         name: str = "",
         is_draft: bool = False,
+        youtube_profile: Optional[str] = None,
     ) -> bool:
         """Upload caption track to a YouTube video.
 
@@ -395,7 +534,7 @@ class YouTubeDeploymentMixin:
         Returns:
             True if upload succeeded
         """
-        youtube = self._get_youtube_service()
+        youtube = self._get_youtube_service(youtube_profile)
         if not youtube:
             return False
 
@@ -451,5 +590,7 @@ class YouTubeDeploymentMixin:
         """
         return {
             "client_secrets_exists": CLIENT_SECRETS_PATH.exists(),
-            "credentials_exist": CREDENTIALS_PATH.exists(),
+            "credentials_exist": bool(YouTubeDeploymentMixin.list_youtube_profiles()),
+            "active_profile": YouTubeDeploymentMixin.get_effective_youtube_profile(),
+            "profiles": YouTubeDeploymentMixin.list_youtube_profiles(),
         }

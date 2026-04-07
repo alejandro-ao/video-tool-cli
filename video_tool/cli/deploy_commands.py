@@ -396,12 +396,19 @@ def _write_metadata(path: Path, data: dict) -> None:
 # --- YouTube Commands ---
 
 
-def _check_youtube_credentials() -> bool:
+def _check_youtube_credentials(youtube_profile: Optional[str] = None) -> bool:
     """Check if YouTube credentials are configured."""
-    from video_tool.video_processor.youtube import CREDENTIALS_PATH
-    if not CREDENTIALS_PATH.exists():
+    from video_tool.video_processor.youtube import YouTubeDeploymentMixin
+
+    credentials_path = YouTubeDeploymentMixin.get_youtube_credentials_path(youtube_profile)
+    if not credentials_path.exists():
         step_error("YouTube credentials not found")
-        console.print("[yellow]Run 'video-tool config youtube-auth' first.[/yellow]")
+        if youtube_profile:
+            console.print(
+                f"[yellow]Run 'video-tool config youtube-auth --profile {youtube_profile}' first.[/yellow]"
+            )
+        else:
+            console.print("[yellow]Run 'video-tool config youtube-auth' first.[/yellow]")
         return False
     return True
 
@@ -418,13 +425,14 @@ def youtube_upload(
     privacy: str = typer.Option("private", "--privacy", "-p", help="Privacy: private (draft) or unlisted only"),
     thumbnail: Optional[Path] = typer.Option(None, "--thumbnail", help="Path to thumbnail image (PNG/JPG, max 2MB)"),
     metadata_path: Optional[Path] = typer.Option(None, "--metadata-path", "-m", help="Path to metadata.json"),
+    profile: Optional[str] = typer.Option(None, "--profile", help="YouTube auth profile to use"),
 ) -> None:
     """Upload video to YouTube (as draft by default).
 
     Example:
         video-tool deploy youtube-upload -i ./output/final.mp4 --title "My Video" --privacy private
     """
-    if not _check_youtube_credentials():
+    if not _check_youtube_credentials(profile):
         raise typer.Exit(1)
 
     # Resolve video path
@@ -491,6 +499,7 @@ def youtube_upload(
         "Title": video_title,
         "Privacy": privacy,
         "Category": str(category),
+        "Profile": profile or "active",
     })
 
     with status_spinner("Uploading"):
@@ -503,6 +512,7 @@ def youtube_upload(
             category_id=category,
             privacy_status=privacy,
             thumbnail_path=thumb_path,
+            youtube_profile=profile,
         )
 
     if result:
@@ -519,6 +529,7 @@ def youtube_upload(
             "title": video_title,
             "privacy_status": privacy,
             "file": video_file.name,
+            "profile": result.get("profile") or profile,
         }
         _write_metadata(meta_path, existing)
     else:
@@ -535,13 +546,14 @@ def youtube_metadata(
     tags: Optional[str] = typer.Option(None, "--tags", help="Comma-separated tags"),
     tags_file: Optional[Path] = typer.Option(None, "--tags-file", help="Read tags from file (one per line)"),
     category: Optional[int] = typer.Option(None, "--category", "-c", help="YouTube category ID"),
+    profile: Optional[str] = typer.Option(None, "--profile", help="YouTube auth profile to use"),
 ) -> None:
     """Update metadata for an existing YouTube video.
 
     Example:
         video-tool deploy youtube-metadata --video-id VIDEO_ID --description-file ./output/description.md
     """
-    if not _check_youtube_credentials():
+    if not _check_youtube_credentials(profile):
         raise typer.Exit(1)
 
     # Resolve video ID
@@ -582,7 +594,7 @@ def youtube_metadata(
         console.print("[dim]Use --title, --description, --tags, or --category[/dim]")
         raise typer.Exit(1)
 
-    step_start("Updating YouTube video metadata", {"Video ID": vid_id})
+    step_start("Updating YouTube video metadata", {"Video ID": vid_id, "Profile": profile or "active"})
 
     with status_spinner("Updating"):
         processor = VideoProcessor(".")
@@ -592,6 +604,7 @@ def youtube_metadata(
             description=new_description,
             tags=new_tags,
             category_id=category,
+            youtube_profile=profile,
         )
 
     if success:
@@ -608,13 +621,14 @@ def youtube_transcript(
     language: str = typer.Option("en", "--language", "-l", help="Caption language code"),
     name: Optional[str] = typer.Option(None, "--name", "-n", help="Caption track name"),
     draft: bool = typer.Option(False, "--draft", help="Upload as draft (not visible)"),
+    profile: Optional[str] = typer.Option(None, "--profile", help="YouTube auth profile to use"),
 ) -> None:
     """Upload captions/transcript to a YouTube video.
 
     Example:
         video-tool deploy youtube-transcript --video-id VIDEO_ID --transcript-path ./output/transcript.vtt
     """
-    if not _check_youtube_credentials():
+    if not _check_youtube_credentials(profile):
         raise typer.Exit(1)
 
     # Resolve video ID
@@ -637,6 +651,7 @@ def youtube_transcript(
         "Video ID": vid_id,
         "Transcript": str(transcript_file),
         "Language": language,
+        "Profile": profile or "active",
     })
 
     with status_spinner("Uploading"):
@@ -647,6 +662,7 @@ def youtube_transcript(
             language=language,
             name=name or "",
             is_draft=draft,
+            youtube_profile=profile,
         )
 
     if success:

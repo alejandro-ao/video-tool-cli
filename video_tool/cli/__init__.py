@@ -352,17 +352,27 @@ def config_youtube_auth(
         "-c",
         help="Path to client_secrets.json from Google Cloud Console",
     ),
+    profile: str = typer.Option(
+        "default",
+        "--profile",
+        "-p",
+        help="Named YouTube auth profile to save",
+    ),
+    activate: bool = typer.Option(
+        True,
+        "--activate/--no-activate",
+        help="Make this profile the default active profile after auth",
+    ),
 ) -> None:
     """Authenticate with YouTube API using OAuth2.
 
     One-time setup: downloads refresh token after browser-based consent.
-    Credentials saved to ~/.config/video-tool/youtube_credentials.json
+    Credentials are saved under ~/.config/video-tool/youtube/<profile>.json
     """
     from pathlib import Path
     from video_tool.video_processor.youtube import (
         YouTubeDeploymentMixin,
         CLIENT_SECRETS_PATH,
-        CREDENTIALS_PATH,
     )
 
     # Prompt for client secrets if not provided
@@ -378,28 +388,43 @@ def config_youtube_auth(
 
     step_start("YouTube OAuth2 Authentication", {
         "Client secrets": str(client_secrets or CLIENT_SECRETS_PATH),
-        "Credentials will be saved to": str(CREDENTIALS_PATH),
+        "Profile": profile,
+        "Activate profile": "yes" if activate else "no",
+        "Credentials will be saved to": str(YouTubeDeploymentMixin.get_youtube_credentials_path(profile)),
     })
 
     console.print("\n[yellow]A browser window will open for Google OAuth consent.[/yellow]")
     console.print("[dim]Grant access to upload videos and manage captions.[/dim]\n")
 
-    success = YouTubeDeploymentMixin.youtube_authenticate(client_secrets)
+    success = YouTubeDeploymentMixin.youtube_authenticate(
+        client_secrets,
+        profile=profile,
+        set_active=activate,
+    )
 
     if success:
-        step_complete("YouTube authentication successful", str(CREDENTIALS_PATH))
+        step_complete(
+            "YouTube authentication successful",
+            str(YouTubeDeploymentMixin.get_youtube_credentials_path(profile)),
+        )
     else:
         step_error("YouTube authentication failed")
         raise typer.Exit(1)
 
 
 @config_app.command("youtube-status")
-def config_youtube_status() -> None:
+def config_youtube_status(
+    profile: Optional[str] = typer.Option(
+        None,
+        "--profile",
+        "-p",
+        help="Inspect a specific YouTube auth profile",
+    ),
+) -> None:
     """Check YouTube API credentials status."""
     from video_tool.video_processor.youtube import (
         YouTubeDeploymentMixin,
         CLIENT_SECRETS_PATH,
-        CREDENTIALS_PATH,
     )
 
     status = YouTubeDeploymentMixin.get_youtube_credentials_status()
@@ -408,10 +433,45 @@ def config_youtube_status() -> None:
     console.print(f"  Client secrets: {'[green]Found[/green]' if status['client_secrets_exists'] else '[red]Missing[/red]'}")
     console.print(f"    Path: {CLIENT_SECRETS_PATH}")
     console.print(f"  Credentials: {'[green]Found[/green]' if status['credentials_exist'] else '[red]Missing[/red]'}")
-    console.print(f"    Path: {CREDENTIALS_PATH}")
+    console.print(f"  Active profile: {status['active_profile']}")
+
+    profiles = status.get("profiles", [])
+    if profiles:
+        console.print("\n  Saved profiles:")
+        matched_profile = False
+        for item in profiles:
+            if profile and item.get("name") != profile:
+                continue
+            matched_profile = True
+            suffix = " [green](active)[/green]" if item.get("is_active") == "true" else ""
+            channel = item.get("channel_title") or "Unknown channel"
+            channel_id = item.get("channel_id") or "unknown"
+            console.print(f"    - {item['name']}{suffix}")
+            console.print(f"      Channel: {channel} ({channel_id})")
+            console.print(f"      Path: {item['path']}")
+        if profile and not matched_profile:
+            console.print(f"\n  Profile '{profile}' not found.")
+    elif profile:
+        console.print(f"\n  Profile '{profile}' not found.")
 
     if not status['credentials_exist']:
         console.print("\n[yellow]Run 'video-tool config youtube-auth' to authenticate.[/yellow]")
+
+
+@config_app.command("youtube-use")
+def config_youtube_use(
+    profile: str = typer.Argument(..., help="Saved YouTube auth profile to activate"),
+) -> None:
+    """Set the active YouTube auth profile used by upload commands."""
+    from video_tool.video_processor.youtube import YouTubeDeploymentMixin
+
+    credentials_path = YouTubeDeploymentMixin.get_youtube_credentials_path(profile)
+    if not credentials_path.exists():
+        step_error(f"YouTube profile not found: {profile}")
+        raise typer.Exit(1)
+
+    active_path = YouTubeDeploymentMixin.set_active_youtube_profile(profile)
+    step_complete("Active YouTube profile updated", str(active_path))
 
 
 @config_app.command("x-auth")
