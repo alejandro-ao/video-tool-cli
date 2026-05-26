@@ -15,7 +15,7 @@ description: |
   - Upload videos to YouTube or Bunny.net CDN
   - Post social updates to X (Twitter) or LinkedIn
   - Get video metadata (duration, resolution, codec)
-allowed-tools: Bash(which:*), Bash(curl:*), Bash(uv:*), Bash(video-tool:*), AskUserQuestion(*)
+allowed-tools: Bash(which:*), Bash(curl:*), Bash(uv:*), Bash(tmux:*), Bash(video-tool:*), AskUserQuestion(*)
 ---
 
 # Video Tool CLI
@@ -151,6 +151,29 @@ Before generating files (transcripts, descriptions, timestamps, etc.), if not es
 - Option 3: "I'll specify a path" - user provides custom location
 
 **Default behavior if user doesn't specify:** Ask rather than assuming temp directory.
+
+---
+
+## Long-Running Operations: Use tmux
+
+For downloads and any potentially long-running video operation, run the command inside a named `tmux` session instead of blocking the agent shell. This includes YouTube/video downloads, uploads, silence removal, audio enhancement, transcription, and large renders/transcodes.
+
+Recommended pattern:
+```bash
+# Start the job in the background
+tmux new-session -d -s video_download 'video-tool video download -u "URL" -o "./output/video.mp4"'
+
+# Check progress/log output
+tmux capture-pane -pt video_download
+
+# Reattach if needed
+tmux attach -t video_download
+
+# Clean up after completion
+tmux kill-session -t video_download
+```
+
+Use descriptive session names like `video_download`, `video_transcribe`, `video_upload`, or `video_process_<slug>`. After launching the tmux job, monitor it with `tmux capture-pane -pt <session>` until it finishes, then verify the expected output file exists.
 
 ---
 
