@@ -32,5 +32,20 @@ Pytest is configured via `pytest.ini`; tests live beside their fixtures under `t
 ## Commit & Pull Request Guidelines
 The history follows Conventional Commits (`feat(video_processor): …`, `test: …`). Match that format, keep subjects under ~72 characters, and describe breaking changes in the body. PRs should summarize the workflow impact, list manual or automated checks (`pytest`, coverage, lint), and link the tracking issue. Include screenshots or sample outputs when modifying generated copy so reviewers can verify Markdown rendering or media artifacts.
 
+### Atomic Commits
+When committing changes, **never bundle all modifications into a single commit**. Instead, split the work into multiple granular commits, each addressing exactly one logical change. For example, if you fixed a bug, updated a docstring, and added a test, those should be three separate commits in this order:
+
+1. `fix(module): resolve off-by-one error in segment splitting`
+2. `docs(module): update docstring for split_segments`
+3. `test(module): add coverage for edge case in segment splitting`
+
+Each commit must:
+- Contain only the files relevant to that specific change.
+- Have a detailed subject line following Conventional Commits.
+- Include a body when the reasoning is not obvious from the subject alone.
+- Leave the repository in a passing state (`pytest` should succeed after every commit).
+
+This makes the history easy to bisect, revert, and review.
+
 ## Security & Configuration Tips
 Never hard-code API keys; rely on a local `.env` loaded via `python-dotenv`. Ensure `ffmpeg` is discoverable on `$PATH` before testing video operations, and purge any residual media from commits—use `.gitignore` patterns under `build/` and `processed/`.
