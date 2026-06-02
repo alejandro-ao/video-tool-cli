@@ -17,7 +17,8 @@ CREDENTIALS_PATH = CONFIG_DIR / "credentials.yaml"
 DEFAULT_BASE_URL = "https://api.openai.com/v1"
 DEFAULT_MODEL = "gpt-4o"
 
-# Maps credential key names to environment variable names
+# Supported credential key names and their legacy environment-variable labels.
+# Runtime credential lookup intentionally uses credentials.yaml as the source of truth.
 CREDENTIAL_KEYS = {
     "openai_api_key": "OPENAI_API_KEY",
     "groq_api_key": "GROQ_API_KEY",
@@ -289,7 +290,10 @@ def _is_valid_credential(value: Optional[str]) -> bool:
 
 
 def get_credential(key: str) -> Optional[str]:
-    """Get credential from credentials file.
+    """Get credential from credentials.yaml, the runtime source of truth.
+
+    Environment variables are not used as a fallback here; configure credentials
+    with `video-tool config keys` so CLI behavior is consistent.
 
     Args:
         key: Credential key name (e.g., "openai_api_key")

@@ -1,10 +1,9 @@
 """Typer-based CLI for video-tool.
 
 Command structure:
-    video-tool pipeline ...                # root level (most common)
     video-tool video concat ...            # video group (FFmpeg operations)
     video-tool generate description ...    # generate group (AI content)
-    video-tool upload bunny-upload ...     # upload group
+    video-tool upload bunny-video ...      # upload group
 """
 
 from __future__ import annotations
@@ -14,7 +13,6 @@ import sys
 from typing import List, Optional
 
 import typer
-from dotenv import load_dotenv
 
 from video_tool.logging_config import configure_logging
 from video_tool.ui import console, step_error, step_complete, step_start, step_info
@@ -99,9 +97,6 @@ def main_callback(
     """Video processing toolkit with AI-powered content generation."""
     global _verbose
     _verbose = verbose
-
-    # Load environment variables
-    load_dotenv()
 
     # Configure logging based on verbose flag
     configure_logging(verbose=verbose)
@@ -583,7 +578,6 @@ def config_x_auth() -> None:
 from video_tool.cli import video_commands  # noqa: E402, F401
 from video_tool.cli import generate_commands  # noqa: E402, F401
 from video_tool.cli import deploy_commands  # noqa: E402, F401
-from video_tool.cli import pipeline  # noqa: E402, F401
 from video_tool.cli import social_commands  # noqa: E402, F401
 
 
