@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from video_tool.config import is_llm_configured, prompt_optional_llm_setup
 
+from .editing import _detect_gpu_encoder
 from .shared import VideoFileClip, logger
 
 
@@ -187,6 +188,15 @@ class ConcatenationMixin:
                     numerator, denominator = stream_info["r_frame_rate"].split("/")
                     fps = float(int(numerator) / int(denominator))
 
+                    # Detect best available hardware encoder for the codec
+                    codec_name = stream_info["codec_name"]
+                    if codec_name == "h264":
+                        gpu_encoder = _detect_gpu_encoder() or "libx264"
+                    elif codec_name == "hevc":
+                        gpu_encoder = _detect_gpu_encoder() or "libx265"
+                    else:
+                        gpu_encoder = codec_name
+
                     cmd = [
                         "ffmpeg",
                         "-hwaccel",
@@ -194,9 +204,7 @@ class ConcatenationMixin:
                         "-i",
                         str(video_file),
                         "-c:v",
-                        "h264_videotoolbox"
-                        if stream_info["codec_name"] == "h264"
-                        else stream_info["codec_name"],
+                        gpu_encoder,
                         "-s",
                         f"{stream_info['width']}x{stream_info['height']}",
                         "-r",
@@ -881,10 +889,14 @@ class ConcatenationMixin:
         ]
 
         video_codec = video_stream["codec_name"]
-        if video_codec == "h264":
-            cmd.extend(["-c:v", "h264_videotoolbox"])
-        elif video_codec == "hevc":
-            cmd.extend(["-c:v", "hevc_videotoolbox"])
+        gpu_encoder = _detect_gpu_encoder()
+        codec_to_hw_encoder = {"h264": "h264_videotoolbox", "hevc": "hevc_videotoolbox"}
+        if gpu_encoder and video_codec in codec_to_hw_encoder:
+            cmd.extend(["-c:v", codec_to_hw_encoder[video_codec]])
+        elif not gpu_encoder:
+            # Fall back to software encoding
+            sw_fallback = {"h264": "libx264", "hevc": "libx265"}
+            cmd.extend(["-c:v", sw_fallback.get(video_codec, video_codec)])
         else:
             cmd.extend(["-c:v", video_codec])
 
@@ -969,34 +981,30 @@ class ConcatenationMixin:
         output_path = input_file.parent / output_filename
 
         if codec == "auto":
-            try:
-                test_cmd = [
-                    "ffmpeg",
-                    "-f",
-                    "lavfi",
-                    "-i",
-                    "testsrc=duration=1:size=320x240:rate=1",
-                    "-c:v",
-                    "hevc_videotoolbox",
-                    "-t",
-                    "1",
-                    "-f",
-                    "null",
-                    "-",
-                ]
-                subprocess.run(test_cmd, capture_output=True, check=True)
-                codec = "h265"
-                logger.info("Using H.265 (HEVC) codec for optimal compression")
-            except subprocess.CalledProcessError:
+            detected_encoder = _detect_gpu_encoder()
+            if detected_encoder:
+                codec = "h265" if "hevc" in detected_encoder or "265" in detected_encoder else "h264"
+                logger.info(f"Detected GPU encoder: using H.{'265' if codec == 'h265' else '264'} codec")
+            else:
                 codec = "h264"
-                logger.info("H.265 not available, using H.264 codec")
+                logger.info("No GPU encoder available, using H.264 software codec")
 
-        if codec == "h265":
-            video_encoder = "hevc_videotoolbox"
-            fallback_encoder = "libx265"
+        # Detect GPU encoder for the chosen codec
+        detected_encoder = _detect_gpu_encoder()
+        hw_encoders = {"h265": "hevc_videotoolbox", "h264": "h264_videotoolbox"}
+        sw_encoders = {"h265": "libx265", "h264": "libx264"}
+
+        if detected_encoder:
+            # Map detected encoder to our codec if possible
+            if codec == "h265" and detected_encoder in ("h264_videotoolbox", "h264_nvenc"):
+                # GPU doesn't support HEVC, fall back to software for HEVC
+                video_encoder = "libx265"
+                logger.info("GPU encoder doesn't support HEVC, using libx265")
+            else:
+                video_encoder = hw_encoders.get(codec, detected_encoder)
         else:
-            video_encoder = "h264_videotoolbox"
-            fallback_encoder = "libx264"
+            video_encoder = None
+        fallback_encoder = sw_encoders.get(codec, "libx264")
 
         cmd = [
             "ffmpeg",
@@ -1005,47 +1013,59 @@ class ConcatenationMixin:
             "-y",
         ]
 
-        try:
-            test_cmd = [
-                "ffmpeg",
-                "-f",
-                "lavfi",
-                "-i",
-                "testsrc=duration=1:size=320x240:rate=1",
-                "-c:v",
-                video_encoder,
-                "-t",
-                "1",
-                "-f",
-                "null",
-                "-",
-            ]
-            subprocess.run(test_cmd, capture_output=True, check=True)
+        if video_encoder:
+            # Test that the GPU encoder actually works
+            try:
+                test_cmd = [
+                    "ffmpeg",
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    "testsrc=duration=1:size=320x240:rate=1",
+                    "-c:v",
+                    video_encoder,
+                    "-t",
+                    "1",
+                    "-f",
+                    "null",
+                    "-",
+                ]
+                subprocess.run(test_cmd, capture_output=True, check=True)
 
-            cmd.extend(["-c:v", video_encoder])
-            if codec == "h265":
-                cmd.extend(
-                    [
-                        "-q:v",
-                        str(crf),
-                        "-profile:v",
-                        "main",
-                        "-tag:v",
-                        "hvc1",
-                    ]
-                )
-            else:
-                cmd.extend(
-                    [
-                        "-q:v",
-                        str(crf),
-                        "-profile:v",
-                        "high",
-                    ]
-                )
+                cmd.extend(["-c:v", video_encoder])
+                if codec == "h265":
+                    cmd.extend(
+                        [
+                            "-q:v",
+                            str(crf),
+                            "-profile:v",
+                            "main",
+                            "-tag:v",
+                            "hvc1",
+                        ]
+                    )
+                else:
+                    cmd.extend(
+                        [
+                            "-q:v",
+                            str(crf),
+                            "-profile:v",
+                            "high",
+                        ]
+                    )
 
-            logger.info(f"Using hardware encoder: {video_encoder}")
-        except subprocess.CalledProcessError:
+                logger.info(f"Using hardware encoder: {video_encoder}")
+            except subprocess.CalledProcessError:
+                cmd.extend(["-c:v", fallback_encoder])
+                cmd.extend(["-crf", str(crf), "-preset", preset])
+                if codec == "h265":
+                    cmd.extend(["-profile:v", "main", "-tag:v", "hvc1"])
+                else:
+                    cmd.extend(["-profile:v", "high"])
+
+                logger.info(f"Using software encoder: {fallback_encoder}")
+        else:
+            # No GPU encoder available — use software encoding directly
             cmd.extend(["-c:v", fallback_encoder])
             cmd.extend(["-crf", str(crf), "-preset", preset])
             if codec == "h265":
