@@ -1,4 +1,4 @@
-generate_description: |
+generate-description: |
    Based on the following transcript, write a detailed YouTube video description in markdown format. 
    Focus on technical accuracy and clarity.
 
@@ -22,7 +22,7 @@ generate_description: |
    {transcript}
    </TRANSCRIPT>
 
-polish_description: |
+polish-description: |
   Polish the following video description to improve clarity. Focus on making it clear and with the exact same format and style as the one that you see in the example below. In order to do this, follow these steps:
 
   1. Analyze the most important keywords of this YouTube video description
@@ -69,12 +69,12 @@ generate-timestamps-from-transcript: |
   Transcript timeline:
   {transcript}
 
-generate_seo_keywords: |
+generate-seo-keywords: |
   Based on this video description, generate a comma-separated list of relevant SEO keywords 
   that would help with video discoverability. Focus on technical and specific terms.
   Description: {description}
 
-generate_linkedin_post: |
+generate-linkedin-post: |
   Based on the following video transcript, create an engaging LinkedIn post that promotes the video content.
   The post should be professional, informative, and encourage engagement while referencing the video being shared.
   
@@ -126,7 +126,7 @@ generate_linkedin_post: |
   {transcript}
   </TRANSCRIPT>
 
-generate_twitter_post: |
+generate-twitter-post: |
   Based on the following video transcript, create an engaging Twitter/X post that promotes the video content.
   The post should be concise, engaging, and reference the video being shared.
   
@@ -157,7 +157,7 @@ generate_twitter_post: |
   {transcript}
   </TRANSCRIPT>
 
-generate_context_cards: |
+generate-context-cards: |
   Review the VTT transcript below. Identify each moment where the speaker explicitly references:
   - Another video they have published or plan to publish (suggest these for YouTube cards).
   - Any external resource such as a blog post, paper, article, tool, GitHub repo, or third-party product (capture these as resource mentions).

@@ -32,11 +32,11 @@ def mock_video_processor(temp_dir):
         
         # Mock the prompts loading
         mock_prompts = {
-            'generate_description': 'Test description prompt: {transcript}',
-            'polish_description': 'Polish prompt: {description}',
-            'generate_seo_keywords': 'SEO prompt: {description}',
-            'generate_linkedin_post': 'Test LinkedIn prompt: {transcript}',
-            'generate_twitter_post': 'Test Twitter prompt: {transcript}',
+            'generate-description': 'Test description prompt: {transcript}',
+            'polish-description': 'Polish prompt: {description}',
+            'generate-seo-keywords': 'SEO prompt: {description}',
+            'generate-linkedin-post': 'Test LinkedIn prompt: {transcript}',
+            'generate-twitter-post': 'Test Twitter prompt: {transcript}',
             'generate-timestamps-from-transcript': 'Transcript prompt: {transcript} {granularity_note} {extra_instructions} {video_duration} {video_title}',
         }
         

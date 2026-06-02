@@ -30,6 +30,7 @@ from video_tool.ui import (
     step_warning,
 )
 from video_tool.video_processor.constants import SUPPORTED_VIDEO_SUFFIXES, SUPPORTED_AUDIO_SUFFIXES
+from video_tool.metadata import read_metadata, write_metadata
 
 SUPPORTED_VIDEO_LABEL = ", ".join(ext.lstrip(".").upper() for ext in SUPPORTED_VIDEO_SUFFIXES)
 SUPPORTED_AUDIO_LABEL = ", ".join(ext.lstrip(".").upper() for ext in SUPPORTED_AUDIO_SUFFIXES)
@@ -226,10 +227,10 @@ def _write_concat_metadata(processor: VideoProcessor, output_video_path: Path, f
         pass
 
     # Merge with existing metadata
-    existing = _read_metadata(metadata_path)
+    existing = read_metadata(metadata_path)
     merged = {**existing, **metadata} if existing else metadata
 
-    _write_metadata(metadata_path, merged)
+    write_metadata(metadata_path, merged)
 
 
 @video_app.command("timestamps")
@@ -341,9 +342,9 @@ def _update_timestamps_metadata(output_path: str, timestamps_info: dict, use_tra
     metadata_path = Path(output_path).parent / "metadata.json"
     timestamps_payload = timestamps_info.get("timestamps", []) if isinstance(timestamps_info, dict) else []
 
-    existing = _read_metadata(metadata_path) or {}
+    existing = read_metadata(metadata_path) or {}
     existing["timestamps"] = timestamps_payload
-    _write_metadata(metadata_path, existing)
+    write_metadata(metadata_path, existing)
 
 
 @video_app.command("extract-audio")
@@ -742,26 +743,7 @@ def replace_audio(
 # --- Metadata helpers ---
 
 
-def _read_metadata(path: Path) -> Optional[dict]:
-    """Read metadata.json if it exists."""
-    if not path.exists():
-        return None
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except (OSError, json.JSONDecodeError):
-        return None
 
-
-def _write_metadata(path: Path, data: dict) -> None:
-    """Write metadata.json."""
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
-        console.print(f"  [dim]Metadata:[/dim] {path}")
-    except OSError as e:
-        step_warning(f"Unable to write metadata: {e}")
 
 
 # --- Video Editing Commands ---

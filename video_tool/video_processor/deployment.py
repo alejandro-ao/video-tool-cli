@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-import json
-import os
-from pathlib import Path
 import base64
+import json
+from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence
 
 import requests
 from requests import Response
 
+from video_tool.config import get_credential
 from .shared import logger
 
 
@@ -43,11 +43,11 @@ class BunnyDeploymentMixin:
             return None
         library, access = resolved_credentials
 
-        collection = (collection_id or os.getenv("BUNNY_COLLECTION_ID") or "").strip() or None
+        collection = (collection_id or get_credential("bunny_collection_id") or "").strip() or None
         caption_lang = (
-            (caption_language or os.getenv("BUNNY_CAPTION_LANGUAGE") or "en").strip() or "en"
+            (caption_language or get_credential("bunny_caption_language") or "en").strip() or "en"
         )
-        existing_video_id = (video_id or os.getenv("BUNNY_VIDEO_ID") or "").strip()
+        existing_video_id = (video_id or get_credential("bunny_video_id") or "").strip()
         resolved_title = (
             (video_title or "").strip()
             or (self.video_title or "").strip()
@@ -148,7 +148,7 @@ class BunnyDeploymentMixin:
             logger.error(f"Bunny upload aborted, video file missing: {video_path}")
             return None
 
-        collection = (collection_id or os.getenv("BUNNY_COLLECTION_ID") or "").strip() or None
+        collection = (collection_id or get_credential("bunny_collection_id") or "").strip() or None
         resolved_title = (
             (video_title or "").strip()
             or (self.video_title or "").strip()
@@ -205,7 +205,7 @@ class BunnyDeploymentMixin:
             return False
         library, access = resolved_credentials
 
-        resolved_video_id = (video_id or os.getenv("BUNNY_VIDEO_ID") or "").strip()
+        resolved_video_id = (video_id or get_credential("bunny_video_id") or "").strip()
         if not resolved_video_id:
             logger.error(
                 "Bunny chapter update skipped: a video identifier is required."
@@ -239,7 +239,7 @@ class BunnyDeploymentMixin:
             return False
         library, access = resolved_credentials
 
-        resolved_video_id = (video_id or os.getenv("BUNNY_VIDEO_ID") or "").strip()
+        resolved_video_id = (video_id or get_credential("bunny_video_id") or "").strip()
         if not resolved_video_id:
             logger.error(
                 "Bunny transcript upload skipped: a video identifier is required."
@@ -254,7 +254,7 @@ class BunnyDeploymentMixin:
             return False
 
         resolved_language = (
-            (language or os.getenv("BUNNY_CAPTION_LANGUAGE") or "en").strip() or "en"
+            (language or get_credential("bunny_caption_language") or "en").strip() or "en"
         )
 
         return self._upload_transcript_caption(
@@ -275,8 +275,8 @@ class BunnyDeploymentMixin:
         access_key: Optional[str],
     ) -> Optional[tuple[str, str]]:
         """Resolve and validate Bunny library credentials."""
-        library = (library_id or os.getenv("BUNNY_LIBRARY_ID") or "").strip()
-        access = (access_key or os.getenv("BUNNY_ACCESS_KEY") or "").strip()
+        library = (library_id or get_credential("bunny_library_id") or "").strip()
+        access = (access_key or get_credential("bunny_access_key") or "").strip()
 
         if not library or not access:
             logger.error(

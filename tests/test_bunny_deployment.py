@@ -25,12 +25,15 @@ def _make_http_error_response(status: int):
     return response
 
 
-def test_deploy_to_bunny_requires_credentials(mock_video_processor, temp_dir):
+def test_deploy_to_bunny_requires_credentials(mock_video_processor, temp_dir, monkeypatch):
     """Ensure missing credentials short-circuit the upload step."""
     video_path = temp_dir / "output" / "final.mp4"
     video_path.write_bytes(b"\x00\x00test")
 
-    with patch("video_tool.video_processor.requests.request") as mock_request:
+    monkeypatch.delenv("BUNNY_LIBRARY_ID", raising=False)
+    monkeypatch.delenv("BUNNY_ACCESS_KEY", raising=False)
+    with patch("video_tool.video_processor.deployment.get_credential", return_value=None), \
+         patch("video_tool.video_processor.deployment.requests.request") as mock_request:
         result = mock_video_processor.deploy_to_bunny(
             str(video_path),
             upload_video=True,
@@ -63,7 +66,7 @@ def test_deploy_to_bunny_uploads_video_and_metadata(mock_video_processor, temp_d
         _make_response({}),
     ]
 
-    with patch("video_tool.video_processor.requests.request", side_effect=responses) as mock_request:
+    with patch("video_tool.video_processor.deployment.requests.request", side_effect=responses) as mock_request:
         result = mock_video_processor.deploy_to_bunny(
             str(video_path),
             upload_video=True,
@@ -136,7 +139,7 @@ def test_deploy_to_bunny_metadata_only_with_existing_video(mock_video_processor,
         _make_response({}),
     ]
 
-    with patch("video_tool.video_processor.requests.request", side_effect=responses) as mock_request:
+    with patch("video_tool.video_processor.deployment.requests.request", side_effect=responses) as mock_request:
         result = mock_video_processor.deploy_to_bunny(
             None,
             upload_video=False,
@@ -180,7 +183,7 @@ def test_deploy_to_bunny_waits_for_processing(mock_video_processor):
         _make_http_error_response(400),
     ]
 
-    with patch("video_tool.video_processor.requests.request", side_effect=responses) as mock_request:
+    with patch("video_tool.video_processor.deployment.requests.request", side_effect=responses) as mock_request:
         result = mock_video_processor.deploy_to_bunny(
             None,
             upload_video=False,
@@ -214,7 +217,7 @@ def test_upload_bunny_video_only(mock_video_processor, temp_dir):
         _make_response({}),
     ]
 
-    with patch("video_tool.video_processor.requests.request", side_effect=responses) as mock_request:
+    with patch("video_tool.video_processor.deployment.requests.request", side_effect=responses) as mock_request:
         result = mock_video_processor.upload_bunny_video(
             video_path=str(video_path),
             library_id="lib-1",
@@ -241,7 +244,7 @@ def test_update_bunny_transcript_only(mock_video_processor, temp_dir):
         _make_response({}),
     ]
 
-    with patch("video_tool.video_processor.requests.request", side_effect=responses) as mock_request:
+    with patch("video_tool.video_processor.deployment.requests.request", side_effect=responses) as mock_request:
         success = mock_video_processor.update_bunny_transcript(
             video_id="vid-123",
             library_id="lib-1",
@@ -268,7 +271,7 @@ def test_update_bunny_chapters_only(mock_video_processor, temp_dir):
         _make_response({}),
     ]
 
-    with patch("video_tool.video_processor.requests.request", side_effect=responses) as mock_request:
+    with patch("video_tool.video_processor.deployment.requests.request", side_effect=responses) as mock_request:
         success = mock_video_processor.update_bunny_chapters(
             video_id="vid-123",
             library_id="lib-1",

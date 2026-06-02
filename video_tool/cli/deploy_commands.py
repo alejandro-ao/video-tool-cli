@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, cast
@@ -25,6 +24,7 @@ from video_tool.ui import (
     step_start,
     step_warning,
 )
+from video_tool.metadata import read_metadata, write_metadata
 from video_tool.video_processor.constants import SUPPORTED_VIDEO_SUFFIXES
 
 SUPPORTED_VIDEO_LABEL = ", ".join(ext.lstrip(".").upper() for ext in SUPPORTED_VIDEO_SUFFIXES)
@@ -188,12 +188,12 @@ def _upload_batch(
         step_complete("All videos uploaded successfully")
 
     # Update metadata
-    existing = _read_metadata(metadata_path) or {}
+    existing = read_metadata(metadata_path) or {}
     existing["bunny_batch_uploads"] = [
         {"file": name, "video_id": vid, "library_id": library_id, "collection_id": collection_id}
         for name, vid in successes
     ]
-    _write_metadata(metadata_path, existing)
+    write_metadata(metadata_path, existing)
 
 
 def _upload_single(
@@ -220,14 +220,14 @@ def _upload_single(
         step_complete(f"Video uploaded (ID: {video_id})")
 
         # Update metadata
-        existing = _read_metadata(metadata_path) or {}
+        existing = read_metadata(metadata_path) or {}
         existing["bunny_video"] = {
             "video_id": video_id,
             "library_id": library_id,
             "collection_id": collection_id,
             "file": video_file.name,
         }
-        _write_metadata(metadata_path, existing)
+        write_metadata(metadata_path, existing)
     else:
         step_error("Failed to upload video to Bunny.net")
         raise typer.Exit(1)
@@ -237,13 +237,13 @@ def _upload_single(
 def bunny_transcript(
     video_id: Optional[str] = typer.Option(None, "--video-id", "-v", help="Bunny.net video ID"),
     transcript_path: Optional[Path] = typer.Option(None, "--transcript-path", "-t", help="Path to transcript (.vtt)"),
-    language: str = typer.Option("en", "--language", "-l", help="Caption language code"),
+    language: Optional[str] = typer.Option(None, "--language", "-l", help="Caption language code (defaults to stored credential or en)"),
     bunny_library_id: Optional[str] = typer.Option(None, "--bunny-library-id", help="Bunny.net library ID"),
     bunny_access_key: Optional[str] = typer.Option(None, "--bunny-access-key", help="Bunny.net access key"),
 ) -> None:
     """Upload transcript captions to a Bunny.net video."""
     # Resolve video ID
-    vid_id = video_id or os.getenv("BUNNY_VIDEO_ID")
+    vid_id = video_id or get_credential("bunny_video_id")
     if not vid_id:
         vid_id = ask_text("Bunny Video ID", required=True)
 
@@ -261,7 +261,7 @@ def bunny_transcript(
         step_error(f"Invalid transcript file: {transcript_file}")
         raise typer.Exit(1)
 
-    lang = (language or os.getenv("BUNNY_CAPTION_LANGUAGE") or "en").strip()
+    lang = (language or get_credential("bunny_caption_language") or "en").strip()
 
     step_start(
         "Uploading transcript to Bunny.net",
@@ -294,7 +294,7 @@ def bunny_chapters(
 ) -> None:
     """Upload chapter metadata to a Bunny.net video."""
     # Resolve video ID
-    vid_id = video_id or os.getenv("BUNNY_VIDEO_ID")
+    vid_id = video_id or get_credential("bunny_video_id")
     if not vid_id:
         vid_id = ask_text("Bunny Video ID", required=True)
 
@@ -371,26 +371,7 @@ def _coerce_chapters(data: object) -> Optional[List[Dict[str, str]]]:
 # --- Metadata helpers ---
 
 
-def _read_metadata(path: Path) -> Optional[dict]:
-    """Read metadata.json if it exists."""
-    if not path.exists():
-        return None
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except (OSError, json.JSONDecodeError):
-        return None
 
-
-def _write_metadata(path: Path, data: dict) -> None:
-    """Write metadata.json."""
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
-        console.print(f"  [dim]Metadata:[/dim] {path}")
-    except OSError as e:
-        step_warning(f"Unable to write metadata: {e}")
 
 
 # --- YouTube Commands ---
@@ -522,7 +503,7 @@ def youtube_upload(
         console.print(f"  [dim]URL:[/dim] {url}")
 
         # Update metadata
-        existing = _read_metadata(meta_path) or {}
+        existing = read_metadata(meta_path) or {}
         existing["youtube_video"] = {
             "video_id": video_id,
             "url": url,
@@ -531,7 +512,7 @@ def youtube_upload(
             "file": video_file.name,
             "profile": result.get("profile") or profile,
         }
-        _write_metadata(meta_path, existing)
+        write_metadata(meta_path, existing)
     else:
         step_error("Failed to upload video to YouTube")
         raise typer.Exit(1)

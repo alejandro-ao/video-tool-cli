@@ -77,7 +77,7 @@ class ContentGenerationMixin:
         with open(transcript_file) as file:
             transcript = file.read()
 
-        prompt = self.prompts["generate_description"].format(transcript=transcript)
+        prompt = self.prompts["generate-description"].format(transcript=transcript)
 
         response = self._invoke_openai_chat(
             command="description", messages=[{"role": "user", "content": prompt}]
@@ -114,7 +114,7 @@ class ContentGenerationMixin:
 
         description = "\n".join(sections)
 
-        polish_description_prompt = self.prompts["polish_description"].format(
+        polish_description_prompt = self.prompts["polish-description"].format(
             description=description
         )
 
@@ -164,7 +164,7 @@ class ContentGenerationMixin:
             return ""
 
         try:
-            prompt = self.prompts["generate_context_cards"].format(transcript=transcript)
+            prompt = self.prompts["generate-context-cards"].format(transcript=transcript)
 
             response = self._invoke_openai_chat(
                 command="context_cards",
@@ -197,7 +197,7 @@ class ContentGenerationMixin:
             return ""
 
         try:
-            prompt = self.prompts["generate_seo_keywords"].format(
+            prompt = self.prompts["generate-seo-keywords"].format(
                 description=description
             )
 
@@ -228,7 +228,7 @@ class ContentGenerationMixin:
             raise
 
         try:
-            prompt = self.prompts["generate_linkedin_post"].format(transcript=transcript)
+            prompt = self.prompts["generate-linkedin-post"].format(transcript=transcript)
 
             response = self._invoke_openai_chat(
                 command="linkedin",
@@ -259,7 +259,7 @@ class ContentGenerationMixin:
             raise
 
         try:
-            prompt = self.prompts["generate_twitter_post"].format(transcript=transcript)
+            prompt = self.prompts["generate-twitter-post"].format(transcript=transcript)
 
             response = self._invoke_openai_chat(
                 command="twitter",

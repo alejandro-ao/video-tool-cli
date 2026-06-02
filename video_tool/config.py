@@ -25,6 +25,8 @@ CREDENTIAL_KEYS = {
     "bunny_library_id": "BUNNY_LIBRARY_ID",
     "bunny_access_key": "BUNNY_ACCESS_KEY",
     "bunny_collection_id": "BUNNY_COLLECTION_ID",
+    "bunny_video_id": "BUNNY_VIDEO_ID",
+    "bunny_caption_language": "BUNNY_CAPTION_LANGUAGE",
     "replicate_api_token": "REPLICATE_API_TOKEN",
     "x_api_key": "X_API_KEY",
     "x_api_secret": "X_API_SECRET",
@@ -290,10 +292,10 @@ def _is_valid_credential(value: Optional[str]) -> bool:
 
 
 def get_credential(key: str) -> Optional[str]:
-    """Get credential from credentials.yaml, the runtime source of truth.
+    """Get credential from credentials.yaml, falling back to env vars.
 
-    Environment variables are not used as a fallback here; configure credentials
-    with `video-tool config keys` so CLI behavior is consistent.
+    Checks credentials.yaml first. If not found there, falls back to the
+    corresponding environment variable (e.g., "openai_api_key" -> "OPENAI_API_KEY").
 
     Args:
         key: Credential key name (e.g., "openai_api_key")
@@ -301,10 +303,19 @@ def get_credential(key: str) -> Optional[str]:
     Returns:
         The credential value or None if not found/invalid
     """
+    # First check credentials.yaml
     creds = load_credentials()
     val = creds.get(key)
     if _is_valid_credential(val):
         return val
+
+    # Fallback to environment variable
+    env_key = CREDENTIAL_KEYS.get(key)
+    if env_key:
+        env_val = os.environ.get(env_key)
+        if env_val and env_val.strip():
+            return env_val.strip()
+
     return None
 
 
