@@ -211,9 +211,11 @@ class ConcatenationMixin:
                         str(fps),
                         "-preset",
                         "fast",
-                        "-profile:v",
-                        "high",
                     ]
+                    if codec_name == "h264":
+                        cmd.extend(["-profile:v", "high"])
+                    elif codec_name == "hevc":
+                        cmd.extend(["-profile:v", "main"])
 
                     if audio_stream:
                         cmd.extend(
