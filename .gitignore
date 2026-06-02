@@ -175,3 +175,15 @@ cython_debug/
 
 # Mac
 .DS_Store
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Log files
+*.log
+scripts/*.log
+
+# Cache directories
+.uv_cache/
