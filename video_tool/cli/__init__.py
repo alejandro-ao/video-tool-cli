@@ -34,12 +34,15 @@ from video_tool.config import (
     set_credential,
 )
 
+HELP_CONTEXT = {"help_option_names": ["-h", "--help"]}
+
 # Create main app and sub-apps
 app = typer.Typer(
     name="video-tool",
     help="Video processing toolkit with AI-powered content generation",
     rich_markup_mode="rich",
     no_args_is_help=True,
+    context_settings=HELP_CONTEXT,
 )
 
 video_app = typer.Typer(
@@ -47,6 +50,7 @@ video_app = typer.Typer(
     help="Video processing commands (FFmpeg operations)",
     rich_markup_mode="rich",
     no_args_is_help=True,
+    context_settings=HELP_CONTEXT,
 )
 
 generate_app = typer.Typer(
@@ -54,6 +58,7 @@ generate_app = typer.Typer(
     help="AI-powered content generation (transcripts, descriptions, context cards)",
     rich_markup_mode="rich",
     no_args_is_help=True,
+    context_settings=HELP_CONTEXT,
 )
 
 upload_app = typer.Typer(
@@ -61,6 +66,7 @@ upload_app = typer.Typer(
     help="Upload commands (bunny-video, bunny-transcript, youtube-video, etc.)",
     rich_markup_mode="rich",
     no_args_is_help=True,
+    context_settings=HELP_CONTEXT,
 )
 
 config_app = typer.Typer(
@@ -68,6 +74,7 @@ config_app = typer.Typer(
     help="Configuration commands (youtube-auth, llm settings, etc.)",
     rich_markup_mode="rich",
     no_args_is_help=True,
+    context_settings=HELP_CONTEXT,
 )
 
 # Register sub-apps
