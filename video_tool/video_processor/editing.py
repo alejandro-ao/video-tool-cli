@@ -13,17 +13,23 @@ from typing import Any, Dict, List, Optional
 from .shared import logger
 
 
-def _detect_gpu_encoder() -> Optional[str]:
-    """Detect available hardware video encoder.
+def _detect_gpu_encoder(codec: str = "h264") -> Optional[str]:
+    """Detect available hardware video encoder for a codec.
 
-    Returns encoder name (h264_videotoolbox, h264_nvenc) or None if unavailable.
+    Returns encoder name (for example, h264_videotoolbox, hevc_videotoolbox,
+    h264_nvenc, hevc_nvenc) or None if unavailable.
     """
     system = platform.system()
+    normalized_codec = codec.lower()
+    if normalized_codec == "h265":
+        normalized_codec = "hevc"
+    if normalized_codec not in {"h264", "hevc"}:
+        return None
 
     if system == "Darwin":
-        encoder = "h264_videotoolbox"
+        encoder = "hevc_videotoolbox" if normalized_codec == "hevc" else "h264_videotoolbox"
     elif system in ("Linux", "Windows"):
-        encoder = "h264_nvenc"
+        encoder = "hevc_nvenc" if normalized_codec == "hevc" else "h264_nvenc"
     else:
         return None
 
