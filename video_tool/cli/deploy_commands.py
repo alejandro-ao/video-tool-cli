@@ -237,7 +237,7 @@ def _upload_single(
 def bunny_transcript(
     video_id: Optional[str] = typer.Option(None, "--video-id", "-v", help="Bunny.net video ID"),
     transcript_path: Optional[Path] = typer.Option(None, "--transcript-path", "-t", help="Path to transcript (.vtt)"),
-    language: str = typer.Option("en", "--language", "-l", help="Caption language code"),
+    language: Optional[str] = typer.Option(None, "--language", "-l", help="Caption language code (defaults to stored credential or en)"),
     bunny_library_id: Optional[str] = typer.Option(None, "--bunny-library-id", help="Bunny.net library ID"),
     bunny_access_key: Optional[str] = typer.Option(None, "--bunny-access-key", help="Bunny.net access key"),
 ) -> None:
