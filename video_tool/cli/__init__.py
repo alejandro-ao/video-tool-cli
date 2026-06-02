@@ -13,6 +13,7 @@ import sys
 from typing import List, Optional
 
 import typer
+from typer.core import TyperGroup
 
 from video_tool.logging_config import configure_logging
 from video_tool.ui import console, step_error, step_complete, step_start, step_info
@@ -34,12 +35,25 @@ from video_tool.config import (
     set_credential,
 )
 
+class _ShortHelpGroup(TyperGroup):
+    """Typer group that recognizes -h alongside --help."""
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        ctx_settings = kwargs.get("context_settings", {}) or {}
+        if not isinstance(ctx_settings, dict):
+            ctx_settings = dict(ctx_settings)
+        ctx_settings["help_option_names"] = ["-h", "--help"]
+        kwargs["context_settings"] = ctx_settings
+        super().__init__(*args, **kwargs)
+
+
 # Create main app and sub-apps
 app = typer.Typer(
     name="video-tool",
     help="Video processing toolkit with AI-powered content generation",
     rich_markup_mode="rich",
     no_args_is_help=True,
+    cls=_ShortHelpGroup,
 )
 
 video_app = typer.Typer(
@@ -47,6 +61,7 @@ video_app = typer.Typer(
     help="Video processing commands (FFmpeg operations)",
     rich_markup_mode="rich",
     no_args_is_help=True,
+    cls=_ShortHelpGroup,
 )
 
 generate_app = typer.Typer(
@@ -54,6 +69,7 @@ generate_app = typer.Typer(
     help="AI-powered content generation (transcripts, descriptions, context cards)",
     rich_markup_mode="rich",
     no_args_is_help=True,
+    cls=_ShortHelpGroup,
 )
 
 upload_app = typer.Typer(
@@ -61,6 +77,7 @@ upload_app = typer.Typer(
     help="Upload commands (bunny-video, bunny-transcript, youtube-video, etc.)",
     rich_markup_mode="rich",
     no_args_is_help=True,
+    cls=_ShortHelpGroup,
 )
 
 config_app = typer.Typer(
@@ -68,6 +85,7 @@ config_app = typer.Typer(
     help="Configuration commands (youtube-auth, llm settings, etc.)",
     rich_markup_mode="rich",
     no_args_is_help=True,
+    cls=_ShortHelpGroup,
 )
 
 # Register sub-apps
