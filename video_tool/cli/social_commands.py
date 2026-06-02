@@ -11,6 +11,7 @@ import typer
 from video_tool import VideoProcessor
 from video_tool.cli import upload_app
 from video_tool.config import get_credential
+from video_tool.metadata import read_metadata, write_metadata
 from video_tool.ui import (
     console,
     normalize_path,
@@ -125,22 +126,7 @@ def _warn_if_too_long(texts: List[str]) -> None:
             step_warning(f"Thread item {idx} is {len(text)} characters (X limit is 280).")
 
 
-def _read_metadata(path: Path) -> Optional[dict]:
-    if not path.exists():
-        return None
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
 
-
-def _write_metadata(path: Path, data: dict) -> None:
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(data, indent=2), encoding="utf-8")
-        console.print(f"  [dim]Metadata:[/dim] {path}")
-    except OSError as exc:
-        step_warning(f"Unable to write metadata: {exc}")
 
 
 def _write_social_artifact(output_dir: Path, name: str, payload: dict) -> None:
@@ -214,11 +200,11 @@ def post_twitter(
     step_complete("Posted to X", result.get("primary_url"))
 
     metadata_path = resolved_output_dir / "metadata.json"
-    existing = _read_metadata(metadata_path) or {}
+    existing = read_metadata(metadata_path) or {}
     social = existing.get("social", {})
     social["x"] = result
     existing["social"] = social
-    _write_metadata(metadata_path, existing)
+    write_metadata(metadata_path, existing)
     _write_social_artifact(resolved_output_dir, "x_post.json", result)
 
 
@@ -267,9 +253,9 @@ def post_linkedin(
     step_complete("Posted to LinkedIn", result.get("post_url"))
 
     metadata_path = resolved_output_dir / "metadata.json"
-    existing = _read_metadata(metadata_path) or {}
+    existing = read_metadata(metadata_path) or {}
     social = existing.get("social", {})
     social["linkedin"] = result
     existing["social"] = social
-    _write_metadata(metadata_path, existing)
+    write_metadata(metadata_path, existing)
     _write_social_artifact(resolved_output_dir, "linkedin_post.json", result)

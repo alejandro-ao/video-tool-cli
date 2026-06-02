@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import List, Optional
 
@@ -21,6 +20,7 @@ from video_tool.ui import (
     step_start,
     step_warning,
 )
+from video_tool.metadata import read_metadata, write_metadata
 from video_tool.video_processor.constants import (
     SUPPORTED_VIDEO_SUFFIXES,
     SUPPORTED_AUDIO_SUFFIXES,
@@ -116,10 +116,10 @@ def _update_transcript_metadata(transcript_path: str) -> None:
     except OSError:
         return
 
-    existing = _read_metadata(metadata_path) or {}
+    existing = read_metadata(metadata_path) or {}
     existing["transcript"] = transcript_content
     existing["transcript_format"] = transcript_file.suffix.lstrip(".").lower()
-    _write_metadata(metadata_path, existing)
+    write_metadata(metadata_path, existing)
 
 
 @generate_app.command("description")
@@ -265,7 +265,7 @@ def description(
 def _update_description_metadata(output_dir: Path, transcript_file: Optional[Path], description_path: str) -> None:
     """Update metadata.json with description content."""
     metadata_path = output_dir / "metadata.json"
-    existing = _read_metadata(metadata_path) or {}
+    existing = read_metadata(metadata_path) or {}
 
     if transcript_file:
         try:
@@ -279,7 +279,7 @@ def _update_description_metadata(output_dir: Path, transcript_file: Optional[Pat
     except OSError:
         pass
 
-    _write_metadata(metadata_path, existing)
+    write_metadata(metadata_path, existing)
 
 
 @generate_app.command("context-cards")
@@ -374,7 +374,7 @@ def context_cards(
 def _update_context_cards_metadata(output_dir: Path, cards_path: str, transcript_file: Optional[Path] = None) -> None:
     """Update metadata.json with context cards and optional transcript."""
     metadata_path = output_dir / "metadata.json"
-    existing = _read_metadata(metadata_path) or {}
+    existing = read_metadata(metadata_path) or {}
 
     if transcript_file:
         try:
@@ -388,29 +388,10 @@ def _update_context_cards_metadata(output_dir: Path, cards_path: str, transcript
     except OSError:
         pass
 
-    _write_metadata(metadata_path, existing)
+    write_metadata(metadata_path, existing)
 
 
 # --- Metadata helpers ---
 
 
-def _read_metadata(path: Path) -> Optional[dict]:
-    """Read metadata.json if it exists."""
-    if not path.exists():
-        return None
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except (OSError, json.JSONDecodeError):
-        return None
 
-
-def _write_metadata(path: Path, data: dict) -> None:
-    """Write metadata.json."""
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
-        console.print(f"  [dim]Metadata:[/dim] {path}")
-    except OSError as e:
-        step_warning(f"Unable to write metadata: {e}")
