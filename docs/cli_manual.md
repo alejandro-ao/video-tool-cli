@@ -9,7 +9,7 @@ This guide explains how to use the video processing CLI. The tool provides indep
 video-tool --help
 
 # Show help for a specific command
-video-tool concat --help
+video-tool video concat --help
 
 # Run a command with arguments
 video-tool video concat --input-dir ./clips --output-path ./output/final.mp4 --fast-concat
@@ -32,8 +32,6 @@ You can also run it directly via Python:
 
 ```bash
 python main.py <command> [options]
-# or
-python -m video_tool.cli <command> [options]
 ```
 
 ## API Keys Setup
@@ -79,7 +77,6 @@ The key is saved automatically for future use.
 | `context-cards` (from video) | ✓ | ✓ | | Transcribe + generate |
 | `concat` | | | | FFmpeg only |
 | `enhance-audio` | | | ✓ | Replicate API |
-| `pipeline` | ✓ | ✓ | | Full workflow |
 
 ## Configuration
 
@@ -399,7 +396,7 @@ video-tool video timestamps
 
 Generate a VTT transcript from video or audio using Groq Whisper Large V3 Turbo.
 
-Accepts video files (extracts audio internally) or audio files directly (skips extraction). Only requires `GROQ_API_KEY`.
+Accepts video files (extracts audio internally) or audio files directly (skips extraction). Requires a Groq API key configured with `video-tool config keys`.
 
 **Supported formats:**
 - Video: `.mp4`, `.mov`
@@ -416,16 +413,16 @@ Accepts video files (extracts audio internally) or audio files directly (skips e
 
 ```bash
 # From video (extracts audio, then transcribes)
-video-tool video transcript --input ./my-video.mp4
+video-tool generate transcript --input ./my-video.mp4
 
 # From audio (transcribes directly, no extraction)
-video-tool video transcript --input ./audio.mp3
+video-tool generate transcript --input ./audio.mp3
 
 # Custom output path
-video-tool video transcript -i ./video.mp4 -o ./subs/transcript.vtt
+video-tool generate transcript -i ./video.mp4 -o ./subs/transcript.vtt
 
 # Interactive mode
-video-tool video transcript
+video-tool generate transcript
 ```
 
 **Arguments:**
@@ -524,13 +521,13 @@ Generate context cards and resource mentions from a transcript or media file.
 
 ```bash
 # From transcript
-video-tool video context-cards --input ./output/transcript.vtt
+video-tool generate context-cards --input ./output/transcript.vtt
 
 # From video (auto-generates transcript)
-video-tool video context-cards -i ./output/final.mp4
+video-tool generate context-cards -i ./output/final.mp4
 
 # Custom output location
-video-tool video context-cards \
+video-tool generate context-cards \
   -i ./output/transcript.vtt \
   -o ./output/custom-context-cards.md
 ```
@@ -572,21 +569,21 @@ Links are added in order: video-specific first (code/article), then persistent l
 
 ```bash
 # Basic usage (no links)
-video-tool video description -i ./transcript.vtt
+video-tool generate description -i ./transcript.vtt
 
 # With persistent links from config
-video-tool video description -i ./transcript.vtt --links
+video-tool generate description -i ./transcript.vtt --links
 
 # With video-specific code link
-video-tool video description -i ./transcript.vtt --links --code-link https://github.com/user/repo
+video-tool generate description -i ./transcript.vtt --links --code-link https://github.com/user/repo
 
 # With both video-specific links
-video-tool video description -i ./transcript.vtt --links \
+video-tool generate description -i ./transcript.vtt --links \
   --code-link https://github.com/user/repo \
   --article-link https://blog.example.com/post
 
 # Auto-generate transcript from video
-video-tool video description -i ./video.mp4 --links
+video-tool generate description -i ./video.mp4 --links
 ```
 
 **Arguments:**
@@ -600,32 +597,6 @@ video-tool video description -i ./video.mp4 --links
 **Output:** Creates `description.md` in the chosen output directory and updates/creates `metadata.json`.
 
 **First-time link setup:** If `--links` is passed but no links exist in config, you'll be prompted to add them interactively.
-
----
-
-#### `pipeline`
-
-Run the full video-tool pipeline (silence removal not included) for an input directory of clips. The pipeline now collects everything up front and then runs non-interactively (no step-level prompts): input/output directories, concat title/output path, fast concat toggle, timestamps settings (granularity/notes/output), transcript output path, whether to generate context cards, and optional Bunny upload credentials/metadata path.
-
-**Prompts for (in order):**
-- Input directory and output directory (default: `<input>/output`)
-- Concatenated video title, optional custom output path, and fast/standard concat
-- Timestamps output path, granularity (low/medium/high), and optional notes
-- Transcript output path for the concatenated video
-- Whether to generate context cards
-- Optional Bunny upload toggle and credentials (library/access keys and optional collection id)
-
-**Optional inputs:**
-- Override CLI binary (defaults to `video-tool` or `VIDEO_TOOL_CLI` env)
-
-**Example:**
-
-```bash
-video-tool pipeline
-video-tool pipeline --cli-bin ./venv/bin/video-tool
-```
-
-**Output:** Executes concat, timestamps, transcript, context cards, and optional Bunny upload in sequence using defaults from the individual commands.
 
 ---
 
@@ -850,9 +821,9 @@ This makes it easy to use the tool without memorizing all the argument names.
 
 ## Common Workflows
 
-### Complete Video Processing Pipeline
+### Complete Video Processing Workflow
 
-Process raw clips into a final video with all content:
+Process raw clips into a final video with all content by chaining commands:
 
 ```bash
 # 1. Remove silences from a clip
@@ -862,31 +833,31 @@ video-tool video silence-removal --input ./clips/clip-01.mp4
 video-tool video concat --input-dir ./clips --output-path ./clips/output/final.mp4 --fast-concat
 
 # 3. Generate timestamps (clips mode)
-video-tool video timestamps --mode clips --input ./clips
+video-tool video timestamps --mode clips --input ./clips --output-path ./clips/output/timestamps.json
 
 # 4. Generate transcript (uses Groq Whisper)
-video-tool video transcript --input ./clips/output/final-video.mp4
+video-tool generate transcript --input ./clips/output/final.mp4 --output-path ./clips/output/transcript.vtt
 
 # 5. Generate context cards
-video-tool video context-cards -i ./clips/output/transcript.vtt
+video-tool generate context-cards -i ./clips/output/transcript.vtt
 
 # 6. Generate description with links
-video-tool video description \
+video-tool generate description \
   -i ./clips/output/transcript.vtt \
   --links \
   --code-link https://github.com/user/repo
 
 # 7. Upload to Bunny.net (video upload)
-video-tool bunny-video --video-path ./clips/output/final-video.mp4
+video-tool upload bunny-video --video-path ./clips/output/final-video.mp4
 
-# 10. Upload captions to Bunny.net
-video-tool bunny-transcript \
-  --video-id <video_id_from_step_9> \
+# 8. Upload captions to Bunny.net
+video-tool upload bunny-transcript \
+  --video-id <video_id_from_step_7> \
   --transcript-path ./clips/output/transcript.vtt
 
-# 11. Upload chapters to Bunny.net
-video-tool bunny-chapters \
-  --video-id <video_id_from_step_9> \
+# 9. Upload chapters to Bunny.net
+video-tool upload bunny-chapters \
+  --video-id <video_id_from_step_7> \
   --chapters-path ./clips/output/timestamps.json
 ```
 
@@ -896,10 +867,10 @@ Just need a transcript for an existing video or audio file:
 
 ```bash
 # From video
-video-tool video transcript --input ./my-video.mp4
+video-tool generate transcript --input ./my-video.mp4
 
 # From audio (faster, skips extraction)
-video-tool video transcript --input ./podcast.mp3
+video-tool generate transcript --input ./podcast.mp3
 ```
 
 ## Output Structure
@@ -981,15 +952,15 @@ VIDEO_PATH="$INPUT_DIR/output/${VIDEO_TITLE}.mp4"
 TRANSCRIPT_PATH="$INPUT_DIR/output/transcript.vtt"
 REPO_URL="https://github.com/user/repo"
 
-echo "Starting video processing pipeline..."
+echo "Starting video processing workflow..."
 
 video-tool video silence-removal --input "$INPUT_DIR/clip-01.mp4"
 video-tool video concat --input-dir "$INPUT_DIR" --output-path "$VIDEO_PATH" --fast-concat
-video-tool video timestamps --mode clips --input "$INPUT_DIR"
-video-tool video transcript --input "$VIDEO_PATH"
-video-tool video description -i "$TRANSCRIPT_PATH" --links --code-link "$REPO_URL"
+video-tool video timestamps --mode clips --input "$INPUT_DIR" --output-path "$INPUT_DIR/output/timestamps.json"
+video-tool generate transcript --input "$VIDEO_PATH" --output-path "$TRANSCRIPT_PATH"
+video-tool generate description -i "$TRANSCRIPT_PATH" --links --code-link "$REPO_URL"
 
-echo "Pipeline complete!"
+echo "Workflow complete!"
 ```
 
 ## Migration from Old CLI
@@ -1004,6 +975,6 @@ To migrate:
 
 - Old: `video-tool --manual` → New: Run individual commands as needed
 - Old: `video-tool --all` → New: Run commands in sequence (see workflows above)
-- Old: `video-tool --concat` → New: `video-tool concat`
+- Old: `video-tool --concat` → New: `video-tool video concat`
 
 The old `main_old.py` file contains the legacy implementation for reference.

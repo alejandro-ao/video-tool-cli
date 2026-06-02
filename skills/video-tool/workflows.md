@@ -4,7 +4,7 @@
 
 ```bash
 # Download
-video-tool video download -u "https://youtube.com/watch?v=XXX" -o ./downloads -n "my-video"
+video-tool video download -u "https://youtube.com/watch?v=XXX" -o ./downloads/my-video.mp4
 
 # Remove silence
 video-tool video silence-removal -i ./downloads/my-video.mp4 -o ./output/cleaned.mp4
@@ -69,16 +69,6 @@ video-tool video speed -i lecture.mp4 -o faster.mp4 -f 1.5 -p
 # Keep only 2:30 to 5:00
 video-tool video extract-segment -i full.mp4 -o clip.mp4 -s 00:02:30 -e 00:05:00
 ```
-
-## Full Pipeline (Non-Interactive)
-
-Process everything automatically:
-
-```bash
-video-tool pipeline -i ./clips/ -o ./output/ -t "Tutorial Video" -y
-```
-
-This runs: concat → timestamps → transcript → description → context cards
 
 ## Bunny.net CDN Upload
 

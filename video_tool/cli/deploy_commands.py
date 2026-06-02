@@ -430,7 +430,7 @@ def youtube_upload(
     """Upload video to YouTube (as draft by default).
 
     Example:
-        video-tool deploy youtube-upload -i ./output/final.mp4 --title "My Video" --privacy private
+        video-tool upload youtube-video -i ./output/final.mp4 --title "My Video" --privacy private
     """
     if not _check_youtube_credentials(profile):
         raise typer.Exit(1)
@@ -551,7 +551,7 @@ def youtube_metadata(
     """Update metadata for an existing YouTube video.
 
     Example:
-        video-tool deploy youtube-metadata --video-id VIDEO_ID --description-file ./output/description.md
+        video-tool upload youtube-metadata --video-id VIDEO_ID --description-file ./output/description.md
     """
     if not _check_youtube_credentials(profile):
         raise typer.Exit(1)
@@ -626,7 +626,7 @@ def youtube_transcript(
     """Upload captions/transcript to a YouTube video.
 
     Example:
-        video-tool deploy youtube-transcript --video-id VIDEO_ID --transcript-path ./output/transcript.vtt
+        video-tool upload youtube-transcript --video-id VIDEO_ID --transcript-path ./output/transcript.vtt
     """
     if not _check_youtube_credentials(profile):
         raise typer.Exit(1)

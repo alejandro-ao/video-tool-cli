@@ -375,20 +375,6 @@ video-tool upload linkedin --text-file post.md --video-path video.mp4
 | `--access-token` | Override access token |
 | `--author-urn` | Override author URN |
 
-### Full Pipeline
-
-Run complete workflow: concat → timestamps → transcript → content → optional upload.
-```bash
-video-tool pipeline -i ./clips/ -o ./output/ -t "Video Title" -y
-```
-| Option | Description |
-|--------|-------------|
-| `-f, --fast-concat` | Fast concatenation |
-| `--timestamps-from-clips` | Generate timestamps from clip names |
-| `-g, --granularity` | Timestamp detail level |
-| `--upload-bunny` | Upload to Bunny.net after processing |
-| `-y, --yes` | Non-interactive mode |
-
 ### Configuration
 
 ```bash

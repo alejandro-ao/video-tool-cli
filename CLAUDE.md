@@ -10,7 +10,7 @@ uv tool install --editable .
 
 # Run CLI
 video-tool --help
-video-tool pipeline  # non-interactive full workflow
+video-tool video concat --help
 
 # Tests
 pytest                              # all tests
@@ -20,7 +20,7 @@ pytest --cov=video_tool --cov=main  # with coverage
 
 ## Architecture
 
-**Entry points**: `main.py` → `video_tool/cli.py` (interactive CLI with 17+ commands)
+**Entry points**: `main.py` → `video_tool/cli` package (interactive CLI commands)
 
 **VideoProcessor (mixin pattern)** in `video_tool/video_processor/`:
 - `base.py`: Core config, LLM clients (OpenAI/Groq via native SDKs), loguru logging
@@ -32,12 +32,11 @@ pytest --cov=video_tool --cov=main  # with coverage
 - `processor.py`: Facade composing all mixins
 
 **CLI commands** (all support interactive prompts when args omitted):
-- Video: `silence-removal`, `concat`, `timestamps`, `extract-audio`, `thumbnail`, `enhance-audio`
+- Video: `download`, `silence-removal`, `concat`, `timestamps`, `extract-audio`, `enhance-audio`, `replace-audio`, `info`, `trim`, `extract-segment`, `cut`, `speed`
 - Generate: `transcript`, `description`, `context-cards`
 - Upload (Bunny): `bunny-video`, `bunny-transcript`, `bunny-chapters`
 - Upload (YouTube): `youtube-video`, `youtube-metadata`, `youtube-transcript`
-- Config: `keys`, `llm`, `youtube-auth`, `youtube-status`
-- Automation: `pipeline` (orchestrates full workflow)
+- Config: `keys`, `llm`, `youtube-auth`, `youtube-status`, `youtube-use`, `x-auth`
 
 **Outputs** go to `output/` subdirectory: `*.mp4`, `transcript.vtt`, `timestamps.json`, `description.md`, `keywords.txt`, social posts, `metadata.json`
 

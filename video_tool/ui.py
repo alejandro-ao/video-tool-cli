@@ -11,15 +11,13 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Dict, Iterator, List, Optional
 
 import questionary
 from questionary import Style as QStyle
 from rich.console import Console
-from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
 from rich.status import Status
-from rich.table import Table
 
 # Singleton console instance
 console = Console()
@@ -93,70 +91,16 @@ def step_info(message: str) -> None:
     console.print(f"[cyan]Info:[/cyan] {message}")
 
 
-def pipeline_header(title: str, config: Dict[str, Any]) -> None:
-    """Print a pipeline configuration panel.
-
-    Args:
-        title: Pipeline title
-        config: Configuration dictionary to display
-    """
-    table = Table(show_header=False, box=None, padding=(0, 2))
-    table.add_column("Key", style="dim")
-    table.add_column("Value")
-
-    for key, value in config.items():
-        table.add_row(key, str(value))
-
-    panel = Panel(table, title=f"[bold]{title}[/bold]", border_style="cyan")
-    console.print(panel)
-
-
-def pipeline_step(num: int, total: int, description: str) -> None:
-    """Print a pipeline step indicator.
-
-    Args:
-        num: Current step number
-        total: Total number of steps
-        description: Step description
-    """
-    console.print(f"\n[bold]Step {num}/{total}:[/bold] {description}")
-
-
-def pipeline_complete(output_dir: str | Path, artifacts: List[str]) -> None:
-    """Print a pipeline completion summary panel.
-
-    Args:
-        output_dir: Output directory path
-        artifacts: List of generated artifact filenames
-    """
-    content = f"[bold]Output:[/bold] {output_dir}\n\n[bold]Artifacts:[/bold]"
-    for artifact in artifacts:
-        content += f"\n  [green]{artifact}[/green]"
-
-    panel = Panel(content, title="[bold green]Pipeline Complete[/bold green]", border_style="green")
-    console.print(panel)
-
-
-def pipeline_error(message: str, step: Optional[str] = None) -> None:
-    """Print a pipeline error panel.
-
-    Args:
-        message: Error message
-        step: Optional step name where error occurred
-    """
-    content = message
-    if step:
-        content = f"[bold]Step:[/bold] {step}\n\n{content}"
-
-    panel = Panel(content, title="[bold red]Pipeline Failed[/bold red]", border_style="red")
-    console.print(panel)
-
-
 # --- Prompt helpers ---
 
 
 def normalize_path(raw: str) -> str:
-    """Normalize shell-style input paths (quotes / escaped spaces)."""
+    """Normalize shell-style path input without changing relative-path semantics.
+
+    This strips common shell quoting/escaping and expands ``~``. It intentionally
+    does not call ``resolve()`` so callers can decide what a relative path means
+    (for example, many output paths are relative to the input file/directory).
+    """
     trimmed = raw.strip()
     # Remove surrounding quotes if present
     if trimmed.startswith('"') and trimmed.endswith('"'):
@@ -165,8 +109,8 @@ def normalize_path(raw: str) -> str:
         trimmed = trimmed[1:-1]
     # Handle escaped spaces (shell passes these literally)
     trimmed = trimmed.replace("\\ ", " ")
-    # Expand user home directory and resolve to absolute path
-    return str(Path(trimmed).expanduser().resolve())
+    # Expand user home directory but preserve relative paths
+    return str(Path(trimmed).expanduser())
 
 
 def ask_path(prompt_text: str, required: bool = True) -> Optional[str]:

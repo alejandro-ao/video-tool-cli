@@ -1,6 +1,6 @@
 # Video Processing Tool
 
-Automate your YouTube production workflow end to end. Given a directory of source MP4 clips, the tool can clean the footage, join the clips, create chapter timestamps, transcribe the final video, and generate all supporting copy for publishing.
+Automate common YouTube production tasks with independent CLI commands. The tool can clean footage, join clips, create chapter timestamps, transcribe video/audio, generate publishing copy, and upload assets.
 
 ## Features
 - **Video download** from YouTube and 1000+ sites via yt-dlp
@@ -63,8 +63,8 @@ Automate your YouTube production workflow end to end. Given a directory of sourc
 
 ```
 video-tool config ...                # Configuration
-video-tool pipeline ...              # Full workflow (most common)
-video-tool video <command> ...       # Video processing + content generation
+video-tool video <command> ...       # Video processing commands
+video-tool generate <command> ...    # Transcripts and AI content generation
 video-tool upload <command> ...      # Bunny.net / YouTube uploads
 ```
 
@@ -75,13 +75,12 @@ video-tool upload <command> ...      # Bunny.net / YouTube uploads
    video-tool config keys
    ```
 
-2. Run the full pipeline:
+2. Run the commands you need, for example:
    ```bash
-   video-tool pipeline -i /path/to/clips
-   ```
-   Or use non-interactive mode:
-   ```bash
-   video-tool pipeline -i /path/to/clips --yes
+   video-tool video concat -i /path/to/clips -o ./output/final.mp4 --fast-concat
+   video-tool generate transcript -i ./output/final.mp4 -o ./output/transcript.vtt
+   video-tool video timestamps -m transcript -i ./output/transcript.vtt -o ./output/timestamps.json
+   video-tool generate description -i ./output/transcript.vtt -t ./output/timestamps.json -o ./output/description.md
    ```
 
 ### Download Videos
@@ -163,8 +162,8 @@ This tool is available as a [Claude Code](https://claude.ai/code) skill. Skills 
 - Upload to YouTube (private/unlisted) with metadata and captions
 - Upload to Bunny.net CDN (video, transcript, chapters)
 
-**Full Pipeline:**
-- Orchestrate entire workflow: concat → timestamps → transcript → content → upload
+**Workflow orchestration:**
+- Chain the individual commands you need for your production process.
 
 ### Example Prompts
 
