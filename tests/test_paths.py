@@ -98,19 +98,21 @@ class TestResolveOutputPath:
     def test_prompt_mode_when_output_none_and_prompt_true(self, tmp_path: Path) -> None:
         input_path = tmp_path / "project"
         input_path.mkdir()
+        custom_path = str(tmp_path / "custom" / "video.mp4")
 
-        with patch("video_tool.cli.paths.ask_path", return_value="/custom/path/video.mp4"):
+        with patch("video_tool.ui.ask_path", return_value=custom_path):
             result = resolve_output_path(
                 None, input_path, "default.mp4", prompt=True
             )
 
-        assert "video.mp4" in str(result)
+        assert result.name == "video.mp4"
 
     def test_prompt_mode_uses_default_when_user_empty(self, tmp_path: Path) -> None:
         input_path = tmp_path / "project"
         input_path.mkdir()
 
-        with patch("video_tool.cli.paths.ask_path", return_value=None):
+        # When ask_path returns empty string (user pressed Enter)
+        with patch("video_tool.ui.ask_path", return_value=""):
             result = resolve_output_path(
                 None, input_path, "default.mp4", prompt=True
             )
@@ -120,8 +122,9 @@ class TestResolveOutputPath:
     def test_prompt_mode_with_custom_text(self, tmp_path: Path) -> None:
         input_path = tmp_path / "project"
         input_path.mkdir()
+        ok_path = str(tmp_path / "output" / "video.mp4")
 
-        with patch("video_tool.cli.paths.ask_path", return_value="/output/video.mp4") as mock_ask:
+        with patch("video_tool.ui.ask_path", return_value=ok_path) as mock_ask:
             resolve_output_path(
                 None, input_path, "default.mp4",
                 prompt=True, prompt_text="Where should I save this?",
@@ -134,7 +137,7 @@ class TestResolveOutputPath:
         input_path = tmp_path / "project"
         input_path.mkdir()
 
-        with patch("video_tool.cli.paths.ask_path", return_value="relative/video.mp4"):
+        with patch("video_tool.ui.ask_path", return_value="relative/video.mp4"):
             result = resolve_output_path(
                 None, input_path, "default.mp4", prompt=True
             )
@@ -146,7 +149,7 @@ class TestResolveOutputPath:
         input_path.mkdir()
         absolute = tmp_path / "absolute" / "video.mp4"
 
-        with patch("video_tool.cli.paths.ask_path", return_value=str(absolute)):
+        with patch("video_tool.ui.ask_path", return_value=str(absolute)):
             result = resolve_output_path(
                 None, input_path, "default.mp4", prompt=True
             )

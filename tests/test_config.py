@@ -81,39 +81,44 @@ class TestCredentialKeysRegistry:
 
 
 class TestGetCredentialCurrentBehavior:
-    """Test get_credential behavior on the current branch (master).
+    """Test get_credential behavior.
 
-    On master, get_credential only checks credentials.yaml.
-    After the PR merge, it will also fall back to env vars.
+    get_credential checks credentials.yaml first, then falls back to
+    environment variables (this behavior was added by the PR).
     """
 
     def test_returns_credential_from_yaml(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr("video_tool.config.CREDENTIALS_PATH", tmp_path / "creds.yaml")
         save_credentials({"openai_api_key": "sk-test12345678"})
-        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        # Even with env var set, yaml should take precedence
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-from-env-should-not-win")
         result = get_credential("openai_api_key")
         assert result == "sk-test12345678"
 
-    def test_returns_none_when_key_missing_from_yaml(
+    def test_returns_none_when_key_missing_everywhere(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr("video_tool.config.CREDENTIALS_PATH", tmp_path / "creds.yaml")
+        # Clear the env var too
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         result = get_credential("openai_api_key")
         assert result is None
 
-    def test_returns_none_for_invalid_credential(
+    def test_invalid_credential_in_yaml_falls_back_to_env(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr("video_tool.config.CREDENTIALS_PATH", tmp_path / "creds.yaml")
         save_credentials({"openai_api_key": "..."})  # Invalid per _is_valid_credential
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-valid-fallback-key")
         result = get_credential("openai_api_key")
-        assert result is None
+        assert result == "sk-valid-fallback-key"
 
-    def test_returns_none_for_unknown_key(
+    def test_returns_none_for_unknown_key_even_with_env(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr("video_tool.config.CREDENTIALS_PATH", tmp_path / "creds.yaml")
-        result = get_credential("nonexistent_key")
+        # Unknown key has no env var mapping, so should always return None
+        result = get_credential("totally_unknown_key_xyz")
         assert result is None
 
 

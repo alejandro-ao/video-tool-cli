@@ -25,12 +25,15 @@ def _make_http_error_response(status: int):
     return response
 
 
-def test_deploy_to_bunny_requires_credentials(mock_video_processor, temp_dir):
+def test_deploy_to_bunny_requires_credentials(mock_video_processor, temp_dir, monkeypatch):
     """Ensure missing credentials short-circuit the upload step."""
     video_path = temp_dir / "output" / "final.mp4"
     video_path.write_bytes(b"\x00\x00test")
 
-    with patch("video_tool.video_processor.deployment.requests.request") as mock_request:
+    monkeypatch.delenv("BUNNY_LIBRARY_ID", raising=False)
+    monkeypatch.delenv("BUNNY_ACCESS_KEY", raising=False)
+    with patch("video_tool.video_processor.deployment.get_credential", return_value=None), \
+         patch("video_tool.video_processor.deployment.requests.request") as mock_request:
         result = mock_video_processor.deploy_to_bunny(
             str(video_path),
             upload_video=True,
