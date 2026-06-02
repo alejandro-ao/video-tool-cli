@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, cast
@@ -244,7 +243,7 @@ def bunny_transcript(
 ) -> None:
     """Upload transcript captions to a Bunny.net video."""
     # Resolve video ID
-    vid_id = video_id or os.getenv("BUNNY_VIDEO_ID")
+    vid_id = video_id or get_credential("bunny_video_id")
     if not vid_id:
         vid_id = ask_text("Bunny Video ID", required=True)
 
@@ -262,7 +261,7 @@ def bunny_transcript(
         step_error(f"Invalid transcript file: {transcript_file}")
         raise typer.Exit(1)
 
-    lang = (language or os.getenv("BUNNY_CAPTION_LANGUAGE") or "en").strip()
+    lang = (language or get_credential("bunny_caption_language") or "en").strip()
 
     step_start(
         "Uploading transcript to Bunny.net",
@@ -295,7 +294,7 @@ def bunny_chapters(
 ) -> None:
     """Upload chapter metadata to a Bunny.net video."""
     # Resolve video ID
-    vid_id = video_id or os.getenv("BUNNY_VIDEO_ID")
+    vid_id = video_id or get_credential("bunny_video_id")
     if not vid_id:
         vid_id = ask_text("Bunny Video ID", required=True)
 
