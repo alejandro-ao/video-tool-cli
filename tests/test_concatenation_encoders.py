@@ -6,6 +6,7 @@ _detect_gpu_encoder lives in editing.py. After the PR merge, concatenation.py
 also imports it. These tests work on both branches.
 """
 
+import json
 import subprocess
 from unittest.mock import patch, MagicMock
 
@@ -38,6 +39,20 @@ class TestDetectGPUEncoder:
         mock_run.return_value.returncode = 0
         result = _detect_gpu_encoder()
         assert result == "h264_nvenc"
+
+    @patch("subprocess.run")
+    @patch("platform.system", return_value="Linux")
+    def test_linux_hevc_nvenc_available(self, mock_system, mock_run) -> None:
+        mock_run.return_value.returncode = 0
+        result = _detect_gpu_encoder("hevc")
+        assert result == "hevc_nvenc"
+
+    @patch("subprocess.run")
+    @patch("platform.system", return_value="Darwin")
+    def test_macos_hevc_videotoolbox_available(self, mock_system, mock_run) -> None:
+        mock_run.return_value.returncode = 0
+        result = _detect_gpu_encoder("h265")
+        assert result == "hevc_videotoolbox"
 
     @patch("subprocess.run")
     @patch("platform.system", return_value="Windows")
@@ -118,6 +133,50 @@ class TestEncoderMappingLogic:
         codec_to_nvenc = {"h264": "h264_nvenc", "h265": "hevc_nvenc"}
         assert codec_to_nvenc["h264"] == "h264_nvenc"
         assert codec_to_nvenc["h265"] == "hevc_nvenc"
+
+
+class TestConcatenationEncoderSelection:
+    """Test encoder choices in concatenation operations."""
+
+    @patch("video_tool.video_processor.concatenation._detect_gpu_encoder", return_value="h264_nvenc")
+    @patch("video_tool.video_processor.concatenation.subprocess.run")
+    def test_match_video_encoding_uses_detected_h264_encoder(
+        self, mock_run, mock_detect, tmp_path
+    ) -> None:
+        """Linux/Windows GPU detection should not emit macOS VideoToolbox encoders."""
+        source_file = tmp_path / "source.mp4"
+        reference_file = tmp_path / "reference.mp4"
+        source_file.write_bytes(b"source")
+        reference_file.write_bytes(b"reference")
+
+        video_probe = MagicMock()
+        video_probe.stdout = json.dumps(
+            {
+                "streams": [
+                    {
+                        "codec_name": "h264",
+                        "width": 1920,
+                        "height": 1080,
+                        "r_frame_rate": "30/1",
+                        "bit_rate": "1000000",
+                    }
+                ]
+            }
+        )
+        audio_probe = MagicMock()
+        audio_probe.stdout = json.dumps({"streams": []})
+        ffmpeg_result = MagicMock(returncode=0)
+        mock_run.side_effect = [video_probe, audio_probe, ffmpeg_result]
+
+        from video_tool.video_processor import VideoProcessor
+        with patch.object(VideoProcessor, "_load_prompts", return_value={}):
+            processor = VideoProcessor(str(tmp_path))
+
+        processor.match_video_encoding(str(source_file), str(reference_file))
+
+        ffmpeg_cmd = mock_run.call_args_list[-1].args[0]
+        assert "h264_nvenc" in ffmpeg_cmd
+        assert "h264_videotoolbox" not in ffmpeg_cmd
 
 
 class TestEditingGPUIntegration:
