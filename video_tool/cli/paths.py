@@ -33,7 +33,12 @@ def resolve_output_path(
         prompt: If True and output_path is None, prompt interactively.
         prompt_text: Override prompt text.
     Returns:
-        An absolute Path ready for use.
+        A Path ready for use. It is absolute only when ``input_path`` is
+        absolute; relative inputs are anchored to ``input_path`` without calling
+        ``resolve()``.
+
+    Side effects:
+        Creates the parent directory of the resolved path if needed.
     """
     if output_path is not None:
         resolved = Path(normalize_path(str(output_path)))
