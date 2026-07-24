@@ -30,6 +30,7 @@ from video_tool.ui import (
     step_warning,
 )
 from video_tool.video_processor.constants import SUPPORTED_VIDEO_SUFFIXES, SUPPORTED_AUDIO_SUFFIXES
+from video_tool.cli.paths import resolve_output_path
 from video_tool.metadata import read_metadata, write_metadata
 
 SUPPORTED_VIDEO_LABEL = ", ".join(ext.lstrip(".").upper() for ext in SUPPORTED_VIDEO_SUFFIXES)
@@ -95,24 +96,15 @@ def silence_removal(
         step_error(f"Invalid input file: {input_path}")
         raise typer.Exit(1)
 
-    # Resolve output path
-    if output_path:
-        final_output_path = Path(normalize_path(str(output_path)))
-        if not final_output_path.is_absolute():
-            final_output_path = input_path.parent / final_output_path
-    else:
-        # Interactive: prompt for path, auto-generate if empty
-        default_output = f"{input_path.stem}_no_silence.mp4"
-        output_path_str = ask_path(f"Output file path (defaults to {default_output})", required=False)
-        if output_path_str:
-            final_output_path = Path(output_path_str)
-            if not final_output_path.is_absolute():
-                final_output_path = input_path.parent / final_output_path
-        else:
-            final_output_path = input_path.parent / default_output
-
-    if final_output_path.suffix.lower() != ".mp4":
-        final_output_path = final_output_path.with_suffix(".mp4")
+    default_output = f"{input_path.stem}_no_silence.mp4"
+    final_output_path = resolve_output_path(
+        output_path,
+        input_path.parent,
+        default_name=default_output,
+        suffix=".mp4",
+        prompt=True,
+        prompt_text=f"Output file path (defaults to {default_output})",
+    )
 
     step_start("Removing silences", {
         "Input": str(input_path),
@@ -149,26 +141,16 @@ def concat(
         raise typer.Exit(1)
 
     # Resolve output path (relative paths resolve to input_dir)
-    if output_path:
-        final_output_path = Path(normalize_path(str(output_path)))
-        if not final_output_path.is_absolute():
-            final_output_path = input_dir / final_output_path
-        if final_output_path.suffix.lower() != ".mp4":
-            final_output_path = final_output_path.with_suffix(".mp4")
-    else:
-        # Interactive: prompt for path, auto-generate if empty
-        output_path_str = ask_path("Output file path (.mp4, defaults to input dir)", required=False)
-        if output_path_str:
-            final_output_path = Path(output_path_str)
-            if not final_output_path.is_absolute():
-                final_output_path = input_dir / final_output_path
-            if final_output_path.suffix.lower() != ".mp4":
-                final_output_path = final_output_path.with_suffix(".mp4")
-        else:
-            # Auto-generate with timestamp
-            from datetime import datetime
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            final_output_path = input_dir / "output" / f"concat_{timestamp}.mp4"
+    from datetime import datetime
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    final_output_path = resolve_output_path(
+        output_path,
+        input_dir,
+        default_name=f"output/concat_{timestamp}.mp4",
+        suffix=".mp4",
+        prompt=True,
+        prompt_text="Output file path (.mp4, defaults to input dir)",
+    )
 
     output_dir_path = final_output_path.parent
     video_title = final_output_path.stem  # Derive title from filename
@@ -281,21 +263,14 @@ def timestamps(
         base_dir = input_path.parent
 
     # 5. Resolve output path
-    if output_path:
-        final_output_path = Path(normalize_path(str(output_path)))
-        if not final_output_path.is_absolute():
-            final_output_path = base_dir / final_output_path
-    else:
-        output_path_str = ask_path("Output JSON path (defaults to timestamps.json)", required=False)
-        if output_path_str:
-            final_output_path = Path(output_path_str)
-            if not final_output_path.is_absolute():
-                final_output_path = base_dir / final_output_path
-        else:
-            final_output_path = base_dir / "timestamps.json"
-
-    if final_output_path.suffix.lower() != ".json":
-        final_output_path = final_output_path.with_suffix(".json")
+    final_output_path = resolve_output_path(
+        output_path,
+        base_dir,
+        default_name="timestamps.json",
+        suffix=".json",
+        prompt=True,
+        prompt_text="Output JSON path (defaults to timestamps.json)",
+    )
 
     # 6. Get granularity (transcript mode only)
     final_granularity = "medium"
@@ -373,25 +348,15 @@ def extract_audio(
         raise typer.Exit(1)
 
     # 3. Resolve output path
-    if output_path:
-        final_output_path = Path(normalize_path(str(output_path)))
-        if not final_output_path.is_absolute():
-            final_output_path = input_path.parent / final_output_path
-    else:
-        default_output = f"{input_path.stem}.mp3"
-        output_path_str = ask_path(f"Output MP3 path (defaults to {default_output})", required=False)
-        if output_path_str:
-            final_output_path = Path(output_path_str)
-            if not final_output_path.is_absolute():
-                final_output_path = input_path.parent / final_output_path
-        else:
-            final_output_path = input_path.parent / default_output
-
-    if final_output_path.suffix.lower() != ".mp3":
-        final_output_path = final_output_path.with_suffix(".mp3")
-
-    # Ensure output directory exists
-    final_output_path.parent.mkdir(parents=True, exist_ok=True)
+    default_output = f"{input_path.stem}.mp3"
+    final_output_path = resolve_output_path(
+        output_path,
+        input_path.parent,
+        default_name=default_output,
+        suffix=".mp3",
+        prompt=True,
+        prompt_text=f"Output MP3 path (defaults to {default_output})",
+    )
 
     # 4. Extract audio
     step_start("Extracting audio", {
@@ -458,27 +423,16 @@ def enhance_audio_cmd(
         step_error(f"Unsupported format: {suffix}. Use video ({SUPPORTED_VIDEO_LABEL}) or audio ({SUPPORTED_AUDIO_LABEL})")
         raise typer.Exit(1)
 
-    # 4. Resolve output path
-    if output_path:
-        final_output_path = Path(normalize_path(str(output_path)))
-        if not final_output_path.is_absolute():
-            final_output_path = input_path.parent / final_output_path
-    else:
-        default_output = f"{input_path.stem}_enhanced{input_path.suffix}"
-        output_path_str = ask_path(f"Output path (defaults to {default_output})", required=False)
-        if output_path_str:
-            final_output_path = Path(output_path_str)
-            if not final_output_path.is_absolute():
-                final_output_path = input_path.parent / final_output_path
-        else:
-            final_output_path = input_path.parent / default_output
-
-    # Ensure output has same extension as input
-    if final_output_path.suffix.lower() != suffix:
-        final_output_path = final_output_path.with_suffix(suffix)
-
-    # Ensure output directory exists
-    final_output_path.parent.mkdir(parents=True, exist_ok=True)
+    # 4. Resolve output path (keeps the input extension)
+    default_output = f"{input_path.stem}_enhanced{input_path.suffix}"
+    final_output_path = resolve_output_path(
+        output_path,
+        input_path.parent,
+        default_name=default_output,
+        suffix=suffix,
+        prompt=True,
+        prompt_text=f"Output path (defaults to {default_output})",
+    )
 
     # 5. Process
     step_start("Enhancing audio", {
@@ -689,31 +643,21 @@ def replace_audio(
         step_error(f"Unsupported audio format: {audio_suffix}. Use: {SUPPORTED_AUDIO_LABEL}")
         raise typer.Exit(1)
 
-    # 5. Resolve output path
-    if output_path:
-        final_output_path = Path(normalize_path(str(output_path)))
-        if not final_output_path.is_absolute():
-            final_output_path = video_path.parent / final_output_path
-    else:
-        default_output = f"{video_path.stem}_replaced{video_suffix}"
-        output_path_str = ask_path(f"Output path (defaults to {default_output})", required=False)
-        if output_path_str:
-            final_output_path = Path(output_path_str)
-            if not final_output_path.is_absolute():
-                final_output_path = video_path.parent / final_output_path
-        else:
-            final_output_path = video_path.parent / default_output
-
-    # Match input video extension
-    if final_output_path.suffix.lower() != video_suffix:
-        final_output_path = final_output_path.with_suffix(video_suffix)
+    # 5. Resolve output path (matches input video extension)
+    default_output = f"{video_path.stem}_replaced{video_suffix}"
+    final_output_path = resolve_output_path(
+        output_path,
+        video_path.parent,
+        default_name=default_output,
+        suffix=video_suffix,
+        prompt=True,
+        prompt_text=f"Output path (defaults to {default_output})",
+    )
 
     # Guard against in-place overwrite
     if final_output_path.resolve() == video_path.resolve():
         step_error("Output path must be different from the input video")
         raise typer.Exit(1)
-
-    final_output_path.parent.mkdir(parents=True, exist_ok=True)
 
     # 6. Check duration mismatch
     video_duration = _get_media_duration(video_path)
@@ -845,24 +789,15 @@ def video_trim(
         raise typer.Exit(1)
 
     # 4. Resolve output path
-    if output_path:
-        final_output_path = Path(normalize_path(str(output_path)))
-        if not final_output_path.is_absolute():
-            final_output_path = input_path.parent / final_output_path
-    else:
-        default_output = f"{input_path.stem}_trimmed.mp4"
-        output_path_str = ask_path(f"Output path (defaults to {default_output})", required=False)
-        if output_path_str:
-            final_output_path = Path(output_path_str)
-            if not final_output_path.is_absolute():
-                final_output_path = input_path.parent / final_output_path
-        else:
-            final_output_path = input_path.parent / default_output
-
-    if final_output_path.suffix.lower() != ".mp4":
-        final_output_path = final_output_path.with_suffix(".mp4")
-
-    final_output_path.parent.mkdir(parents=True, exist_ok=True)
+    default_output = f"{input_path.stem}_trimmed.mp4"
+    final_output_path = resolve_output_path(
+        output_path,
+        input_path.parent,
+        default_name=default_output,
+        suffix=".mp4",
+        prompt=True,
+        prompt_text=f"Output path (defaults to {default_output})",
+    )
 
     # 5. Trim video
     step_info = {
@@ -927,24 +862,15 @@ def video_extract_segment(
         end = ask_text("End time", required=True)
 
     # 4. Resolve output path
-    if output_path:
-        final_output_path = Path(normalize_path(str(output_path)))
-        if not final_output_path.is_absolute():
-            final_output_path = input_path.parent / final_output_path
-    else:
-        default_output = f"{input_path.stem}_segment.mp4"
-        output_path_str = ask_path(f"Output path (defaults to {default_output})", required=False)
-        if output_path_str:
-            final_output_path = Path(output_path_str)
-            if not final_output_path.is_absolute():
-                final_output_path = input_path.parent / final_output_path
-        else:
-            final_output_path = input_path.parent / default_output
-
-    if final_output_path.suffix.lower() != ".mp4":
-        final_output_path = final_output_path.with_suffix(".mp4")
-
-    final_output_path.parent.mkdir(parents=True, exist_ok=True)
+    default_output = f"{input_path.stem}_segment.mp4"
+    final_output_path = resolve_output_path(
+        output_path,
+        input_path.parent,
+        default_name=default_output,
+        suffix=".mp4",
+        prompt=True,
+        prompt_text=f"Output path (defaults to {default_output})",
+    )
 
     # 5. Extract segment
     step_info = {
@@ -1007,24 +933,15 @@ def video_cut(
         cut_to = ask_text("End of segment to remove (--to)", required=True)
 
     # 4. Resolve output path
-    if output_path:
-        final_output_path = Path(normalize_path(str(output_path)))
-        if not final_output_path.is_absolute():
-            final_output_path = input_path.parent / final_output_path
-    else:
-        default_output = f"{input_path.stem}_cut.mp4"
-        output_path_str = ask_path(f"Output path (defaults to {default_output})", required=False)
-        if output_path_str:
-            final_output_path = Path(output_path_str)
-            if not final_output_path.is_absolute():
-                final_output_path = input_path.parent / final_output_path
-        else:
-            final_output_path = input_path.parent / default_output
-
-    if final_output_path.suffix.lower() != ".mp4":
-        final_output_path = final_output_path.with_suffix(".mp4")
-
-    final_output_path.parent.mkdir(parents=True, exist_ok=True)
+    default_output = f"{input_path.stem}_cut.mp4"
+    final_output_path = resolve_output_path(
+        output_path,
+        input_path.parent,
+        default_name=default_output,
+        suffix=".mp4",
+        prompt=True,
+        prompt_text=f"Output path (defaults to {default_output})",
+    )
 
     # 5. Cut video
     step_info = {
@@ -1094,25 +1011,16 @@ def video_speed(
         raise typer.Exit(1)
 
     # 4. Resolve output path
-    if output_path:
-        final_output_path = Path(normalize_path(str(output_path)))
-        if not final_output_path.is_absolute():
-            final_output_path = input_path.parent / final_output_path
-    else:
-        speed_label = f"{factor}x".replace(".", "_")
-        default_output = f"{input_path.stem}_{speed_label}.mp4"
-        output_path_str = ask_path(f"Output path (defaults to {default_output})", required=False)
-        if output_path_str:
-            final_output_path = Path(output_path_str)
-            if not final_output_path.is_absolute():
-                final_output_path = input_path.parent / final_output_path
-        else:
-            final_output_path = input_path.parent / default_output
-
-    if final_output_path.suffix.lower() != ".mp4":
-        final_output_path = final_output_path.with_suffix(".mp4")
-
-    final_output_path.parent.mkdir(parents=True, exist_ok=True)
+    speed_label = f"{factor}x".replace(".", "_")
+    default_output = f"{input_path.stem}_{speed_label}.mp4"
+    final_output_path = resolve_output_path(
+        output_path,
+        input_path.parent,
+        default_name=default_output,
+        suffix=".mp4",
+        prompt=True,
+        prompt_text=f"Output path (defaults to {default_output})",
+    )
 
     # 5. Change speed
     step_info = {

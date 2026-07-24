@@ -20,6 +20,7 @@ from video_tool.ui import (
     step_start,
     step_warning,
 )
+from video_tool.cli.paths import resolve_output_path
 from video_tool.metadata import read_metadata, write_metadata
 from video_tool.video_processor.constants import (
     SUPPORTED_VIDEO_SUFFIXES,
@@ -72,21 +73,14 @@ def transcript(
     base_dir = input_path.parent
 
     # 3. Resolve output path
-    if output_path:
-        final_output_path = Path(normalize_path(str(output_path)))
-        if not final_output_path.is_absolute():
-            final_output_path = base_dir / final_output_path
-    else:
-        output_path_str = ask_path("Output VTT path (defaults to transcript.vtt)", required=False)
-        if output_path_str:
-            final_output_path = Path(output_path_str)
-            if not final_output_path.is_absolute():
-                final_output_path = base_dir / final_output_path
-        else:
-            final_output_path = base_dir / "transcript.vtt"
-
-    if final_output_path.suffix.lower() != ".vtt":
-        final_output_path = final_output_path.with_suffix(".vtt")
+    final_output_path = resolve_output_path(
+        output_path,
+        base_dir,
+        default_name="transcript.vtt",
+        suffix=".vtt",
+        prompt=True,
+        prompt_text="Output VTT path (defaults to transcript.vtt)",
+    )
 
     # 4. Generate transcript
     step_start("Generating transcript", {
