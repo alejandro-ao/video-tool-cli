@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 from typing import List, Optional
 
 import typer
@@ -143,6 +144,14 @@ def main_callback(
     """Video processing toolkit with AI-powered content generation."""
     global _verbose
     _verbose = verbose
+
+    # Load credentials from a .env file in the working directory, if
+    # present (does not override variables that are already exported).
+    from dotenv import load_dotenv
+
+    dotenv_path = Path.cwd() / ".env"
+    if dotenv_path.is_file():
+        load_dotenv(dotenv_path)
 
     # Configure logging based on verbose flag
     configure_logging(verbose=verbose)
