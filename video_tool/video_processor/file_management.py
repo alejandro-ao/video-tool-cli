@@ -22,8 +22,8 @@ class FileManagementMixin:
             csv_writer.writerow(["creation_date", "video_title", "duration_minutes"])
 
             for root, dirs, files in os.walk(self.input_dir):
-                dirs[:] = [d for d in dirs if not d.endswith(".screenstudio")]
-                for filename in files:
+                dirs[:] = sorted(d for d in dirs if not d.endswith(".screenstudio"))
+                for filename in sorted(files):
                     file_path = Path(root) / filename
                     if is_supported_video_file(file_path):
                         creation_date, video_title, duration_minutes = self.get_video_metadata(str(file_path))
