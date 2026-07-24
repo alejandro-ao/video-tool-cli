@@ -35,7 +35,7 @@ def test_generate_transcript_help():
     """Verify transcript command help."""
     result = runner.invoke(app, ["generate", "transcript", "--help"])
     assert result.exit_code == 0
-    assert "Groq Whisper" in result.stdout
+    assert "local model or Groq Whisper" in result.stdout
     assert "--input" in result.stdout or "-i" in result.stdout
 
 
@@ -58,12 +58,16 @@ def test_generate_context_cards_help():
 
 
 @pytest.mark.unit
-def test_generate_transcript_requires_groq_key():
-    """Verify transcript command checks for Groq API key."""
-    with patch("video_tool.cli.get_credential", return_value=None):
-        result = runner.invoke(app, ["generate", "transcript", "-i", "test.mp4"])
+def test_generate_transcript_requires_groq_key(tmp_path):
+    """Explicit Groq selection checks for its API key."""
+    video = tmp_path / "test.mp4"
+    video.write_bytes(b"fake")
+    with patch("video_tool.cli.generate_commands.ensure_groq_key", return_value=False):
+        result = runner.invoke(
+            app,
+            ["generate", "transcript", "-i", str(video), "--model", "groq/whisper-large-v3-turbo"],
+        )
         assert result.exit_code == 1
-        assert "Groq API key" in result.stdout or "groq" in result.stdout.lower()
 
 
 @pytest.mark.unit
@@ -103,7 +107,7 @@ def test_generate_transcript_happy_path(tmp_path):
     ):
         instance = mock_processor.return_value
 
-        def fake_transcript(video_path, output_path):
+        def fake_transcript(video_path, output_path, **kwargs):
             # The real processor writes the VTT file it returns
             with open(output_path, "w", encoding="utf-8") as f:
                 f.write("WEBVTT\n\n00:00:00.000 --> 00:00:05.000\nHello")
@@ -114,7 +118,15 @@ def test_generate_transcript_happy_path(tmp_path):
         result = runner.invoke(app, ["generate", "transcript", "-i", str(video), "-o", str(output)])
 
     assert result.exit_code == 0, result.stdout
-    instance.generate_transcript.assert_called_once_with(video_path=str(video), output_path=str(output))
+    instance.generate_transcript.assert_called_once_with(
+        video_path=str(video),
+        output_path=str(output),
+        backend="auto",
+        model="auto",
+        language="auto",
+        device="auto",
+        compute_type="auto",
+    )
 
     metadata = json.loads((tmp_path / "metadata.json").read_text())
     assert metadata["transcript_format"] == "vtt"

@@ -9,7 +9,7 @@ import typer
 from video_tool import VideoProcessor
 from video_tool.cli import ensure_groq_key, ensure_openai_key, generate_app
 from video_tool.cli.paths import resolve_output_path
-from video_tool.config import ensure_config, get_links, get_llm_config, prompt_links_setup
+from video_tool.config import ensure_config, get_links, get_llm_config, get_transcription_config, prompt_links_setup
 from video_tool.metadata import read_metadata, write_metadata
 from video_tool.ui import (
     ask_path,
@@ -43,9 +43,22 @@ def _find_supported_videos(directory: Path) -> list[Path]:
 def transcript(
     input_path: Path | None = typer.Option(None, "--input", "-i", help="Input video or audio file"),
     output_path: Path | None = typer.Option(None, "--output-path", "-o", help="Output VTT file path"),
+    backend: str = typer.Option(
+        "auto", "--backend", help="Backend: auto, groq, MLX, faster-whisper, Transformers, or NeMo"
+    ),
+    model: str = typer.Option("auto", "--model", "-m", help="Registered transcription model ID"),
+    language: str = typer.Option("auto", "--language", help="Language code; Parakeet is English-only"),
+    device: str = typer.Option("auto", "--device", help="Device: auto, cpu, mps, or cuda"),
+    compute_type: str = typer.Option("auto", "--compute-type", help="Runtime precision, such as float16 or int8"),
 ) -> None:
-    """Generate VTT transcript from video or audio using Groq Whisper."""
-    if not ensure_groq_key():
+    """Generate a VTT transcript using a local model or Groq Whisper."""
+    configured = get_transcription_config()
+    selected_backend = backend if backend != "auto" else configured.backend
+    selected_model = model if model != "auto" else configured.model
+    selected_language = language if language != "auto" else configured.language
+    selected_device = device if device != "auto" else configured.device
+    selected_compute_type = compute_type if compute_type != "auto" else configured.compute_type
+    if (selected_backend == "groq" or selected_model.startswith("groq/")) and not ensure_groq_key():
         raise typer.Exit(1)
 
     # 1. Get input path
@@ -89,6 +102,8 @@ def transcript(
             "Input": str(input_path),
             "Type": "audio" if is_audio else "video",
             "Output": str(final_output_path),
+            "Backend": selected_backend,
+            "Model": selected_model,
         },
     )
 
@@ -97,13 +112,21 @@ def transcript(
         transcript_result = processor.generate_transcript(
             video_path=str(input_path),
             output_path=str(final_output_path),
+            backend=selected_backend,
+            model=selected_model,
+            language=selected_language,
+            device=selected_device,
+            compute_type=selected_compute_type,
         )
 
+    if not transcript_result:
+        step_error("Transcript generation failed")
+        raise typer.Exit(1)
     step_complete("Transcript generated", transcript_result)
-    _update_transcript_metadata(transcript_result)
+    _update_transcript_metadata(transcript_result, getattr(processor, "last_transcription", None))
 
 
-def _update_transcript_metadata(transcript_path: str) -> None:
+def _update_transcript_metadata(transcript_path: str, result: object | None = None) -> None:
     """Update metadata.json with transcript info."""
     transcript_file = Path(transcript_path)
     metadata_path = transcript_file.parent / "metadata.json"
@@ -116,6 +139,13 @@ def _update_transcript_metadata(transcript_path: str) -> None:
     existing = read_metadata(metadata_path) or {}
     existing["transcript"] = transcript_content
     existing["transcript_format"] = transcript_file.suffix.lstrip(".").lower()
+    if result is not None and isinstance(getattr(result, "backend", None), str):
+        existing["transcription"] = {
+            "backend": result.backend,
+            "model": result.model,
+            "language": result.language,
+            "local": result.backend != "groq",
+        }
     write_metadata(metadata_path, existing)
 
 
@@ -163,10 +193,6 @@ def description(
     # Always need OpenAI for LLM description generation
     if not ensure_openai_key():
         raise typer.Exit(1)
-    # Need Groq if we have media file (will generate transcript)
-    if media_file and not ensure_groq_key():
-        raise typer.Exit(1)
-
     # Determine default output path
     default_output_path = input_path.parent / "description.md"
 
@@ -317,10 +343,6 @@ def context_cards(
     # Always need OpenAI for LLM context card generation
     if not ensure_openai_key():
         raise typer.Exit(1)
-    # Need Groq if we have media file (will generate transcript)
-    if media_file and not ensure_groq_key():
-        raise typer.Exit(1)
-
     # Determine default output path
     default_output_path = input_path.parent / "context-cards.md"
 

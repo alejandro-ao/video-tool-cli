@@ -22,15 +22,18 @@ from video_tool.config import (
     clear_credentials,
     get_credential,
     get_llm_config,
+    get_transcription_config,
     load_config,
     load_credentials,
     mask_credential,
     prompt_and_save_credential,
     prompt_links_setup,
     reset_config,
+    reset_transcription_config,
     save_credentials,
     set_credential,
     set_llm_config,
+    set_transcription_config,
 )
 from video_tool.logging_config import configure_logging
 from video_tool.ui import console, step_complete, step_error, step_start
@@ -109,10 +112,10 @@ class _KeySpec:
 
 _REQUIRED_KEY_SPECS = [
     _KeySpec("openai_api_key", "OpenAI API Key", True, signup_url="https://platform.openai.com/api-keys"),
-    _KeySpec("groq_api_key", "Groq API Key", True, signup_url="https://console.groq.com/keys"),
 ]
 
 _OPTIONAL_KEY_SPECS = [
+    _KeySpec("groq_api_key", "Groq API Key", False, signup_url="https://console.groq.com/keys"),
     _KeySpec("bunny_library_id", "Bunny Library ID", False, hide_input=False),
     _KeySpec("bunny_access_key", "Bunny Access Key", False),
     _KeySpec(
@@ -194,12 +197,8 @@ def ensure_groq_key() -> bool:
 
 
 def validate_ai_env_vars() -> bool:
-    """Ensure required AI API keys exist, prompting if needed."""
-    if not ensure_openai_key():
-        return False
-    if not ensure_groq_key():
-        return False
-    return True
+    """Ensure the content-generation API key exists."""
+    return ensure_openai_key()
 
 
 def validate_bunny_env_vars(
@@ -272,6 +271,59 @@ def config_llm_command(
     console.print("  --base-url, -b TEXT Set base URL")
     console.print("  --links, -l         Manage persistent links")
     console.print("  --reset             Reset to defaults")
+
+
+@config_app.command("transcription")
+def config_transcription_command(
+    show: bool = typer.Option(False, "--show", "-s", help="Show transcription settings"),
+    list_available: bool = typer.Option(False, "--list-models", help="List supported models"),
+    recommend: bool = typer.Option(False, "--recommend", help="Recommend a model for this system"),
+    backend: str | None = typer.Option(None, "--backend", help="Set the transcription backend"),
+    model: str | None = typer.Option(None, "--model", "-m", help="Set a registered model ID"),
+    language: str | None = typer.Option(None, "--language", help="Set the default language code"),
+    device: str | None = typer.Option(None, "--device", help="Set auto, cpu, mps, or cuda"),
+    compute_type: str | None = typer.Option(None, "--compute-type", help="Set model precision"),
+    reset: bool = typer.Option(False, "--reset", help="Reset to automatic selection"),
+) -> None:
+    """Configure local or remote transcription models."""
+    from video_tool.transcription import list_models, recommend_model, resolve_model
+
+    if reset:
+        reset_transcription_config()
+        step_complete("Transcription settings reset", "Automatic model selection")
+        return
+    if list_available:
+        console.print("\n[bold]Transcription models[/bold]")
+        for item in list_models():
+            location = "local" if item.local else "remote"
+            console.print(f"  [cyan]{item.id}[/cyan] ({location}) - {item.description}")
+        return
+    if recommend:
+        choice = recommend_model(language=language)
+        console.print(f"\n[bold green]Recommended:[/bold green] {choice.model_id}")
+        for reason in choice.reasons:
+            console.print(f"  • {reason}")
+        return
+    if model is not None:
+        resolve_model(model)
+    updates = {
+        "backend": backend,
+        "model": model,
+        "language": language,
+        "device": device,
+        "compute_type": compute_type,
+    }
+    if any(value is not None for value in updates.values()):
+        set_transcription_config(**updates)
+        step_complete("Transcription settings saved", str(CONFIG_PATH))
+        return
+    if show:
+        settings = get_transcription_config()
+        console.print("\n[bold]Transcription settings[/bold]")
+        for key, value in vars(settings).items():
+            console.print(f"  {key}: [cyan]{value}[/cyan]")
+        return
+    console.print("Usage: video-tool config transcription [--show|--list-models|--recommend|OPTIONS]")
 
 
 @config_app.command("keys")
