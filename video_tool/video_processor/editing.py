@@ -10,7 +10,7 @@ import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from .shared import logger
+from loguru import logger
 
 
 def _detect_gpu_encoder(codec: str = "h264") -> Optional[str]:

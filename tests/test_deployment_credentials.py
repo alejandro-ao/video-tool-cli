@@ -31,8 +31,8 @@ class TestBunnyCredentialResolution:
 
     @pytest.fixture
     def mock_processor(self, tmp_path):
-        with patch("video_tool.video_processor.OpenAI"), \
-             patch("video_tool.video_processor.Groq"), \
+        with patch("video_tool.video_processor.base.OpenAI"), \
+             patch("video_tool.video_processor.base.Groq"), \
              patch("video_tool.config.get_credential", return_value="test-key"):
             from video_tool.video_processor import VideoProcessor
             return VideoProcessor(str(tmp_path))
@@ -130,8 +130,8 @@ class TestBunnyVideoOperations:
 
     @pytest.fixture
     def mock_processor(self, tmp_path):
-        with patch("video_tool.video_processor.OpenAI"), \
-             patch("video_tool.video_processor.Groq"), \
+        with patch("video_tool.video_processor.base.OpenAI"), \
+             patch("video_tool.video_processor.base.Groq"), \
              patch("video_tool.config.get_credential", return_value="test-key"):
             from video_tool.video_processor import VideoProcessor
             return VideoProcessor(str(tmp_path))

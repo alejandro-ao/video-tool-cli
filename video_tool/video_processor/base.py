@@ -14,7 +14,8 @@ from pydantic import BaseModel
 
 from video_tool.config import get_llm_config, get_credential
 
-from .shared import Groq, logger
+from groq import Groq
+from loguru import logger
 
 StructuredResponse = TypeVar("StructuredResponse", bound=BaseModel)
 

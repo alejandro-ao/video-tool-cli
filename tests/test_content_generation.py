@@ -102,7 +102,7 @@ class TestGenerateTimestamps:
         """Test timestamp generation with no video files."""
         mock_video_processor.video_dir = temp_dir
         
-        with patch('video_tool.video_processor.logger') as mock_logger:
+        with patch('video_tool.video_processor.concatenation.logger') as mock_logger:
             result = mock_video_processor.generate_timestamps()
             
             # Should warn about no videos found
@@ -117,7 +117,7 @@ class TestGenerateTimestamps:
         with patch.object(mock_video_processor, '_get_video_metadata') as mock_metadata:
             mock_metadata.return_value = None  # Simulate metadata failure
             
-            with patch('video_tool.video_processor.logger') as mock_logger:
+            with patch('video_tool.video_processor.concatenation.logger') as mock_logger:
                 result = mock_video_processor.generate_timestamps()
                 
                 # Should handle error gracefully
@@ -367,7 +367,7 @@ class TestGenerateTranscript:
         mock_video_processor.video_dir = temp_dir
         mock_video_processor.groq = mock_groq_instance
         
-        with patch('video_tool.video_processor.VideoFileClip') as mock_video_clip, \
+        with patch('video_tool.video_processor.transcript.VideoFileClip') as mock_video_clip, \
              patch.object(mock_video_processor, '_groq_verbose_json_to_vtt') as mock_vtt_converter, \
              patch('os.path.getsize') as mock_getsize:
             # Mock audio extraction
@@ -421,7 +421,7 @@ class TestGenerateTranscript:
         mock_video_processor.video_dir = temp_dir
         mock_video_processor.groq = mock_groq_instance
         
-        with patch('video_tool.video_processor.VideoFileClip') as mock_video_clip, \
+        with patch('video_tool.video_processor.transcript.VideoFileClip') as mock_video_clip, \
              patch.object(mock_video_processor, '_groq_verbose_json_to_vtt') as mock_vtt_converter, \
              patch('os.path.getsize') as mock_getsize:
 
@@ -476,8 +476,8 @@ class TestGenerateTranscript:
         # Ensure the groq instance is properly set
         mock_video_processor.groq = mock_groq_instance
          
-        with patch('video_tool.video_processor.VideoFileClip') as mock_video_clip, \
-             patch('video_tool.video_processor.AudioSegment') as mock_audio_segment, \
+        with patch('video_tool.video_processor.transcript.VideoFileClip') as mock_video_clip, \
+             patch('video_tool.video_processor.transcript.AudioSegment') as mock_audio_segment, \
              patch.object(mock_video_processor, '_groq_verbose_json_to_vtt') as mock_vtt_converter, \
              patch.object(mock_video_processor, '_clean_vtt_transcript') as mock_clean_vtt, \
              patch.object(mock_video_processor, '_merge_vtt_transcripts') as mock_merge, \
@@ -546,8 +546,8 @@ class TestGenerateTranscript:
         mock_video_processor.video_dir = temp_dir
         mock_video_processor.groq = mock_groq_instance
         
-        with patch('video_tool.video_processor.VideoFileClip'):
-            with patch('video_tool.video_processor.logger') as mock_logger:
+        with patch('video_tool.video_processor.transcript.VideoFileClip'):
+            with patch('video_tool.video_processor.transcript.logger') as mock_logger:
                 video_file = temp_dir / "test_video.mp4"
                 MockVideoGenerator.create_mock_mp4(video_file)  # Create the video file
                 result = mock_video_processor.generate_transcript(str(video_file))
@@ -559,7 +559,7 @@ class TestGenerateTranscript:
         """Test transcript generation when concatenated video doesn't exist."""
         mock_video_processor.video_dir = temp_dir
         
-        with patch('video_tool.video_processor.logger') as mock_logger:
+        with patch('video_tool.video_processor.transcript.logger') as mock_logger:
             video_file = temp_dir / "nonexistent_video.mp4"
             result = mock_video_processor.generate_transcript(str(video_file))
             
@@ -674,7 +674,7 @@ class TestGenerateDescription:
         
         mock_video_processor.video_dir = temp_dir
         
-        with patch('video_tool.video_processor.logger') as mock_logger:
+        with patch('video_tool.video_processor.content.logger') as mock_logger:
             # Create dummy paths for the test
             video_path = str(temp_dir / "test_video.mp4")
             repo_url = "https://github.com/test/repo"
@@ -703,7 +703,7 @@ class TestGenerateDescription:
         with patch.object(mock_video_processor, '_invoke_openai_chat') as mock_invoke:
             mock_invoke.side_effect = Exception("OpenAI API Error")
             
-            with patch('video_tool.video_processor.logger') as mock_logger:
+            with patch('video_tool.video_processor.content.logger') as mock_logger:
                 # Create dummy paths for the test
                 video_path = str(temp_dir / "test_video.mp4")
                 repo_url = "https://github.com/test/repo"
@@ -791,7 +791,7 @@ class TestGenerateSEOKeywords:
         # Create a non-existent description path to test error handling
         description_path = str(temp_dir / "output" / "nonexistent_description.md")
         
-        with patch('video_tool.video_processor.logger') as mock_logger:
+        with patch('video_tool.video_processor.content.logger') as mock_logger:
             result = mock_video_processor.generate_seo_keywords(description_path)
             
             # Should log error about missing description
@@ -852,7 +852,7 @@ class TestContentGenerationIntegration:
         with patch.object(mock_video_processor, '_get_video_metadata') as mock_metadata, \
              patch.object(mock_video_processor.groq.audio.transcriptions, 'create') as mock_groq, \
              patch.object(mock_video_processor, '_invoke_openai_chat') as mock_openai, \
-             patch('video_tool.video_processor.VideoFileClip'):
+             patch('video_tool.video_processor.transcript.VideoFileClip'):
             
             # Setup mocks
             mock_metadata.return_value = {'duration': 300.0}
@@ -903,8 +903,8 @@ class TestContentGenerationIntegration:
         with patch.object(mock_video_processor, '_get_video_metadata') as mock_metadata, \
              patch.object(mock_video_processor.groq.audio.transcriptions, 'create') as mock_groq, \
              patch.object(mock_video_processor, '_invoke_openai_chat') as mock_openai, \
-             patch('video_tool.video_processor.VideoFileClip'), \
-             patch('video_tool.video_processor.logger') as mock_logger:
+             patch('video_tool.video_processor.transcript.VideoFileClip'), \
+             patch('video_tool.video_processor.transcript.logger') as mock_logger:
             
             # Setup mocks - some succeed, some fail
             mock_metadata.return_value = {'duration': 300.0}
@@ -931,7 +931,7 @@ class TestContentGenerationIntegration:
         mock_video_processor.video_dir = temp_dir
         
         # Test description generation without transcript
-        with patch('video_tool.video_processor.logger') as mock_logger:
+        with patch('video_tool.video_processor.content.logger') as mock_logger:
             video_path = str(temp_dir / "test_video.mp4")
             repo_url = "https://github.com/test/repo"
             transcript_path = str(temp_dir / "output" / "nonexistent_transcript.vtt")
@@ -939,13 +939,13 @@ class TestContentGenerationIntegration:
             mock_logger.error.assert_called()  # Should error about missing transcript
         
         # Test keywords generation without description
-        with patch('video_tool.video_processor.logger') as mock_logger:
+        with patch('video_tool.video_processor.content.logger') as mock_logger:
             description_path = str(temp_dir / "output" / "nonexistent_description.md")
             keywords_result = mock_video_processor.generate_seo_keywords(description_path)
             mock_logger.error.assert_called()  # Should error about missing description
         
         # Test transcript generation without concatenated video
-        with patch('video_tool.video_processor.logger') as mock_logger:
+        with patch('video_tool.video_processor.transcript.logger') as mock_logger:
             video_path = str(temp_dir / "nonexistent_video.mp4")
             transcript_result = mock_video_processor.generate_transcript(video_path)
             mock_logger.error.assert_called()  # Should error about missing video

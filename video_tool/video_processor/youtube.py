@@ -17,7 +17,7 @@ from googleapiclient.discovery import build, Resource
 from googleapiclient.http import MediaFileUpload
 from googleapiclient.errors import HttpError
 
-from .shared import logger
+from loguru import logger
 
 # YouTube API scopes
 YOUTUBE_SCOPES = [

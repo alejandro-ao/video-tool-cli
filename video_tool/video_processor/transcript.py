@@ -6,7 +6,9 @@ from pathlib import Path
 from typing import List, Optional
 
 from .constants import SUPPORTED_AUDIO_SUFFIXES, SUPPORTED_VIDEO_SUFFIXES
-from .shared import AudioSegment, VideoFileClip, logger
+from loguru import logger
+from moviepy import VideoFileClip
+from pydub import AudioSegment
 
 
 class TranscriptMixin:

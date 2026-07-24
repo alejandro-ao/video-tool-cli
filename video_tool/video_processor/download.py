@@ -5,7 +5,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-from .shared import logger
+from loguru import logger
 
 
 class DownloadMixin:

@@ -7,7 +7,8 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 from .constants import is_supported_video_file
-from .shared import VideoFileClip, logger
+from loguru import logger
+from moviepy import VideoFileClip
 
 
 class FileManagementMixin:

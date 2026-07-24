@@ -5,7 +5,9 @@ from datetime import timedelta
 from pathlib import Path
 from typing import List, Tuple
 
-from .shared import AudioSegment, detect_nonsilent, logger
+from loguru import logger
+from pydub import AudioSegment
+from pydub.silence import detect_nonsilent
 
 
 class SilenceProcessingMixin:

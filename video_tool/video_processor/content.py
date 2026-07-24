@@ -8,7 +8,7 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 from .constants import SUPPORTED_VIDEO_SUFFIXES
-from .shared import logger
+from loguru import logger
 
 
 class SummaryResponse(BaseModel):

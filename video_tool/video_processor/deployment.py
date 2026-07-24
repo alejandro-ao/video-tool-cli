@@ -9,7 +9,7 @@ import requests
 from requests import Response
 
 from video_tool.config import get_credential
-from .shared import logger
+from loguru import logger
 
 
 class BunnyDeploymentMixin:

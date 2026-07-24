@@ -9,7 +9,7 @@ import requests
 from requests_oauthlib import OAuth1
 
 from video_tool.config import get_credential
-from .shared import logger
+from loguru import logger
 
 _X_API_BASE = "https://api.x.com/2"
 _X_MEDIA_UPLOAD_URL = "https://upload.twitter.com/1.1/media/upload.json"

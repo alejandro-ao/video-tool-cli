@@ -12,7 +12,8 @@ from pydantic import BaseModel
 from video_tool.config import is_llm_configured, prompt_optional_llm_setup
 
 from .editing import _detect_gpu_encoder
-from .shared import VideoFileClip, logger
+from loguru import logger
+from moviepy import VideoFileClip
 
 
 class ChapterUpdate(BaseModel):

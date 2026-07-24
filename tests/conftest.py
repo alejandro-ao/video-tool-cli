@@ -19,16 +19,15 @@ def temp_dir():
 
 @pytest.fixture
 def mock_logger():
-    """Create a mock logger for tests."""
-    with patch('video_tool.video_processor.logger') as mock_logger:
+    """Mock the content mixin logger (used by error-path assertions)."""
+    with patch('video_tool.video_processor.content.logger') as mock_logger:
         yield mock_logger
 
 @pytest.fixture
 def mock_video_processor(temp_dir):
     """Create a VideoProcessor instance with mocked dependencies."""
-    with patch('video_tool.video_processor.OpenAI') as mock_openai, \
-         patch('video_tool.video_processor.Groq') as mock_groq, \
-         patch('video_tool.video_processor.logger') as mock_logger:
+    with patch('video_tool.video_processor.base.OpenAI') as mock_openai, \
+         patch('video_tool.video_processor.base.Groq') as mock_groq:
         
         # Mock the prompts loading
         mock_prompts = {
