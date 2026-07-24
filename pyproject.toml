@@ -5,18 +5,16 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "video-tool"
 version = "0.1.0"
-description = "A professional video processing tool with MCP server capabilities"
+description = "A professional video processing CLI with AI-powered content generation"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "audioop-lts>=0.2.1; python_version >= '3.13'",  # audioop replacement for Python 3.13+
     "loguru>=0.7.3",
-    "mcp>=1.12.2",
     "moviepy>=2.1.2",
     "openai>=1.78.0",
     "pydub>=0.25.1",
     "python-ffmpeg>=2.0.12",
-    "uvicorn>=0.35.0",
     "groq>=0.8.0",
     "pyyaml>=6.0.2",
     "rich>=14.1.0",
@@ -36,13 +34,10 @@ video-tool = "video_tool.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["video_tool*", "mcp_server*"]
+include = ["video_tool*"]
 
 [tool.setuptools.package-data]
 video_tool = ["prompts.yaml"]
-
-[tool.uv.workspace]
-members = ["mcp_server"]
 
 [dependency-groups]
 dev = [
