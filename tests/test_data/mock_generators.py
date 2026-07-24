@@ -7,6 +7,7 @@ import numpy as np
 
 try:
     from moviepy import AudioClip, VideoClip
+
     MOVIEPY_AVAILABLE = True
 except ImportError:
     MOVIEPY_AVAILABLE = False
@@ -16,8 +17,7 @@ class MockVideoGenerator:
     """Generate mock video files for testing."""
 
     @staticmethod
-    def create_mock_mp4(file_path: Path, duration_seconds: float = 10.0,
-                       width: int = 1920, height: int = 1080) -> Path:
+    def create_mock_mp4(file_path: Path, duration_seconds: float = 10.0, width: int = 1920, height: int = 1080) -> Path:
         """Create a mock MP4 file.
 
         If moviepy is available, creates a real video file.
@@ -66,15 +66,15 @@ class MockVideoGenerator:
         """Create a dummy MP4 file for basic tests."""
         # Create MP4-like header (simplified)
         mp4_header = (
-            b'\x00\x00\x00\x20'  # Box size
-            b'ftyp'              # Box type
-            b'mp42'              # Major brand
-            b'\x00\x00\x00\x00'  # Minor version
-            b'mp42isom'          # Compatible brands
+            b"\x00\x00\x00\x20"  # Box size
+            b"ftyp"  # Box type
+            b"mp42"  # Major brand
+            b"\x00\x00\x00\x00"  # Minor version
+            b"mp42isom"  # Compatible brands
         )
 
         # Add some dummy data to simulate video content
-        dummy_data = b'\x00' * int(duration_seconds * 1000)  # Rough size simulation
+        dummy_data = b"\x00" * int(duration_seconds * 1000)  # Rough size simulation
 
         file_path.write_bytes(mp4_header + dummy_data)
 
@@ -83,7 +83,7 @@ class MockVideoGenerator:
         """Create a set of test video files."""
         files = []
         for i in range(count):
-            file_path = base_dir / f"test_video_{i+1:02d}.mp4"
+            file_path = base_dir / f"test_video_{i + 1:02d}.mp4"
             duration = 10.0 + (i * 5.0)  # Varying durations
             MockVideoGenerator.create_mock_mp4(file_path, duration)
             files.append(file_path)
@@ -97,8 +97,8 @@ class MockAudioGenerator:
     def create_mock_mp3(file_path: Path, duration_seconds: float = 10.0) -> Path:
         """Create a mock MP3 file."""
         # MP3 header (simplified)
-        mp3_header = b'\xff\xfb\x90\x00'  # MP3 sync word and header
-        dummy_data = b'\x00' * int(duration_seconds * 1000)
+        mp3_header = b"\xff\xfb\x90\x00"  # MP3 sync word and header
+        dummy_data = b"\x00" * int(duration_seconds * 1000)
 
         file_path.parent.mkdir(parents=True, exist_ok=True)
         file_path.write_bytes(mp3_header + dummy_data)
@@ -117,7 +117,7 @@ class MockTranscriptGenerator:
                 {"start": 0.0, "end": 5.0, "text": "Hello and welcome to this video."},
                 {"start": 5.0, "end": 10.0, "text": "Today we'll be discussing video processing."},
                 {"start": 10.0, "end": 15.0, "text": "Let's get started with the basics."},
-                {"start": 15.0, "end": 20.0, "text": "This is a test transcript for unit testing."}
+                {"start": 15.0, "end": 20.0, "text": "This is a test transcript for unit testing."},
             ]
 
         vtt_content = "WEBVTT\n\n"
@@ -196,20 +196,17 @@ class MockTimestampGenerator:
             start_time = current_time
             end_time = current_time + duration
 
-            timestamps.append({
-                "start": f"{start_time//3600:02d}:{(start_time%3600)//60:02d}:{start_time%60:02d}.000",
-                "end": f"{end_time//3600:02d}:{(end_time%3600)//60:02d}:{end_time%60:02d}.000",
-                "title": Path(video_file).stem
-            })
+            timestamps.append(
+                {
+                    "start": f"{start_time // 3600:02d}:{(start_time % 3600) // 60:02d}:{start_time % 60:02d}.000",
+                    "end": f"{end_time // 3600:02d}:{(end_time % 3600) // 60:02d}:{end_time % 60:02d}.000",
+                    "title": Path(video_file).stem,
+                }
+            )
 
             current_time = end_time
 
-        video_info = [{
-            "timestamps": timestamps,
-            "metadata": {
-                "creation_date": datetime.now().isoformat()
-            }
-        }]
+        video_info = [{"timestamps": timestamps, "metadata": {"creation_date": datetime.now().isoformat()}}]
 
         file_path.parent.mkdir(parents=True, exist_ok=True)
         file_path.write_text(json.dumps(video_info, indent=2))
@@ -227,12 +224,12 @@ class MockCSVGenerator:
 
         file_path.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(file_path, 'w', newline='', encoding='utf-8') as csvfile:
+        with open(file_path, "w", newline="", encoding="utf-8") as csvfile:
             writer = csv.writer(csvfile)
-            writer.writerow(['creation_date', 'video_title', 'duration_minutes'])
+            writer.writerow(["creation_date", "video_title", "duration_minutes"])
 
             for i, video_file in enumerate(video_files):
-                creation_date = f"2024-01-{i+1:02d} 12:00:00"
+                creation_date = f"2024-01-{i + 1:02d} 12:00:00"
                 video_title = Path(video_file).stem
                 duration_minutes = 5.0 + (i * 2.5)  # Varying durations
                 writer.writerow([creation_date, video_title, duration_minutes])
@@ -247,10 +244,22 @@ class MockKeywordsGenerator:
     def create_keywords_txt(file_path: Path) -> Path:
         """Create a keywords text file."""
         keywords = [
-            "video processing", "python", "automation", "testing",
-            "ffmpeg", "moviepy", "audio processing", "transcription",
-            "AI", "machine learning", "content creation", "youtube",
-            "SEO", "optimization", "tutorial", "programming"
+            "video processing",
+            "python",
+            "automation",
+            "testing",
+            "ffmpeg",
+            "moviepy",
+            "audio processing",
+            "transcription",
+            "AI",
+            "machine learning",
+            "content creation",
+            "youtube",
+            "SEO",
+            "optimization",
+            "tutorial",
+            "programming",
         ]
 
         content = ", ".join(keywords)
@@ -277,7 +286,7 @@ def create_complete_test_dataset(base_dir: Path) -> dict[str, list[Path]]:
     # Create audio files
     audio_files = []
     for video_file in video_files:
-        audio_file = video_file.with_suffix('.mp3')
+        audio_file = video_file.with_suffix(".mp3")
         MockAudioGenerator.create_mock_mp3(audio_file)
         audio_files.append(audio_file)
 
@@ -291,15 +300,11 @@ def create_complete_test_dataset(base_dir: Path) -> dict[str, list[Path]]:
 
     # Create timestamps
     timestamps_file = output_dir / "timestamps.json"
-    MockTimestampGenerator.create_timestamps_json(
-        timestamps_file, [f.name for f in video_files]
-    )
+    MockTimestampGenerator.create_timestamps_json(timestamps_file, [f.name for f in video_files])
 
     # Create CSV metadata
     csv_file = output_dir / "video_metadata.csv"
-    MockCSVGenerator.create_video_metadata_csv(
-        csv_file, [f.name for f in video_files]
-    )
+    MockCSVGenerator.create_video_metadata_csv(csv_file, [f.name for f in video_files])
 
     # Create keywords
     keywords_file = output_dir / "keywords.txt"
@@ -313,5 +318,5 @@ def create_complete_test_dataset(base_dir: Path) -> dict[str, list[Path]]:
         "description": [description_file],
         "timestamps": [timestamps_file],
         "csv": [csv_file],
-        "keywords": [keywords_file]
+        "keywords": [keywords_file],
     }

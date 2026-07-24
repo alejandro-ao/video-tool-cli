@@ -175,6 +175,7 @@ class YouTubeDeploymentMixin:
             # Refresh if expired
             if credentials.expired and credentials.refresh_token:
                 from google.auth.transport.requests import Request
+
                 credentials.refresh(Request())
                 # Save refreshed credentials
                 self._save_youtube_credentials(
@@ -190,21 +191,25 @@ class YouTubeDeploymentMixin:
             return None
 
     def _save_youtube_credentials(
-        self, credentials: Credentials, existing_data: dict | None = None
-        , profile: str | None = None,
+        self,
+        credentials: Credentials,
+        existing_data: dict | None = None,
+        profile: str | None = None,
         credentials_path: Path | None = None,
     ) -> None:
         """Save credentials to disk."""
         creds_data = existing_data or {}
         target_path = credentials_path or self.get_youtube_credentials_path(profile)
         effective_profile = self.get_effective_youtube_profile(profile)
-        creds_data.update({
-            "token": credentials.token,
-            "refresh_token": credentials.refresh_token,
-            "token_uri": credentials.token_uri,
-            "client_id": credentials.client_id,
-            "client_secret": credentials.client_secret,
-        })
+        creds_data.update(
+            {
+                "token": credentials.token,
+                "refresh_token": credentials.refresh_token,
+                "token_uri": credentials.token_uri,
+                "client_id": credentials.client_id,
+                "client_secret": credentials.client_secret,
+            }
+        )
         if effective_profile != LEGACY_YOUTUBE_PROFILE:
             creds_data["profile"] = effective_profile
 
@@ -234,8 +239,7 @@ class YouTubeDeploymentMixin:
 
         if not secrets_path.exists():
             logger.error(
-                f"Client secrets file not found: {secrets_path}\n"
-                "Download from Google Cloud Console and provide path."
+                f"Client secrets file not found: {secrets_path}\nDownload from Google Cloud Console and provide path."
             )
             return False
 
@@ -244,12 +248,11 @@ class YouTubeDeploymentMixin:
             if secrets_path != CLIENT_SECRETS_PATH:
                 CONFIG_DIR.mkdir(parents=True, exist_ok=True)
                 import shutil
+
                 shutil.copy(secrets_path, CLIENT_SECRETS_PATH)
                 logger.info(f"Copied client secrets to {CLIENT_SECRETS_PATH}")
 
-            flow = InstalledAppFlow.from_client_secrets_file(
-                str(CLIENT_SECRETS_PATH), YOUTUBE_SCOPES
-            )
+            flow = InstalledAppFlow.from_client_secrets_file(str(CLIENT_SECRETS_PATH), YOUTUBE_SCOPES)
 
             # Run local server for OAuth
             credentials = flow.run_local_server(
@@ -424,10 +427,14 @@ class YouTubeDeploymentMixin:
 
         try:
             # First get current video data
-            video_response = youtube.videos().list(
-                part="snippet",
-                id=video_id,
-            ).execute()
+            video_response = (
+                youtube.videos()
+                .list(
+                    part="snippet",
+                    id=video_id,
+                )
+                .execute()
+            )
 
             if not video_response.get("items"):
                 logger.error(f"Video not found: {video_id}")
@@ -550,9 +557,7 @@ class YouTubeDeploymentMixin:
             ".sub": "text/x-mpsub",
         }
         mimetype = (
-            caption_mime_types.get(suffix)
-            or mimetypes.guess_type(str(caption_file))[0]
-            or "application/octet-stream"
+            caption_mime_types.get(suffix) or mimetypes.guess_type(str(caption_file))[0] or "application/octet-stream"
         )
 
         try:

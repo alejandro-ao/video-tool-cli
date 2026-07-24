@@ -40,9 +40,7 @@ def test_cli_loads_dotenv_from_cwd(tmp_path: Path, monkeypatch: pytest.MonkeyPat
 
 
 @pytest.mark.unit
-def test_cli_dotenv_does_not_override_exported_vars(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_cli_dotenv_does_not_override_exported_vars(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Exported environment variables win over .env file values."""
     var = "VIDEO_TOOL_DOTENV_TEST_VAR"
     monkeypatch.setenv(var, "exported")

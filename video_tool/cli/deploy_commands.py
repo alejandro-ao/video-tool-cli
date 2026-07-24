@@ -374,9 +374,6 @@ def _coerce_chapters(data: object) -> list[dict[str, str]] | None:
 # --- Metadata helpers ---
 
 
-
-
-
 # --- YouTube Commands ---
 
 
@@ -388,9 +385,7 @@ def _check_youtube_credentials(youtube_profile: str | None = None) -> bool:
     if not credentials_path.exists():
         step_error("YouTube credentials not found")
         if youtube_profile:
-            console.print(
-                f"[yellow]Run 'video-tool config youtube-auth --profile {youtube_profile}' first.[/yellow]"
-            )
+            console.print(f"[yellow]Run 'video-tool config youtube-auth --profile {youtube_profile}' first.[/yellow]")
         else:
             console.print("[yellow]Run 'video-tool config youtube-auth' first.[/yellow]")
         return False
@@ -451,10 +446,7 @@ def youtube_upload(
     if tags_file:
         tags_path = Path(normalize_path(str(tags_file)))
         if tags_path.exists():
-            video_tags = [
-                line.strip() for line in tags_path.read_text(encoding="utf-8").splitlines()
-                if line.strip()
-            ]
+            video_tags = [line.strip() for line in tags_path.read_text(encoding="utf-8").splitlines() if line.strip()]
         else:
             step_warning(f"Tags file not found: {tags_path}")
     elif tags:
@@ -478,13 +470,16 @@ def youtube_upload(
         step_error(f"Invalid privacy '{privacy}'. Only 'private' or 'unlisted' allowed (public disabled for safety)")
         raise typer.Exit(1)
 
-    step_start("Uploading video to YouTube", {
-        "Video": str(video_file),
-        "Title": video_title,
-        "Privacy": privacy,
-        "Category": str(category),
-        "Profile": profile or "active",
-    })
+    step_start(
+        "Uploading video to YouTube",
+        {
+            "Video": str(video_file),
+            "Title": video_title,
+            "Privacy": privacy,
+            "Category": str(category),
+            "Profile": profile or "active",
+        },
+    )
 
     with status_spinner("Uploading"):
         processor = VideoProcessor(str(video_file.parent))
@@ -562,10 +557,7 @@ def youtube_metadata(
     if tags_file:
         tags_path = Path(normalize_path(str(tags_file)))
         if tags_path.exists():
-            new_tags = [
-                line.strip() for line in tags_path.read_text(encoding="utf-8").splitlines()
-                if line.strip()
-            ]
+            new_tags = [line.strip() for line in tags_path.read_text(encoding="utf-8").splitlines() if line.strip()]
         else:
             step_error(f"Tags file not found: {tags_path}")
             raise typer.Exit(1)
@@ -631,12 +623,15 @@ def youtube_transcript(
         step_error(f"Invalid transcript file: {transcript_file}")
         raise typer.Exit(1)
 
-    step_start("Uploading captions to YouTube", {
-        "Video ID": vid_id,
-        "Transcript": str(transcript_file),
-        "Language": language,
-        "Profile": profile or "active",
-    })
+    step_start(
+        "Uploading captions to YouTube",
+        {
+            "Video ID": vid_id,
+            "Transcript": str(transcript_file),
+            "Language": language,
+            "Profile": profile or "active",
+        },
+    )
 
     with status_spinner("Uploading"):
         processor = VideoProcessor(str(transcript_file.parent))

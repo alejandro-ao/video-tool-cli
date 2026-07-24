@@ -39,11 +39,7 @@ class VideoProcessorBase:
         self.groq = Groq(api_key=groq_key) if groq_key else None
         self.prompts = self._load_prompts()
         self.setup_logging()
-        self._preferred_output_filename = (
-            self._sanitize_filename(self.video_title)
-            if self.video_title
-            else None
-        )
+        self._preferred_output_filename = self._sanitize_filename(self.video_title) if self.video_title else None
         self.last_output_path: Path | None = None
 
     def _sanitize_filename(self, candidate: str | None) -> str | None:
@@ -77,9 +73,7 @@ class VideoProcessorBase:
         while True:
             candidate = self.output_dir / f"{stem}_{counter}{suffix}"
             if not candidate.exists():
-                logger.warning(
-                    f"Output file {output_path.name} exists, using {candidate.name} instead"
-                )
+                logger.warning(f"Output file {output_path.name} exists, using {candidate.name} instead")
                 return candidate
             counter += 1
 

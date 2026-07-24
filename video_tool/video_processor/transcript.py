@@ -225,11 +225,7 @@ class TranscriptMixin:
 
             try:
                 last_timestamp = next(
-                    (
-                        line.split(" --> ")[1].strip()
-                        for line in reversed(lines)
-                        if "-->" in line
-                    ),
+                    (line.split(" --> ")[1].strip() for line in reversed(lines) if "-->" in line),
                     "00:00:00.000",
                 )
                 time_offset += self._timestamp_to_seconds(last_timestamp)
@@ -284,28 +280,14 @@ class TranscriptMixin:
                     return "WEBVTT\n\n00:00:00.000 --> 99:00:00.000\n" + text + "\n"
             except Exception:
                 pass
-            logger.error(
-                "Groq transcription response did not include segments; cannot build VTT"
-            )
+            logger.error("Groq transcription response did not include segments; cannot build VTT")
             raise ValueError("Invalid Groq transcription response: missing segments")
 
         vtt_lines = ["WEBVTT", ""]
         for segment in segments:
-            start = (
-                getattr(segment, "start", None)
-                if not isinstance(segment, dict)
-                else segment.get("start")
-            )
-            end = (
-                getattr(segment, "end", None)
-                if not isinstance(segment, dict)
-                else segment.get("end")
-            )
-            text = (
-                getattr(segment, "text", None)
-                if not isinstance(segment, dict)
-                else segment.get("text")
-            )
+            start = getattr(segment, "start", None) if not isinstance(segment, dict) else segment.get("start")
+            end = getattr(segment, "end", None) if not isinstance(segment, dict) else segment.get("end")
+            text = getattr(segment, "text", None) if not isinstance(segment, dict) else segment.get("text")
             if start is None or end is None or text is None:
                 continue
             start_ts = self._format_seconds_to_vtt(float(start))

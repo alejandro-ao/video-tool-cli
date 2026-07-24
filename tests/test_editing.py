@@ -163,9 +163,7 @@ class TestTrimVideo:
 
         with patch.object(VideoProcessor, "_load_prompts", return_value={}):
             processor = VideoProcessor(str(temp_dir))
-            result = processor.trim_video(
-                str(video_file), str(output_file), start="00:00:30", end="00:05:00"
-            )
+            result = processor.trim_video(str(video_file), str(output_file), start="00:00:30", end="00:05:00")
 
         assert result == str(output_file)
         mock_run.assert_called_once()
@@ -225,9 +223,7 @@ class TestTrimVideo:
 
         with patch.object(VideoProcessor, "_load_prompts", return_value={}):
             processor = VideoProcessor(str(temp_dir))
-            processor.trim_video(
-                str(video_file), str(output_file), start="10", gpu=True
-            )
+            processor.trim_video(str(video_file), str(output_file), start="10", gpu=True)
 
         call_args = mock_run.call_args[0][0]
         assert "h264_videotoolbox" in call_args
@@ -256,9 +252,7 @@ class TestExtractSegment:
 
         with patch.object(VideoProcessor, "_load_prompts", return_value={}):
             processor = VideoProcessor(str(temp_dir))
-            result = processor.extract_segment(
-                str(video_file), str(output_file), start="00:01:00", end="00:02:00"
-            )
+            result = processor.extract_segment(str(video_file), str(output_file), start="00:01:00", end="00:02:00")
 
         assert result == str(output_file)
         mock_run.assert_called_once()
@@ -301,9 +295,7 @@ class TestCutVideo:
 
         with patch.object(VideoProcessor, "_load_prompts", return_value={}):
             processor = VideoProcessor(str(temp_dir))
-            result = processor.cut_video(
-                str(video_file), str(output_file), cut_from="00:01:00", cut_to="00:02:00"
-            )
+            result = processor.cut_video(str(video_file), str(output_file), cut_from="00:01:00", cut_to="00:02:00")
 
         assert result == str(output_file)
 
@@ -317,9 +309,7 @@ class TestCutVideo:
         with patch.object(VideoProcessor, "_load_prompts", return_value={}):
             processor = VideoProcessor(str(temp_dir))
             with pytest.raises(ValueError, match="cut_from.*must be before"):
-                processor.cut_video(
-                    str(video_file), str(output_file), cut_from="00:03:00", cut_to="00:02:00"
-                )
+                processor.cut_video(str(video_file), str(output_file), cut_from="00:03:00", cut_to="00:02:00")
 
 
 class TestChangeVideoSpeed:
@@ -337,9 +327,7 @@ class TestChangeVideoSpeed:
 
         with patch.object(VideoProcessor, "_load_prompts", return_value={}):
             processor = VideoProcessor(str(temp_dir))
-            result = processor.change_video_speed(
-                str(video_file), str(output_file), factor=2.0
-            )
+            result = processor.change_video_speed(str(video_file), str(output_file), factor=2.0)
 
         assert result == str(output_file)
         call_args = mock_run.call_args[0][0]
@@ -357,9 +345,7 @@ class TestChangeVideoSpeed:
 
         with patch.object(VideoProcessor, "_load_prompts", return_value={}):
             processor = VideoProcessor(str(temp_dir))
-            result = processor.change_video_speed(
-                str(video_file), str(output_file), factor=0.5
-            )
+            result = processor.change_video_speed(str(video_file), str(output_file), factor=0.5)
 
         assert result == str(output_file)
 
@@ -398,9 +384,7 @@ class TestChangeVideoSpeed:
 
         with patch.object(VideoProcessor, "_load_prompts", return_value={}):
             processor = VideoProcessor(str(temp_dir))
-            processor.change_video_speed(
-                str(video_file), str(output_file), factor=4.0
-            )
+            processor.change_video_speed(str(video_file), str(output_file), factor=4.0)
 
         # For factor=4.0, audio needs atempo=2.0,atempo=2.0
         call_args = " ".join(mock_run.call_args[0][0])

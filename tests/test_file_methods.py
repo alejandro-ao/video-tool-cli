@@ -33,7 +33,7 @@ class TestFileDiscoveryMethods:
 
         # Verify results
         assert len(result) == 3
-        assert all(f.suffix == '.mp4' for f in result)
+        assert all(f.suffix == ".mp4" for f in result)
         assert all(f.exists() for f in result)
 
         # Verify files are sorted by name
@@ -71,7 +71,7 @@ class TestFileDiscoveryMethods:
 
         # Should find all MP4 files regardless of case
         assert len(result) == 4
-        assert all(f.suffix.lower() == '.mp4' for f in result)
+        assert all(f.suffix.lower() == ".mp4" for f in result)
 
     def test_get_video_files_includes_mov(self, temp_dir, mock_video_processor):
         """Ensure MOV files are treated as supported video inputs."""
@@ -90,7 +90,7 @@ class TestFileDiscoveryMethods:
 class TestVideoMetadataExtraction:
     """Test video metadata extraction methods."""
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_get_video_metadata_success(self, mock_subprocess, mock_video_processor):
         """Test successful video metadata extraction."""
         # Mock ffprobe output
@@ -100,16 +100,16 @@ class TestVideoMetadataExtraction:
         video_file = Path("/test/video.mp4")
 
         # Mock the actual method to return the expected tuple
-        with patch.object(mock_video_processor, 'get_video_metadata', return_value=(
-            '2024-01-01 12:00:00', 'test_video', 5.0
-        )):
+        with patch.object(
+            mock_video_processor, "get_video_metadata", return_value=("2024-01-01 12:00:00", "test_video", 5.0)
+        ):
             result = mock_video_processor.get_video_metadata(video_file)
 
-            assert result[0] == '2024-01-01 12:00:00'  # creation_date
-            assert result[1] == 'test_video'  # video_title
+            assert result[0] == "2024-01-01 12:00:00"  # creation_date
+            assert result[1] == "test_video"  # video_title
             assert result[2] == 5.0  # duration_minutes
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_get_video_metadata_ffprobe_error(self, mock_subprocess, mock_video_processor):
         """Test video metadata extraction when ffprobe fails."""
         mock_subprocess.return_value.returncode = 1
@@ -122,7 +122,7 @@ class TestVideoMetadataExtraction:
         # Should return tuple with None values on error
         assert result == (None, None, None)
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_get_video_metadata_invalid_json(self, mock_subprocess, mock_video_processor):
         """Test video metadata extraction with invalid JSON output."""
         mock_subprocess.return_value.stdout = "invalid json"
@@ -139,17 +139,12 @@ class TestVideoMetadataExtraction:
 class TestCSVExtraction:
     """Test CSV metadata extraction methods."""
 
-    @patch.object(VideoProcessor, 'get_video_metadata')
-    @patch.object(VideoProcessor, 'get_mp4_files')
-    def test_extract_duration_csv_success(self, mock_get_files, mock_get_metadata,
-                                        temp_dir, mock_video_processor):
+    @patch.object(VideoProcessor, "get_video_metadata")
+    @patch.object(VideoProcessor, "get_mp4_files")
+    def test_extract_duration_csv_success(self, mock_get_files, mock_get_metadata, temp_dir, mock_video_processor):
         """Test successful CSV extraction with video metadata."""
         # Setup mock data
-        video_files = [
-            temp_dir / "test_video_01.mp4",
-            temp_dir / "test_video_02.mp4",
-            temp_dir / "test_video_03.mp4"
-        ]
+        video_files = [temp_dir / "test_video_01.mp4", temp_dir / "test_video_02.mp4", temp_dir / "test_video_03.mp4"]
 
         # Create actual files
         for video_file in video_files:
@@ -160,7 +155,7 @@ class TestCSVExtraction:
         # Mock metadata responses - return tuple of (creation_date, video_title, duration_minutes)
         def metadata_side_effect(video_file):
             filename = Path(video_file).name
-            return ("2024-01-01 12:00:00", filename.replace('.mp4', ''), 5.0)
+            return ("2024-01-01 12:00:00", filename.replace(".mp4", ""), 5.0)
 
         mock_get_metadata.side_effect = metadata_side_effect
 
@@ -175,12 +170,12 @@ class TestCSVExtraction:
         assert csv_file.exists()
 
         # Read and verify CSV content
-        with open(csv_file, encoding='utf-8') as f:
+        with open(csv_file, encoding="utf-8") as f:
             reader = csv.reader(f)
             rows = list(reader)
 
         # Check header
-        assert rows[0] == ['creation_date', 'video_title', 'duration_minutes']
+        assert rows[0] == ["creation_date", "video_title", "duration_minutes"]
 
         # Check data rows
         assert len(rows) == 4  # Header + 3 data rows
@@ -191,7 +186,7 @@ class TestCSVExtraction:
             assert row[1] == f"test_video_{i:02d}"  # video title
             assert float(row[2]) > 0  # duration should be positive
 
-    @patch.object(VideoProcessor, 'get_mp4_files')
+    @patch.object(VideoProcessor, "get_mp4_files")
     def test_extract_duration_csv_no_files(self, mock_get_files, temp_dir, mock_video_processor):
         """Test CSV extraction with no video files."""
         mock_get_files.return_value = []
@@ -204,17 +199,18 @@ class TestCSVExtraction:
         # CSV should still be created with just headers
         assert csv_file.exists()
 
-        with open(csv_file, encoding='utf-8') as f:
+        with open(csv_file, encoding="utf-8") as f:
             reader = csv.reader(f)
             rows = list(reader)
 
         assert len(rows) == 1  # Only header row
-        assert rows[0] == ['creation_date', 'video_title', 'duration_minutes']
+        assert rows[0] == ["creation_date", "video_title", "duration_minutes"]
 
-    @patch.object(VideoProcessor, 'get_video_metadata')
-    @patch.object(VideoProcessor, 'get_mp4_files')
-    def test_extract_duration_csv_metadata_error(self, mock_get_files, mock_get_metadata,
-                                                temp_dir, mock_video_processor):
+    @patch.object(VideoProcessor, "get_video_metadata")
+    @patch.object(VideoProcessor, "get_mp4_files")
+    def test_extract_duration_csv_metadata_error(
+        self, mock_get_files, mock_get_metadata, temp_dir, mock_video_processor
+    ):
         """Test CSV extraction when metadata extraction fails."""
         video_files = [temp_dir / "test_video.mp4"]
         MockVideoGenerator.create_mock_mp4(video_files[0])
@@ -230,17 +226,16 @@ class TestCSVExtraction:
         assert csv_file.exists()
 
         # Should handle the error gracefully and skip the file
-        with open(csv_file, encoding='utf-8') as f:
+        with open(csv_file, encoding="utf-8") as f:
             reader = csv.reader(f)
             rows = list(reader)
 
         # Should only have header if metadata extraction failed
         assert len(rows) == 1
 
-    @patch('builtins.open', side_effect=PermissionError("Permission denied"))
-    @patch.object(VideoProcessor, 'get_mp4_files')
-    def test_extract_duration_csv_write_error(self, mock_get_files, mock_open_error,
-                                             temp_dir, mock_video_processor):
+    @patch("builtins.open", side_effect=PermissionError("Permission denied"))
+    @patch.object(VideoProcessor, "get_mp4_files")
+    def test_extract_duration_csv_write_error(self, mock_get_files, mock_open_error, temp_dir, mock_video_processor):
         """Test CSV extraction when file writing fails."""
         video_files = [temp_dir / "test_video.mp4"]
         mock_get_files.return_value = video_files
@@ -278,12 +273,7 @@ class TestFileSystemOperations:
     def test_file_sorting(self, temp_dir, mock_video_processor):
         """Test that files are returned in sorted order."""
         # Create files in non-alphabetical order
-        files_to_create = [
-            "video_z.mp4",
-            "video_a.mp4",
-            "video_m.mp4",
-            "video_b.mp4"
-        ]
+        files_to_create = ["video_z.mp4", "video_a.mp4", "video_m.mp4", "video_b.mp4"]
 
         for filename in files_to_create:
             (temp_dir / filename).write_bytes(b"fake video")
@@ -312,12 +302,8 @@ class TestIntegrationFileOperations:
         assert len(mp4_files) == 3
 
         # Mock metadata extraction for CSV test
-        with patch.object(mock_video_processor, 'get_video_metadata') as mock_metadata:
-            mock_metadata.side_effect = lambda f: (
-                '2024-01-01 12:00:00',
-                Path(f).name.replace('.mp4', ''),
-                5.0
-            )
+        with patch.object(mock_video_processor, "get_video_metadata") as mock_metadata:
+            mock_metadata.side_effect = lambda f: ("2024-01-01 12:00:00", Path(f).name.replace(".mp4", ""), 5.0)
 
             # Test CSV extraction
             mock_video_processor.extract_duration_csv()
@@ -343,12 +329,13 @@ class TestIntegrationFileOperations:
         assert len(result) == 2
 
         # Test that metadata extraction handles errors gracefully
-        with patch.object(mock_video_processor, 'get_video_metadata') as mock_metadata:
+        with patch.object(mock_video_processor, "get_video_metadata") as mock_metadata:
+
             def metadata_side_effect(video_file):
                 filename = Path(video_file).name
                 if filename == "invalid.mp4":
                     return (None, None, None)  # Simulate failure
-                return ('2024-01-01 12:00:00', filename.replace('.mp4', ''), 5.0)
+                return ("2024-01-01 12:00:00", filename.replace(".mp4", ""), 5.0)
 
             mock_metadata.side_effect = metadata_side_effect
 

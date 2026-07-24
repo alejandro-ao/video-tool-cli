@@ -22,12 +22,20 @@ _prompts_data = yaml.safe_load(PROMPTS_FILE.read_text(encoding="utf-8")) if PROM
 # The 'generate-timestamps-from-transcript' key has always been kebab-case, so we check
 # the other keys that the PR changes.
 _KEBAB_CASE_KEYS = {
-    "generate-description", "polish-description", "generate-seo-keywords",
-    "generate-linkedin-post", "generate-twitter-post", "generate-context-cards",
+    "generate-description",
+    "polish-description",
+    "generate-seo-keywords",
+    "generate-linkedin-post",
+    "generate-twitter-post",
+    "generate-context-cards",
 }
 _SNAKE_CASE_KEYS = {
-    "generate_description", "polish_description", "generate_seo_keywords",
-    "generate_linkedin_post", "generate_twitter_post", "generate_context_cards",
+    "generate_description",
+    "polish_description",
+    "generate_seo_keywords",
+    "generate_linkedin_post",
+    "generate_twitter_post",
+    "generate_context_cards",
 }
 _KEBAB_CASE = bool(_KEBAB_CASE_KEYS & set(_prompts_data.keys()))
 _SNAKE_CASE = bool(_SNAKE_CASE_KEYS & set(_prompts_data.keys()))
@@ -105,9 +113,11 @@ class TestContentGenerationWithProcessor:
 
     @pytest.fixture
     def processor(self, tmp_path):
-        with patch("video_tool.video_processor.base.OpenAI"), \
-             patch("video_tool.video_processor.base.Groq"), \
-             patch("video_tool.config.get_credential", return_value="test-key"):
+        with (
+            patch("video_tool.video_processor.base.OpenAI"),
+            patch("video_tool.video_processor.base.Groq"),
+            patch("video_tool.config.get_credential", return_value="test-key"),
+        ):
             proc = VideoProcessor(str(tmp_path))
             return proc
 

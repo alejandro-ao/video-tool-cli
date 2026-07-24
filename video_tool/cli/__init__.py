@@ -115,8 +115,12 @@ _REQUIRED_KEY_SPECS = [
 _OPTIONAL_KEY_SPECS = [
     _KeySpec("bunny_library_id", "Bunny Library ID", False, hide_input=False),
     _KeySpec("bunny_access_key", "Bunny Access Key", False),
-    _KeySpec("replicate_api_token", "Replicate API Token", False, signup_url="https://replicate.com/account/api-tokens"),
-    _KeySpec("linkedin_access_token", "LinkedIn Access Token", False, signup_url="https://www.linkedin.com/developers/apps"),
+    _KeySpec(
+        "replicate_api_token", "Replicate API Token", False, signup_url="https://replicate.com/account/api-tokens"
+    ),
+    _KeySpec(
+        "linkedin_access_token", "LinkedIn Access Token", False, signup_url="https://www.linkedin.com/developers/apps"
+    ),
     _KeySpec("linkedin_author_urn", "LinkedIn Author URN (e.g., urn:li:person:...)", False, hide_input=False),
 ]
 
@@ -181,9 +185,7 @@ def _ensure_credential(key: str, label: str, signup_url: str) -> bool:
 
 def ensure_openai_key() -> bool:
     """Ensure OpenAI key exists, prompting interactively if possible."""
-    return _ensure_credential(
-        "openai_api_key", "OpenAI API key", "https://platform.openai.com/api-keys"
-    )
+    return _ensure_credential("openai_api_key", "OpenAI API key", "https://platform.openai.com/api-keys")
 
 
 def ensure_groq_key() -> bool:
@@ -276,9 +278,7 @@ def config_llm_command(
 def config_keys_command(
     show: bool = typer.Option(False, "--show", "-s", help="Show current API keys (masked)"),
     reset: bool = typer.Option(False, "--reset", help="Clear all stored credentials"),
-    set_creds: list[str] | None = typer.Option(
-        None, "--set", help="Set credential non-interactively (KEY=VALUE)"
-    ),
+    set_creds: list[str] | None = typer.Option(None, "--set", help="Set credential non-interactively (KEY=VALUE)"),
 ) -> None:
     """Manage API keys for video-tool services.
 
@@ -394,17 +394,21 @@ def config_youtube_auth(
             console.print(f"[dim]Using existing client secrets: {CLIENT_SECRETS_PATH}[/dim]")
         else:
             from video_tool.ui import ask_path
+
             client_secrets = ask_path(
                 "Path to client_secrets.json from Google Cloud Console",
                 required=True,
             )
 
-    step_start("YouTube OAuth2 Authentication", {
-        "Client secrets": str(client_secrets or CLIENT_SECRETS_PATH),
-        "Profile": profile,
-        "Activate profile": "yes" if activate else "no",
-        "Credentials will be saved to": str(YouTubeDeploymentMixin.get_youtube_credentials_path(profile)),
-    })
+    step_start(
+        "YouTube OAuth2 Authentication",
+        {
+            "Client secrets": str(client_secrets or CLIENT_SECRETS_PATH),
+            "Profile": profile,
+            "Activate profile": "yes" if activate else "no",
+            "Credentials will be saved to": str(YouTubeDeploymentMixin.get_youtube_credentials_path(profile)),
+        },
+    )
 
     console.print("\n[yellow]A browser window will open for Google OAuth consent.[/yellow]")
     console.print("[dim]Grant access to upload videos and manage captions.[/dim]\n")
@@ -468,7 +472,7 @@ def config_youtube_status(
     elif profile:
         console.print(f"\n  Profile '{profile}' not found.")
 
-    if not status['credentials_exist']:
+    if not status["credentials_exist"]:
         console.print("\n[yellow]Run 'video-tool config youtube-auth' to authenticate.[/yellow]")
 
 
@@ -513,6 +517,7 @@ def config_x_auth() -> None:
     if api_key:
         console.print(f"  API Key: [green]Already set ({mask_credential(api_key)})[/green]")
         from video_tool.ui import ask_confirm
+
         if not ask_confirm("Re-enter API credentials?", default=False):
             # Check if all creds exist
             if all(get_credential(k) for k in ["x_api_key", "x_api_secret", "x_access_token", "x_access_token_secret"]):
@@ -537,6 +542,7 @@ def config_x_auth() -> None:
     console.print("[dim]Or use the OAuth flow to generate new ones.[/dim]\n")
 
     from video_tool.ui import ask_confirm
+
     if ask_confirm("Do you have Access Token and Secret already?", default=True):
         access_token = prompt_and_save_credential("x_access_token", "Access Token", required=True, hide_input=False)
         if not access_token:

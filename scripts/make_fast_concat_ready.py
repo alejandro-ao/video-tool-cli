@@ -103,9 +103,7 @@ def _format_level(raw_level: int | float | str | None) -> str | None:
 
 def _extract_profiles(reference: Path) -> tuple[VideoProfile, AudioProfile | None]:
     """Probe the reference video to capture video and audio parameters."""
-    video_data = _run_ffprobe(
-        reference, "v:0", "codec_name,width,height,r_frame_rate,pix_fmt,profile,level"
-    )
+    video_data = _run_ffprobe(reference, "v:0", "codec_name,width,height,r_frame_rate,pix_fmt,profile,level")
     if not video_data:
         raise RuntimeError(f"No video stream found in {reference}")
 
@@ -120,9 +118,7 @@ def _extract_profiles(reference: Path) -> tuple[VideoProfile, AudioProfile | Non
         level=video_data.get("level"),
     )
 
-    audio_data = _run_ffprobe(
-        reference, "a:0", "codec_name,sample_rate,channels,channel_layout"
-    )
+    audio_data = _run_ffprobe(reference, "a:0", "codec_name,sample_rate,channels,channel_layout")
     audio_profile = None
     if audio_data:
         audio_profile = AudioProfile(
@@ -145,9 +141,7 @@ def _choose_audio_encoder(codec: str) -> str:
     return FFMPEG_AUDIO_ENCODERS.get(codec.lower(), codec)
 
 
-def build_ffmpeg_command(
-    source: Path, output: Path, video: VideoProfile, audio: AudioProfile | None
-) -> list[str]:
+def build_ffmpeg_command(source: Path, output: Path, video: VideoProfile, audio: AudioProfile | None) -> list[str]:
     """Create an ffmpeg command that aligns the source to the reference profile."""
     vf_parts = [f"scale={video.width}:{video.height}:flags=lanczos"]
     if video.fps:
@@ -201,9 +195,7 @@ def build_ffmpeg_command(
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Re-encode video A to match video B so --fast-concat can stream copy."
-    )
+    parser = argparse.ArgumentParser(description="Re-encode video A to match video B so --fast-concat can stream copy.")
     parser.add_argument("source", help="Path to the video that needs reprocessing (video A).")
     parser.add_argument("reference", help="Path to the reference video to match (video B).")
     parser.add_argument(
@@ -253,9 +245,7 @@ def main() -> None:
     logger.info(f"Re-encoding {source.name} to match {reference.name}")
     subprocess.run(ffmpeg_cmd, check=True)
     logger.success(f"Aligned video written to: {output_path}")
-    logger.success(
-        "You can now use `--fast-concat` with the reference video and the aligned output."
-    )
+    logger.success("You can now use `--fast-concat` with the reference video and the aligned output.")
 
 
 if __name__ == "__main__":

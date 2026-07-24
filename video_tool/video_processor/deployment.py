@@ -44,14 +44,9 @@ class BunnyDeploymentMixin:
         library, access = resolved_credentials
 
         collection = (collection_id or get_credential("bunny_collection_id") or "").strip() or None
-        caption_lang = (
-            (caption_language or get_credential("bunny_caption_language") or "en").strip() or "en"
-        )
+        caption_lang = (caption_language or get_credential("bunny_caption_language") or "en").strip() or "en"
         existing_video_id = (video_id or get_credential("bunny_video_id") or "").strip()
-        resolved_title = (
-            (video_title or "").strip()
-            or (self.video_title or "").strip()
-        )
+        resolved_title = (video_title or "").strip() or (self.video_title or "").strip()
 
         effective_video_id: str | None = existing_video_id or None
         video_uploaded = False
@@ -73,9 +68,7 @@ class BunnyDeploymentMixin:
             resolved_title = upload_result["title"]
 
         if (upload_chapters or upload_transcript) and not effective_video_id:
-            logger.error(
-                "Bunny metadata update skipped: provide BUNNY_VIDEO_ID or select video upload."
-            )
+            logger.error("Bunny metadata update skipped: provide BUNNY_VIDEO_ID or select video upload.")
             return None
 
         if upload_chapters and effective_video_id:
@@ -86,9 +79,7 @@ class BunnyDeploymentMixin:
                 chapters=chapters,
             )
             if not chapters_uploaded:
-                logger.warning(
-                    "Bunny chapter update failed; the video may still be processing."
-                )
+                logger.warning("Bunny chapter update failed; the video may still be processing.")
 
         if upload_transcript and effective_video_id:
             transcript_uploaded = self.update_bunny_transcript(
@@ -99,18 +90,14 @@ class BunnyDeploymentMixin:
                 language=caption_lang,
             )
             if not transcript_uploaded:
-                logger.warning(
-                    "Bunny transcript upload failed; the video may still be processing."
-                )
+                logger.warning("Bunny transcript upload failed; the video may still be processing.")
 
         actions_performed = video_uploaded or chapters_uploaded or transcript_uploaded
 
         if effective_video_id:
             pending = not actions_performed
             if pending:
-                logger.warning(
-                    "Bunny sync deferred: no actions completed (video likely still processing)."
-                )
+                logger.warning("Bunny sync deferred: no actions completed (video likely still processing).")
             return {
                 "library_id": library,
                 "video_id": effective_video_id,
@@ -149,11 +136,7 @@ class BunnyDeploymentMixin:
             return None
 
         collection = (collection_id or get_credential("bunny_collection_id") or "").strip() or None
-        resolved_title = (
-            (video_title or "").strip()
-            or (self.video_title or "").strip()
-            or video_file.stem
-        )
+        resolved_title = (video_title or "").strip() or (self.video_title or "").strip() or video_file.stem
 
         create_response = self._create_video_entry(
             library=library,
@@ -164,9 +147,7 @@ class BunnyDeploymentMixin:
         if not create_response:
             return None
 
-        new_video_id = (
-            str(create_response.get("videoId") or create_response.get("guid") or "").strip()
-        )
+        new_video_id = str(create_response.get("videoId") or create_response.get("guid") or "").strip()
         if not new_video_id:
             logger.error("Bunny video creation response missing videoId/guid.")
             return None
@@ -207,9 +188,7 @@ class BunnyDeploymentMixin:
 
         resolved_video_id = (video_id or get_credential("bunny_video_id") or "").strip()
         if not resolved_video_id:
-            logger.error(
-                "Bunny chapter update skipped: a video identifier is required."
-            )
+            logger.error("Bunny chapter update skipped: a video identifier is required.")
             return False
 
         payload = self._prepare_chapters(chapters)
@@ -241,21 +220,15 @@ class BunnyDeploymentMixin:
 
         resolved_video_id = (video_id or get_credential("bunny_video_id") or "").strip()
         if not resolved_video_id:
-            logger.error(
-                "Bunny transcript upload skipped: a video identifier is required."
-            )
+            logger.error("Bunny transcript upload skipped: a video identifier is required.")
             return False
 
         transcript_file = self._resolve_transcript(transcript_path)
         if not transcript_file or not transcript_file.exists():
-            logger.warning(
-                "Transcript file not found for Bunny captions; skipping transcript upload."
-            )
+            logger.warning("Transcript file not found for Bunny captions; skipping transcript upload.")
             return False
 
-        resolved_language = (
-            (language or get_credential("bunny_caption_language") or "en").strip() or "en"
-        )
+        resolved_language = (language or get_credential("bunny_caption_language") or "en").strip() or "en"
 
         return self._upload_transcript_caption(
             library=library,
@@ -279,9 +252,7 @@ class BunnyDeploymentMixin:
         access = (access_key or get_credential("bunny_access_key") or "").strip()
 
         if not library or not access:
-            logger.error(
-                "Bunny sync skipped: BUNNY_LIBRARY_ID and BUNNY_ACCESS_KEY are required."
-            )
+            logger.error("Bunny sync skipped: BUNNY_LIBRARY_ID and BUNNY_ACCESS_KEY are required.")
             return None
 
         return library, access
@@ -450,9 +421,7 @@ class BunnyDeploymentMixin:
             return True
 
         # Fallback: legacy flow — create/get caption track and PUT VTT file
-        logger.info(
-            "srclang upload failed; attempting legacy caption track create + file PUT."
-        )
+        logger.info("srclang upload failed; attempting legacy caption track create + file PUT.")
         caption_id = self._ensure_caption_track(
             library=library,
             access_key=access_key,
@@ -560,17 +529,14 @@ class BunnyDeploymentMixin:
                     detail = ""
             if status in {400, 404}:
                 logger.warning(
-                    "Bunny API is not ready for %s %s (status %s). The video may still "
-                    "be processing. %s",
+                    "Bunny API is not ready for %s %s (status %s). The video may still be processing. %s",
                     method,
                     url,
                     status,
                     detail,
                 )
             else:
-                logger.error(
-                    f"Bunny API request failed ({method} {url}): {detail or exc}"
-                )
+                logger.error(f"Bunny API request failed ({method} {url}): {detail or exc}")
             return None
         except requests.RequestException as exc:
             logger.error(f"Bunny API request failed ({method} {url}): {exc}")

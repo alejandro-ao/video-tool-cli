@@ -21,9 +21,10 @@ def test_youtube_upload_happy_path(tmp_path: Path) -> None:
     video = tmp_path / "final.mp4"
     video.write_bytes(b"fake")
 
-    with patch(
-        "video_tool.cli.deploy_commands._check_youtube_credentials", return_value=True
-    ), patch("video_tool.cli.deploy_commands.VideoProcessor") as mock_processor:
+    with (
+        patch("video_tool.cli.deploy_commands._check_youtube_credentials", return_value=True),
+        patch("video_tool.cli.deploy_commands.VideoProcessor") as mock_processor,
+    ):
         instance = mock_processor.return_value
         instance.upload_youtube_video.return_value = {
             "video_id": "abc123",
@@ -96,9 +97,10 @@ def test_youtube_upload_failure_exits_1(tmp_path: Path) -> None:
     video = tmp_path / "final.mp4"
     video.write_bytes(b"fake")
 
-    with patch(
-        "video_tool.cli.deploy_commands._check_youtube_credentials", return_value=True
-    ), patch("video_tool.cli.deploy_commands.VideoProcessor") as mock_processor:
+    with (
+        patch("video_tool.cli.deploy_commands._check_youtube_credentials", return_value=True),
+        patch("video_tool.cli.deploy_commands.VideoProcessor") as mock_processor,
+    ):
         mock_processor.return_value.upload_youtube_video.return_value = None
         result = runner.invoke(app, ["upload", "youtube-video", "-i", str(video), "--title", "T"])
 
@@ -114,9 +116,10 @@ def test_youtube_upload_reads_description_and_tags_files(tmp_path: Path) -> None
     tags = tmp_path / "tags.txt"
     tags.write_text("alpha\nbeta\n")
 
-    with patch(
-        "video_tool.cli.deploy_commands._check_youtube_credentials", return_value=True
-    ), patch("video_tool.cli.deploy_commands.VideoProcessor") as mock_processor:
+    with (
+        patch("video_tool.cli.deploy_commands._check_youtube_credentials", return_value=True),
+        patch("video_tool.cli.deploy_commands.VideoProcessor") as mock_processor,
+    ):
         instance = mock_processor.return_value
         instance.upload_youtube_video.return_value = {"video_id": "x", "url": "u", "profile": "p"}
 
@@ -153,9 +156,10 @@ def test_youtube_transcript_happy_path(tmp_path: Path) -> None:
     transcript = tmp_path / "transcript.vtt"
     transcript.write_text("WEBVTT\n\n00:00:00.000 --> 00:00:05.000\nHello")
 
-    with patch(
-        "video_tool.cli.deploy_commands._check_youtube_credentials", return_value=True
-    ), patch("video_tool.cli.deploy_commands.VideoProcessor") as mock_processor:
+    with (
+        patch("video_tool.cli.deploy_commands._check_youtube_credentials", return_value=True),
+        patch("video_tool.cli.deploy_commands.VideoProcessor") as mock_processor,
+    ):
         instance = mock_processor.return_value
         instance.upload_youtube_captions.return_value = True
 
@@ -206,9 +210,10 @@ def test_youtube_transcript_upload_failure_exits_1(tmp_path: Path) -> None:
     transcript = tmp_path / "transcript.vtt"
     transcript.write_text("WEBVTT\n")
 
-    with patch(
-        "video_tool.cli.deploy_commands._check_youtube_credentials", return_value=True
-    ), patch("video_tool.cli.deploy_commands.VideoProcessor") as mock_processor:
+    with (
+        patch("video_tool.cli.deploy_commands._check_youtube_credentials", return_value=True),
+        patch("video_tool.cli.deploy_commands.VideoProcessor") as mock_processor,
+    ):
         mock_processor.return_value.upload_youtube_captions.return_value = False
         result = runner.invoke(
             app,
@@ -223,9 +228,10 @@ def test_youtube_transcript_upload_failure_exits_1(tmp_path: Path) -> None:
 
 @pytest.mark.unit
 def test_youtube_metadata_happy_path() -> None:
-    with patch(
-        "video_tool.cli.deploy_commands._check_youtube_credentials", return_value=True
-    ), patch("video_tool.cli.deploy_commands.VideoProcessor") as mock_processor:
+    with (
+        patch("video_tool.cli.deploy_commands._check_youtube_credentials", return_value=True),
+        patch("video_tool.cli.deploy_commands.VideoProcessor") as mock_processor,
+    ):
         instance = mock_processor.return_value
         instance.update_youtube_metadata.return_value = True
 
@@ -264,12 +270,11 @@ def test_youtube_metadata_requires_a_field() -> None:
 
 @pytest.mark.unit
 def test_youtube_metadata_failure_exits_1() -> None:
-    with patch(
-        "video_tool.cli.deploy_commands._check_youtube_credentials", return_value=True
-    ), patch("video_tool.cli.deploy_commands.VideoProcessor") as mock_processor:
+    with (
+        patch("video_tool.cli.deploy_commands._check_youtube_credentials", return_value=True),
+        patch("video_tool.cli.deploy_commands.VideoProcessor") as mock_processor,
+    ):
         mock_processor.return_value.update_youtube_metadata.return_value = False
-        result = runner.invoke(
-            app, ["upload", "youtube-metadata", "--video-id", "abc123", "--title", "T"]
-        )
+        result = runner.invoke(app, ["upload", "youtube-metadata", "--video-id", "abc123", "--title", "T"])
 
     assert result.exit_code == 1

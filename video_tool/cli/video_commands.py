@@ -104,18 +104,14 @@ def silence_removal(
         prompt_text=f"Output file path (defaults to {default_output})",
     )
 
-    step_start("Removing silences", {
-        "Input": str(input_path),
-        "Output": str(final_output_path),
-        "Threshold": f"{threshold}s"
-    })
+    step_start(
+        "Removing silences", {"Input": str(input_path), "Output": str(final_output_path), "Threshold": f"{threshold}s"}
+    )
 
     with status_spinner("Processing"):
         processor = VideoProcessor(str(input_path.parent))
         result = processor.remove_silence_from_video(
-            video_path=str(input_path),
-            output_path=str(final_output_path),
-            min_silence_len=int(threshold * 1000)
+            video_path=str(input_path), output_path=str(final_output_path), min_silence_len=int(threshold * 1000)
         )
 
     step_complete("Silence removal complete", result)
@@ -142,6 +138,7 @@ def concat(
 
     # Resolve output path (relative paths resolve to input_dir)
     from datetime import datetime
+
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     final_output_path = resolve_output_path(
         output_path,
@@ -365,10 +362,13 @@ def extract_audio(
     )
 
     # 4. Extract audio
-    step_start("Extracting audio", {
-        "Input": str(input_path),
-        "Output": str(final_output_path),
-    })
+    step_start(
+        "Extracting audio",
+        {
+            "Input": str(input_path),
+            "Output": str(final_output_path),
+        },
+    )
 
     with status_spinner("Processing"):
         try:
@@ -443,11 +443,14 @@ def enhance_audio_cmd(
     )
 
     # 5. Process
-    step_start("Enhancing audio", {
-        "Input": str(input_path),
-        "Output": str(final_output_path),
-        "Mode": "denoise only" if denoise_only else "full enhancement",
-    })
+    step_start(
+        "Enhancing audio",
+        {
+            "Input": str(input_path),
+            "Output": str(final_output_path),
+            "Mode": "denoise only" if denoise_only else "full enhancement",
+        },
+    )
 
     try:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -457,11 +460,24 @@ def enhance_audio_cmd(
             if is_video:
                 with status_spinner("Extracting audio from video"):
                     audio_path = temp_path / "audio.wav"
-                    subprocess.run([
-                        "ffmpeg", "-y", "-i", str(input_path),
-                        "-vn", "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2",
-                        str(audio_path)
-                    ], check=True, capture_output=True)
+                    subprocess.run(
+                        [
+                            "ffmpeg",
+                            "-y",
+                            "-i",
+                            str(input_path),
+                            "-vn",
+                            "-acodec",
+                            "pcm_s16le",
+                            "-ar",
+                            "44100",
+                            "-ac",
+                            "2",
+                            str(audio_path),
+                        ],
+                        check=True,
+                        capture_output=True,
+                    )
             else:
                 audio_path = input_path
 
@@ -481,11 +497,11 @@ def enhance_audio_cmd(
             else:
                 # Convert to original format
                 with status_spinner("Converting to output format"):
-                    subprocess.run([
-                        "ffmpeg", "-y",
-                        "-i", str(enhanced_audio_path),
-                        str(final_output_path)
-                    ], check=True, capture_output=True)
+                    subprocess.run(
+                        ["ffmpeg", "-y", "-i", str(enhanced_audio_path), str(final_output_path)],
+                        check=True,
+                        capture_output=True,
+                    )
 
         step_complete("Audio enhancement complete", str(final_output_path))
 
@@ -536,7 +552,7 @@ def _enhance_audio_replicate(audio_path: Path, api_token: str, denoise_only: boo
                 "number_function_evaluations": 64,
                 "prior_temperature": 0.5,
                 "denoise_flag": denoise_only,
-            }
+            },
         },
         timeout=60,
     )
@@ -579,10 +595,14 @@ def _get_media_duration(path: Path) -> float | None:
     try:
         result = subprocess.run(
             [
-                "ffprobe", "-v", "error",
-                "-show_entries", "format=duration",
-                "-of", "default=noprint_wrappers=1:nokey=1",
-                str(path)
+                "ffprobe",
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
+                str(path),
             ],
             capture_output=True,
             text=True,
@@ -597,13 +617,19 @@ def _replace_video_audio(video_path: Path, audio_path: Path, output_path: Path) 
     """Replace video's audio track with new audio file using ffmpeg."""
     subprocess.run(
         [
-            "ffmpeg", "-y",
-            "-i", str(video_path),
-            "-i", str(audio_path),
-            "-c:v", "copy",
-            "-map", "0:v:0",
-            "-map", "1:a:0",
-            str(output_path)
+            "ffmpeg",
+            "-y",
+            "-i",
+            str(video_path),
+            "-i",
+            str(audio_path),
+            "-c:v",
+            "copy",
+            "-map",
+            "0:v:0",
+            "-map",
+            "1:a:0",
+            str(output_path),
         ],
         check=True,
         capture_output=True,
@@ -679,11 +705,14 @@ def replace_audio(
             )
 
     # 7. Replace audio
-    step_start("Replacing audio", {
-        "Video": str(video_path),
-        "Audio": str(audio_path),
-        "Output": str(final_output_path),
-    })
+    step_start(
+        "Replacing audio",
+        {
+            "Video": str(video_path),
+            "Audio": str(audio_path),
+            "Output": str(final_output_path),
+        },
+    )
 
     try:
         with status_spinner("Processing"):
@@ -695,9 +724,6 @@ def replace_audio(
 
 
 # --- Metadata helpers ---
-
-
-
 
 
 # --- Video Editing Commands ---
@@ -737,17 +763,17 @@ def video_info(
         console.print(f"  File: {info['file_name']}")
         console.print(f"  Size: {info['file_size_mb']} MB")
         console.print(f"  Duration: {info['duration_formatted']}")
-        if info.get('resolution'):
+        if info.get("resolution"):
             console.print(f"  Resolution: {info['resolution']}")
-        if info.get('fps'):
+        if info.get("fps"):
             console.print(f"  FPS: {info['fps']}")
-        if info.get('video_codec'):
+        if info.get("video_codec"):
             console.print(f"  Video Codec: {info['video_codec']}")
-        if info.get('audio_codec'):
+        if info.get("audio_codec"):
             console.print(f"  Audio Codec: {info['audio_codec']}")
-        if info.get('audio_channels'):
+        if info.get("audio_channels"):
             console.print(f"  Audio Channels: {info['audio_channels']}")
-        if info.get('bit_rate'):
+        if info.get("bit_rate"):
             console.print(f"  Bitrate: {info['bit_rate'] // 1000} kbps")
 
         # Also output as JSON for machine parsing

@@ -37,12 +37,8 @@ def test_concat_happy_path_fast_mode(tmp_path: Path) -> None:
         )
 
     assert result.exit_code == 0, result.stdout
-    mock_processor.assert_called_once_with(
-        str(clips), video_title="final", output_dir=str(output.parent)
-    )
-    instance.concatenate_videos.assert_called_once_with(
-        skip_reprocessing=True, output_path=str(output)
-    )
+    mock_processor.assert_called_once_with(str(clips), video_title="final", output_dir=str(output.parent))
+    instance.concatenate_videos.assert_called_once_with(skip_reprocessing=True, output_path=str(output))
 
     metadata = json.loads((output.parent / "metadata.json").read_text())
     assert metadata["output_filename"] == "final.mp4"
@@ -66,16 +62,12 @@ def test_concat_standard_mode_and_relative_output(tmp_path: Path) -> None:
         )
 
     assert result.exit_code == 0, result.stdout
-    instance.concatenate_videos.assert_called_once_with(
-        skip_reprocessing=False, output_path=str(clips / "out.mp4")
-    )
+    instance.concatenate_videos.assert_called_once_with(skip_reprocessing=False, output_path=str(clips / "out.mp4"))
 
 
 @pytest.mark.unit
 def test_concat_invalid_directory_exits_1(tmp_path: Path) -> None:
-    result = runner.invoke(
-        app, ["video", "concat", "-i", str(tmp_path / "missing"), "--fast-concat"]
-    )
+    result = runner.invoke(app, ["video", "concat", "-i", str(tmp_path / "missing"), "--fast-concat"])
     assert result.exit_code == 1
 
 
@@ -103,9 +95,7 @@ def test_timestamps_clips_mode_happy_path(tmp_path: Path) -> None:
 
     with patch("video_tool.cli.video_commands.VideoProcessor") as mock_processor:
         instance = mock_processor.return_value
-        instance.generate_timestamps.return_value = {
-            "timestamps": [{"start": "0:00", "end": "1:00", "title": "Intro"}]
-        }
+        instance.generate_timestamps.return_value = {"timestamps": [{"start": "0:00", "end": "1:00", "title": "Intro"}]}
 
         result = runner.invoke(
             app,
@@ -132,9 +122,10 @@ def test_timestamps_transcript_mode_happy_path(tmp_path: Path) -> None:
     transcript.write_text("WEBVTT\n\n00:00:00.000 --> 00:00:05.000\nHello")
     output = tmp_path / "timestamps.json"
 
-    with patch(
-        "video_tool.cli.video_commands.ensure_openai_key", return_value=True
-    ), patch("video_tool.cli.video_commands.VideoProcessor") as mock_processor:
+    with (
+        patch("video_tool.cli.video_commands.ensure_openai_key", return_value=True),
+        patch("video_tool.cli.video_commands.VideoProcessor") as mock_processor,
+    ):
         instance = mock_processor.return_value
         instance.generate_timestamps.return_value = {"timestamps": []}
 
@@ -174,9 +165,7 @@ def test_timestamps_invalid_mode_exits_1(tmp_path: Path) -> None:
 
 @pytest.mark.unit
 def test_timestamps_clips_invalid_directory_exits_1(tmp_path: Path) -> None:
-    result = runner.invoke(
-        app, ["video", "timestamps", "--mode", "clips", "-i", str(tmp_path / "missing")]
-    )
+    result = runner.invoke(app, ["video", "timestamps", "--mode", "clips", "-i", str(tmp_path / "missing")])
     assert result.exit_code == 1
 
 
@@ -186,9 +175,7 @@ def test_timestamps_transcript_requires_openai_key(tmp_path: Path) -> None:
     transcript.write_text("WEBVTT\n")
 
     with patch("video_tool.cli.video_commands.ensure_openai_key", return_value=False):
-        result = runner.invoke(
-            app, ["video", "timestamps", "--mode", "transcript", "-i", str(transcript)]
-        )
+        result = runner.invoke(app, ["video", "timestamps", "--mode", "transcript", "-i", str(transcript)])
     assert result.exit_code == 1
 
 

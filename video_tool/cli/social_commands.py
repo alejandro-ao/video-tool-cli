@@ -125,9 +125,6 @@ def _warn_if_too_long(texts: list[str]) -> None:
             step_warning(f"Thread item {idx} is {len(text)} characters (X limit is 280).")
 
 
-
-
-
 def _write_social_artifact(output_dir: Path, name: str, payload: dict) -> None:
     artifact_dir = output_dir / "social_posts"
     artifact_dir.mkdir(parents=True, exist_ok=True)

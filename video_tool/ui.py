@@ -23,13 +23,15 @@ from rich.status import Status
 console = Console()
 
 # Style for questionary prompts (matches Rich cyan theme)
-CHOICE_STYLE = QStyle([
-    ("qmark", "fg:cyan bold"),
-    ("question", "fg:cyan bold"),
-    ("pointer", "fg:cyan bold"),
-    ("highlighted", "fg:cyan bold"),
-    ("selected", "fg:green"),
-])
+CHOICE_STYLE = QStyle(
+    [
+        ("qmark", "fg:cyan bold"),
+        ("question", "fg:cyan bold"),
+        ("pointer", "fg:cyan bold"),
+        ("highlighted", "fg:cyan bold"),
+        ("selected", "fg:green"),
+    ]
+)
 
 
 @contextmanager

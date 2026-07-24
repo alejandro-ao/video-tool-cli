@@ -94,9 +94,7 @@ class TestGetCredentialCurrentBehavior:
         result = get_credential("openai_api_key")
         assert result == "sk-test12345678"
 
-    def test_returns_none_when_key_missing_everywhere(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_returns_none_when_key_missing_everywhere(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr("video_tool.config.CREDENTIALS_PATH", tmp_path / "creds.yaml")
         # Clear the env var too
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
@@ -112,9 +110,7 @@ class TestGetCredentialCurrentBehavior:
         result = get_credential("openai_api_key")
         assert result == "sk-valid-fallback-key"
 
-    def test_returns_none_for_unknown_key_even_with_env(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_returns_none_for_unknown_key_even_with_env(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr("video_tool.config.CREDENTIALS_PATH", tmp_path / "creds.yaml")
         # Unknown key has no env var mapping, so should always return None
         result = get_credential("totally_unknown_key_xyz")
@@ -132,9 +128,7 @@ class TestGetCredentialEnvFallback:
         not _CFG_HAS_ENV_FALLBACK,
         reason="env-var fallback in get_credential added in PR refactor/project-audit-fixes",
     )
-    def test_falls_back_to_env_var_when_yaml_empty(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_falls_back_to_env_var_when_yaml_empty(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr("video_tool.config.CREDENTIALS_PATH", tmp_path / "creds.yaml")
         monkeypatch.setenv("OPENAI_API_KEY", "sk-from-env-12345")
         result = get_credential("openai_api_key")
@@ -144,9 +138,7 @@ class TestGetCredentialEnvFallback:
         not _CFG_HAS_ENV_FALLBACK,
         reason="env-var fallback added in PR",
     )
-    def test_yaml_takes_precedence_over_env_var(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_yaml_takes_precedence_over_env_var(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr("video_tool.config.CREDENTIALS_PATH", tmp_path / "creds.yaml")
         save_credentials({"openai_api_key": "sk-from-yaml-12345"})
         monkeypatch.setenv("OPENAI_API_KEY", "sk-from-env-67890")
@@ -157,9 +149,7 @@ class TestGetCredentialEnvFallback:
         not _CFG_HAS_ENV_FALLBACK,
         reason="env-var fallback added in PR",
     )
-    def test_invalid_yaml_credential_falls_back_to_env(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_invalid_yaml_credential_falls_back_to_env(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr("video_tool.config.CREDENTIALS_PATH", tmp_path / "creds.yaml")
         save_credentials({"openai_api_key": "..."})  # Invalid
         monkeypatch.setenv("OPENAI_API_KEY", "sk-valid-key-12345")
@@ -170,9 +160,7 @@ class TestGetCredentialEnvFallback:
         not _CFG_HAS_ENV_FALLBACK,
         reason="env-var fallback added in PR",
     )
-    def test_env_var_whitespace_is_stripped(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_env_var_whitespace_is_stripped(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr("video_tool.config.CREDENTIALS_PATH", tmp_path / "creds.yaml")
         monkeypatch.setenv("OPENAI_API_KEY", "  sk-whitespace-key  ")
         result = get_credential("openai_api_key")
@@ -182,9 +170,7 @@ class TestGetCredentialEnvFallback:
         not _CFG_HAS_ENV_FALLBACK,
         reason="env-var fallback added in PR",
     )
-    def test_empty_env_var_is_skipped(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_empty_env_var_is_skipped(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr("video_tool.config.CREDENTIALS_PATH", tmp_path / "creds.yaml")
         monkeypatch.setenv("OPENAI_API_KEY", "")
         result = get_credential("openai_api_key")
@@ -194,9 +180,7 @@ class TestGetCredentialEnvFallback:
         not _CFG_HAS_ENV_FALLBACK,
         reason="bunny keys added in PR",
     )
-    def test_bunny_keys_use_env_fallback(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_bunny_keys_use_env_fallback(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr("video_tool.config.CREDENTIALS_PATH", tmp_path / "creds.yaml")
         monkeypatch.setenv("BUNNY_VIDEO_ID", "test-video-id-abc")
         monkeypatch.setenv("BUNNY_CAPTION_LANGUAGE", "fr")
@@ -313,6 +297,7 @@ class TestLLMConfig:
         monkeypatch.setattr("video_tool.config.CONFIG_DIR", tmp_path / "config_dir")
         monkeypatch.setattr("video_tool.config.CONFIG_PATH", tmp_path / "config_dir" / "config.yaml")
         from video_tool.config import get_llm_config, set_llm_config
+
         set_llm_config("description", base_url="https://custom.api.com", model="gpt-4o-mini")
         config = get_llm_config("description")
         assert config.base_url == "https://custom.api.com"

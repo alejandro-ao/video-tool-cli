@@ -83,11 +83,14 @@ def transcript(
     )
 
     # 4. Generate transcript
-    step_start("Generating transcript", {
-        "Input": str(input_path),
-        "Type": "audio" if is_audio else "video",
-        "Output": str(final_output_path),
-    })
+    step_start(
+        "Generating transcript",
+        {
+            "Input": str(input_path),
+            "Type": "audio" if is_audio else "video",
+            "Output": str(final_output_path),
+        },
+    )
 
     with status_spinner("Transcribing"):
         processor = VideoProcessor(str(base_dir), output_dir=str(final_output_path.parent))
@@ -234,12 +237,15 @@ def description(
         links_list.extend(config_links)
 
     llm_config = get_llm_config("description")
-    step_start("Generating description", {
-        "Transcript": str(transcript_file),
-        "Output": final_output_path,
-        "Model": llm_config.model,
-        "Provider": llm_config.base_url,
-    })
+    step_start(
+        "Generating description",
+        {
+            "Transcript": str(transcript_file),
+            "Output": final_output_path,
+            "Model": llm_config.model,
+            "Provider": llm_config.base_url,
+        },
+    )
 
     with status_spinner("Processing"):
         description_result = processor.generate_description(
@@ -347,12 +353,15 @@ def context_cards(
         processor = VideoProcessor(str(transcript_file.parent), output_dir=str(output_dir_path))
 
     llm_config = get_llm_config("context_cards")
-    step_start("Generating context cards", {
-        "Transcript": str(transcript_file),
-        "Output": final_output_path,
-        "Model": llm_config.model,
-        "Provider": llm_config.base_url,
-    })
+    step_start(
+        "Generating context cards",
+        {
+            "Transcript": str(transcript_file),
+            "Output": final_output_path,
+            "Model": llm_config.model,
+            "Provider": llm_config.base_url,
+        },
+    )
 
     with status_spinner("Processing"):
         cards_path = processor.generate_context_cards(str(transcript_file), output_path=final_output_path)
@@ -386,6 +395,3 @@ def _update_context_cards_metadata(output_dir: Path, cards_path: str, transcript
 
 
 # --- Metadata helpers ---
-
-
-

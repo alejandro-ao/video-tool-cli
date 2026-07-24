@@ -59,6 +59,7 @@ class SilenceProcessingMixin:
         if not nonsilent_chunks:
             logger.warning(f"No non-silent chunks found in {video_file.name}, copying original.")
             import shutil
+
             shutil.copy2(video_file, output_file)
             return str(output_file)
 
@@ -126,18 +127,14 @@ class SilenceProcessingMixin:
                 nonsilent_chunks[idx] = buffered
 
             if not nonsilent_chunks:
-                logger.warning(
-                f"No non-silent chunks found in {video_file.name}, skipping."
-                )
+                logger.warning(f"No non-silent chunks found in {video_file.name}, skipping.")
                 continue
 
             last_start, last_end = nonsilent_chunks[-1]
             audio_duration_ms = len(audio)
             if last_end < audio_duration_ms:
                 extension = (audio_duration_ms - last_end) / 1000
-                logger.info(
-                    f"Extending last chunk to the end of the video by {extension:.2f}s."
-                )
+                logger.info(f"Extending last chunk to the end of the video by {extension:.2f}s.")
                 nonsilent_chunks[-1] = (
                     last_start,
                     audio_duration_ms,
@@ -145,14 +142,10 @@ class SilenceProcessingMixin:
 
             num_silences = len(nonsilent_chunks) - 1
             total_duration = audio.duration_seconds
-            total_nonsilent_duration = sum(
-                (end - start) / 1000 for start, end in nonsilent_chunks
-            )
+            total_nonsilent_duration = sum((end - start) / 1000 for start, end in nonsilent_chunks)
             silence_duration = total_duration - total_nonsilent_duration
 
-            silence_ratio = (
-                (silence_duration / total_duration) * 100 if total_duration else 0
-            )
+            silence_ratio = (silence_duration / total_duration) * 100 if total_duration else 0
             logger.info(
                 f"Found {num_silences} silences in {video_file.name}. "
                 f"Total silence duration: {silence_duration:.2f} seconds "
@@ -171,9 +164,7 @@ class SilenceProcessingMixin:
                         f"(duration: {silence_length:.2f}s)"
                     )
 
-            self._process_video_with_concat_filter(
-                video_file, nonsilent_chunks, processed_dir
-            )
+            self._process_video_with_concat_filter(video_file, nonsilent_chunks, processed_dir)
 
         return str(processed_dir)
 
@@ -200,12 +191,8 @@ class SilenceProcessingMixin:
 
         concat_video_streams = "".join(f"[v{idx}]" for idx in range(len(nonsilent_chunks)))
         concat_audio_streams = "".join(f"[a{idx}]" for idx in range(len(nonsilent_chunks)))
-        filter_complex.append(
-            f"{concat_video_streams}concat=n={len(nonsilent_chunks)}:v=1:a=0[outv]"
-        )
-        filter_complex.append(
-            f"{concat_audio_streams}concat=n={len(nonsilent_chunks)}:v=0:a=1[outa]"
-        )
+        filter_complex.append(f"{concat_video_streams}concat=n={len(nonsilent_chunks)}:v=1:a=0[outv]")
+        filter_complex.append(f"{concat_audio_streams}concat=n={len(nonsilent_chunks)}:v=0:a=1[outa]")
 
         cmd = [
             "ffmpeg",

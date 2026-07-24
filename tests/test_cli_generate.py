@@ -97,9 +97,10 @@ def test_generate_transcript_happy_path(tmp_path):
     video.write_bytes(b"fake")
     output = tmp_path / "transcript.vtt"
 
-    with patch("video_tool.cli.generate_commands.ensure_groq_key", return_value=True), patch(
-        "video_tool.cli.generate_commands.VideoProcessor"
-    ) as mock_processor:
+    with (
+        patch("video_tool.cli.generate_commands.ensure_groq_key", return_value=True),
+        patch("video_tool.cli.generate_commands.VideoProcessor") as mock_processor,
+    ):
         instance = mock_processor.return_value
 
         def fake_transcript(video_path, output_path):
@@ -110,14 +111,10 @@ def test_generate_transcript_happy_path(tmp_path):
 
         instance.generate_transcript.side_effect = fake_transcript
 
-        result = runner.invoke(
-            app, ["generate", "transcript", "-i", str(video), "-o", str(output)]
-        )
+        result = runner.invoke(app, ["generate", "transcript", "-i", str(video), "-o", str(output)])
 
     assert result.exit_code == 0, result.stdout
-    instance.generate_transcript.assert_called_once_with(
-        video_path=str(video), output_path=str(output)
-    )
+    instance.generate_transcript.assert_called_once_with(video_path=str(video), output_path=str(output))
 
     metadata = json.loads((tmp_path / "metadata.json").read_text())
     assert metadata["transcript_format"] == "vtt"
@@ -142,15 +139,15 @@ def test_generate_description_from_vtt_happy_path(tmp_path):
     transcript.write_text("WEBVTT\n\n00:00:00.000 --> 00:00:05.000\nHello")
     output = tmp_path / "description.md"
 
-    with patch("video_tool.cli.generate_commands.ensure_config"), patch(
-        "video_tool.cli.generate_commands.ensure_openai_key", return_value=True
-    ), patch("video_tool.cli.generate_commands.VideoProcessor") as mock_processor:
+    with (
+        patch("video_tool.cli.generate_commands.ensure_config"),
+        patch("video_tool.cli.generate_commands.ensure_openai_key", return_value=True),
+        patch("video_tool.cli.generate_commands.VideoProcessor") as mock_processor,
+    ):
         instance = mock_processor.return_value
         instance.generate_description.return_value = str(output)
 
-        result = runner.invoke(
-            app, ["generate", "description", "-i", str(transcript), "-o", str(output)]
-        )
+        result = runner.invoke(app, ["generate", "description", "-i", str(transcript), "-o", str(output)])
 
     assert result.exit_code == 0, result.stdout
     instance.generate_transcript.assert_not_called()
@@ -166,19 +163,18 @@ def test_generate_description_from_video_transcribes_first(tmp_path):
     video.write_bytes(b"fake")
     output = tmp_path / "description.md"
 
-    with patch("video_tool.cli.generate_commands.ensure_config"), patch(
-        "video_tool.cli.generate_commands.ensure_openai_key", return_value=True
-    ), patch(
-        "video_tool.cli.generate_commands.ensure_groq_key", return_value=True
-    ), patch("video_tool.cli.generate_commands.VideoProcessor") as mock_processor:
+    with (
+        patch("video_tool.cli.generate_commands.ensure_config"),
+        patch("video_tool.cli.generate_commands.ensure_openai_key", return_value=True),
+        patch("video_tool.cli.generate_commands.ensure_groq_key", return_value=True),
+        patch("video_tool.cli.generate_commands.VideoProcessor") as mock_processor,
+    ):
         instance = mock_processor.return_value
         transcript_path = str(tmp_path / "transcript.vtt")
         instance.generate_transcript.return_value = transcript_path
         instance.generate_description.return_value = str(output)
 
-        result = runner.invoke(
-            app, ["generate", "description", "-i", str(video), "-o", str(output)]
-        )
+        result = runner.invoke(app, ["generate", "description", "-i", str(video), "-o", str(output)])
 
     assert result.exit_code == 0, result.stdout
     instance.generate_transcript.assert_called_once()

@@ -12,6 +12,7 @@ import pytest
 
 try:
     from video_tool.metadata import read_metadata, write_metadata
+
     METADATA_MODULE_AVAILABLE = True
 except ImportError:
     METADATA_MODULE_AVAILABLE = False

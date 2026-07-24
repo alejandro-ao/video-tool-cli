@@ -37,8 +37,18 @@ def _detect_gpu_encoder(codec: str = "h264") -> str | None:
     try:
         result = subprocess.run(
             [
-                "ffmpeg", "-f", "lavfi", "-i", "testsrc=duration=0.1:size=64x64:rate=1",
-                "-c:v", encoder, "-t", "0.1", "-f", "null", "-"
+                "ffmpeg",
+                "-f",
+                "lavfi",
+                "-i",
+                "testsrc=duration=0.1:size=64x64:rate=1",
+                "-c:v",
+                encoder,
+                "-t",
+                "0.1",
+                "-f",
+                "null",
+                "-",
             ],
             capture_output=True,
             timeout=10,
@@ -101,10 +111,7 @@ class EditingMixin:
         logger.info(f"Getting video info: {path.name}")
 
         # Get format and stream info
-        cmd = [
-            "ffprobe", "-v", "quiet", "-print_format", "json",
-            "-show_format", "-show_streams", str(path)
-        ]
+        cmd = ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", "-show_streams", str(path)]
 
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         data = json.loads(result.stdout)
@@ -136,23 +143,27 @@ class EditingMixin:
             except (ValueError, ZeroDivisionError):
                 fps = 0
 
-            info.update({
-                "width": video_stream.get("width"),
-                "height": video_stream.get("height"),
-                "resolution": f"{video_stream.get('width')}x{video_stream.get('height')}",
-                "video_codec": video_stream.get("codec_name"),
-                "fps": round(fps, 2),
-                "pixel_format": video_stream.get("pix_fmt"),
-            })
+            info.update(
+                {
+                    "width": video_stream.get("width"),
+                    "height": video_stream.get("height"),
+                    "resolution": f"{video_stream.get('width')}x{video_stream.get('height')}",
+                    "video_codec": video_stream.get("codec_name"),
+                    "fps": round(fps, 2),
+                    "pixel_format": video_stream.get("pix_fmt"),
+                }
+            )
 
         if audio_stream:
-            info.update({
-                "audio_codec": audio_stream.get("codec_name"),
-                "audio_channels": audio_stream.get("channels"),
-                "audio_sample_rate": (
-                    int(audio_stream.get("sample_rate", 0)) if audio_stream.get("sample_rate") else None
-                ),
-            })
+            info.update(
+                {
+                    "audio_codec": audio_stream.get("codec_name"),
+                    "audio_channels": audio_stream.get("channels"),
+                    "audio_sample_rate": (
+                        int(audio_stream.get("sample_rate", 0)) if audio_stream.get("sample_rate") else None
+                    ),
+                }
+            )
 
         # Format duration as HH:MM:SS
         duration = info["duration_seconds"]
@@ -235,7 +246,7 @@ class EditingMixin:
             return str(out_path)
         except subprocess.CalledProcessError as exc:
             logger.error(f"Failed to trim video: {exc}")
-            if hasattr(exc, 'stderr') and exc.stderr:
+            if hasattr(exc, "stderr") and exc.stderr:
                 logger.error(f"FFmpeg stderr: {exc.stderr}")
             raise
 
@@ -335,8 +346,17 @@ class EditingMixin:
                         f.write(f"file '{seg}'\n")
 
                 cmd = [
-                    "ffmpeg", "-y", "-f", "concat", "-safe", "0",
-                    "-i", str(concat_list), "-c", "copy", str(out_path)
+                    "ffmpeg",
+                    "-y",
+                    "-f",
+                    "concat",
+                    "-safe",
+                    "0",
+                    "-i",
+                    str(concat_list),
+                    "-c",
+                    "copy",
+                    str(out_path),
                 ]
 
                 subprocess.run(cmd, check=True, **self._quiet_subprocess_kwargs())
@@ -431,6 +451,6 @@ class EditingMixin:
             return str(out_path)
         except subprocess.CalledProcessError as exc:
             logger.error(f"Failed to change video speed: {exc}")
-            if hasattr(exc, 'stderr') and exc.stderr:
+            if hasattr(exc, "stderr") and exc.stderr:
                 logger.error(f"FFmpeg stderr: {exc.stderr}")
             raise

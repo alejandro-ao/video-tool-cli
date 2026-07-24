@@ -143,9 +143,7 @@ class ConcatenationMixin:
                     **self._quiet_subprocess_kwargs(),
                 )
             else:
-                logger.info(
-                    "Standard concatenation mode: reprocessing videos for compatibility"
-                )
+                logger.info("Standard concatenation mode: reprocessing videos for compatibility")
 
                 probe_cmd = [
                     "ffprobe",
@@ -159,9 +157,7 @@ class ConcatenationMixin:
                     "json",
                     str(video_files[0]),
                 ]
-                probe_result = subprocess.run(
-                    probe_cmd, capture_output=True, text=True, check=True
-                )
+                probe_result = subprocess.run(probe_cmd, capture_output=True, text=True, check=True)
                 video_info = json.loads(probe_result.stdout)
                 stream_info = video_info["streams"][0]
 
@@ -177,9 +173,7 @@ class ConcatenationMixin:
                     "json",
                     str(video_files[0]),
                 ]
-                audio_result = subprocess.run(
-                    audio_probe_cmd, capture_output=True, text=True, check=True
-                )
+                audio_result = subprocess.run(audio_probe_cmd, capture_output=True, text=True, check=True)
                 audio_info = json.loads(audio_result.stdout)
                 audio_stream = audio_info["streams"][0] if audio_info["streams"] else None
 
@@ -231,9 +225,7 @@ class ConcatenationMixin:
                         )
 
                     cmd.extend(["-y", str(output_file)])
-                    logger.info(
-                        f"Standardizing video with hardware acceleration: {video_file.name}"
-                    )
+                    logger.info(f"Standardizing video with hardware acceleration: {video_file.name}")
                     subprocess.run(
                         cmd,
                         check=True,
@@ -287,9 +279,7 @@ class ConcatenationMixin:
         video_path: str | None = None,
     ) -> dict:
         """Generate timestamp information for the video with chapters based on input videos or transcript."""
-        resolved_output_path = (
-            Path(output_path).expanduser() if output_path else self.output_dir / "timestamps.json"
-        )
+        resolved_output_path = Path(output_path).expanduser() if output_path else self.output_dir / "timestamps.json"
 
         if stamps_from_transcript:
             transcript_file, transcript_generated = self._resolve_transcript_for_timestamps(
@@ -335,9 +325,7 @@ class ConcatenationMixin:
         if processed_dir.exists():
             try:
                 video_files = self.get_video_files(str(processed_dir))
-                logger.info(
-                    f"Generating timestamps from processed directory: {processed_dir}"
-                )
+                logger.info(f"Generating timestamps from processed directory: {processed_dir}")
             except ValueError:
                 pass
 
@@ -422,9 +410,7 @@ class ConcatenationMixin:
             if llm_available:
                 transcript_segments = self._load_transcript_segments(transcript_file)
                 if transcript_segments:
-                    timestamps = self._refine_timestamp_titles_with_structured_output(
-                        timestamps, transcript_segments
-                    )
+                    timestamps = self._refine_timestamp_titles_with_structured_output(timestamps, transcript_segments)
             else:
                 logger.info("Skipping LLM title refinement (no LLM configured)")
 
@@ -504,9 +490,7 @@ class ConcatenationMixin:
         ordered_chapters: list[tuple[float, str]] = []
         for chapter in chapter_response.chapters:
             try:
-                start_seconds = self._parse_vtt_timestamp(
-                    self._normalize_timestamp_for_seconds(chapter.start)
-                )
+                start_seconds = self._parse_vtt_timestamp(self._normalize_timestamp_for_seconds(chapter.start))
             except Exception as exc:
                 logger.warning(f"Skipping chapter with unparsable start '{chapter.start}': {exc}")
                 continue
@@ -532,11 +516,7 @@ class ConcatenationMixin:
 
         timestamps: list[dict[str, str]] = []
         for index, (start_seconds, title) in enumerate(deduped_chapters):
-            next_start = (
-                deduped_chapters[index + 1][0]
-                if index + 1 < len(deduped_chapters)
-                else video_duration_seconds
-            )
+            next_start = deduped_chapters[index + 1][0] if index + 1 < len(deduped_chapters) else video_duration_seconds
 
             if next_start < start_seconds:
                 logger.warning(
@@ -557,9 +537,7 @@ class ConcatenationMixin:
 
         return timestamps
 
-    def _build_transcript_timeline_for_prompt(
-        self, segments: list[dict[str, object]], max_chars: int = 12000
-    ) -> str:
+    def _build_transcript_timeline_for_prompt(self, segments: list[dict[str, object]], max_chars: int = 12000) -> str:
         """Flatten transcript segments into a prompt-friendly timeline."""
         lines: list[str] = []
         for segment in segments:
@@ -719,12 +697,8 @@ class ConcatenationMixin:
         chapter_contexts: list[dict[str, str]] = []
         context_char_limit = 600
         for entry in timestamps:
-            start_seconds = self._parse_vtt_timestamp(
-                self._normalize_timestamp_for_seconds(entry["start"])
-            )
-            end_seconds = self._parse_vtt_timestamp(
-                self._normalize_timestamp_for_seconds(entry["end"])
-            )
+            start_seconds = self._parse_vtt_timestamp(self._normalize_timestamp_for_seconds(entry["start"]))
+            end_seconds = self._parse_vtt_timestamp(self._normalize_timestamp_for_seconds(entry["end"]))
 
             excerpts: list[str] = []
             for segment in transcript_segments:
@@ -812,9 +786,7 @@ class ConcatenationMixin:
             )
             return structured_response
         except Exception as exc:
-            logger.warning(
-                f"Structured chapter generation failed for batch of size {len(chapter_contexts)}: {exc}"
-            )
+            logger.warning(f"Structured chapter generation failed for batch of size {len(chapter_contexts)}: {exc}")
             return None
 
     def match_video_encoding(
@@ -832,9 +804,7 @@ class ConcatenationMixin:
         if not reference_path.exists():
             raise ValueError(f"Reference video does not exist: {reference_path}")
 
-        logger.info(
-            f"Re-encoding {source_path.name} to match encoding of {reference_path.name}"
-        )
+        logger.info(f"Re-encoding {source_path.name} to match encoding of {reference_path.name}")
 
         video_probe_cmd = [
             "ffprobe",
@@ -848,9 +818,7 @@ class ConcatenationMixin:
             "json",
             str(reference_path),
         ]
-        video_result = subprocess.run(
-            video_probe_cmd, capture_output=True, text=True, check=True
-        )
+        video_result = subprocess.run(video_probe_cmd, capture_output=True, text=True, check=True)
         video_info = json.loads(video_result.stdout)
         video_stream = video_info["streams"][0]
 
@@ -866,9 +834,7 @@ class ConcatenationMixin:
             "json",
             str(reference_path),
         ]
-        audio_result = subprocess.run(
-            audio_probe_cmd, capture_output=True, text=True, check=True
-        )
+        audio_result = subprocess.run(audio_probe_cmd, capture_output=True, text=True, check=True)
         audio_info = json.loads(audio_result.stdout)
         audio_stream = audio_info["streams"][0] if audio_info["streams"] else None
 
@@ -941,9 +907,7 @@ class ConcatenationMixin:
 
         cmd.append(str(output_path))
 
-        logger.info(
-            f"Re-encoding {source_path.name} with parameters from {reference_path.name}"
-        )
+        logger.info(f"Re-encoding {source_path.name} with parameters from {reference_path.name}")
         logger.debug(f"FFmpeg command: {' '.join(cmd)}")
 
         try:

@@ -26,9 +26,7 @@ def is_supported_video_file(candidate: Path | str, *, suffixes: Iterable[str] | 
         Optional override of allowed suffixes; defaults to SUPPORTED_VIDEO_SUFFIXES.
     """
     suffix_set = (
-        frozenset(suffix.lower() for suffix in suffixes)
-        if suffixes is not None
-        else SUPPORTED_VIDEO_SUFFIX_SET
+        frozenset(suffix.lower() for suffix in suffixes) if suffixes is not None else SUPPORTED_VIDEO_SUFFIX_SET
     )
     suffix = candidate.suffix if isinstance(candidate, Path) else Path(candidate).suffix
     return suffix.lower() in suffix_set
