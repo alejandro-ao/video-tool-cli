@@ -29,6 +29,18 @@ dependencies = [
     "google-auth-oauthlib>=1.2.0",
 ]
 
+[project.optional-dependencies]
+transcription-mlx = [
+    "mlx-whisper>=0.4.2; sys_platform == 'darwin' and platform_machine == 'arm64'",
+    "parakeet-mlx>=0.4.0; sys_platform == 'darwin' and platform_machine == 'arm64'",
+]
+transcription-faster-whisper = ["faster-whisper>=1.1.0"]
+transcription-transformers = [
+    "torch>=2.2.0",
+    "transformers>=4.48.0",
+]
+transcription-nemo = ["nemo-toolkit[asr]>=2.2.0; sys_platform == 'linux'"]
+
 [project.scripts]
 video-tool = "video_tool.cli:main"
 

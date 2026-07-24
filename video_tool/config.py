@@ -15,6 +15,13 @@ CREDENTIALS_PATH = CONFIG_DIR / "credentials.yaml"
 
 DEFAULT_BASE_URL = "https://api.openai.com/v1"
 DEFAULT_MODEL = "gpt-4o"
+DEFAULT_TRANSCRIPTION_CONFIG = {
+    "backend": "auto",
+    "model": "auto",
+    "language": "auto",
+    "device": "auto",
+    "compute_type": "auto",
+}
 
 # Supported credential key names and their legacy environment-variable labels.
 # Runtime credential lookup intentionally uses credentials.yaml as the source of truth.
@@ -42,6 +49,17 @@ class LLMConfig:
 
     base_url: str
     model: str
+
+
+@dataclass
+class TranscriptionConfig:
+    """Backend-neutral speech recognition settings."""
+
+    backend: str = "auto"
+    model: str = "auto"
+    language: str = "auto"
+    device: str = "auto"
+    compute_type: str = "auto"
 
 
 def config_exists() -> bool:
@@ -91,6 +109,28 @@ def save_config(config: dict) -> None:
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     with open(CONFIG_PATH, "w") as f:
         yaml.safe_dump(config, f, default_flow_style=False, sort_keys=False)
+
+
+def get_transcription_config() -> TranscriptionConfig:
+    """Load transcription settings, falling back to automatic selection."""
+    values = {**DEFAULT_TRANSCRIPTION_CONFIG, **load_config().get("transcription", {})}
+    return TranscriptionConfig(**values)
+
+
+def set_transcription_config(**updates: str) -> None:
+    """Persist supplied transcription settings."""
+    config = load_config()
+    current = {**DEFAULT_TRANSCRIPTION_CONFIG, **config.get("transcription", {})}
+    current.update({key: value for key, value in updates.items() if value is not None})
+    config["transcription"] = current
+    save_config(config)
+
+
+def reset_transcription_config() -> None:
+    """Reset transcription settings to automatic selection."""
+    config = load_config()
+    config["transcription"] = DEFAULT_TRANSCRIPTION_CONFIG.copy()
+    save_config(config)
 
 
 def get_llm_config(command: str) -> LLMConfig:
