@@ -186,7 +186,7 @@ def _write_concat_metadata(processor: VideoProcessor, output_video_path: Path, f
     """Write metadata.json for concatenated video."""
     metadata_path = output_video_path.with_name("metadata.json")
 
-    creation_date, detected_title, duration_minutes = processor._get_video_metadata(str(output_video_path))
+    creation_date, detected_title, duration_minutes = processor.get_video_metadata(str(output_video_path))
 
     metadata = {
         "output_path": str(output_video_path),

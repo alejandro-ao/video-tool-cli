@@ -26,7 +26,7 @@ class FileManagementMixin:
                 for filename in files:
                     file_path = Path(root) / filename
                     if is_supported_video_file(file_path):
-                        creation_date, video_title, duration_minutes = self._get_video_metadata(
+                        creation_date, video_title, duration_minutes = self.get_video_metadata(
                             str(file_path)
                         )
                         if creation_date:
@@ -36,7 +36,7 @@ class FileManagementMixin:
         logger.info(f"Metadata exported to {output_csv}")
         return str(output_csv)
 
-    def _get_video_metadata(
+    def get_video_metadata(
         self, file_path: str
     ) -> Tuple[Optional[str], Optional[str], Optional[float]]:
         """Extract creation timestamp, stem, and duration in minutes."""
@@ -63,6 +63,9 @@ class FileManagementMixin:
         except Exception as exc:  # pragma: no cover - surfaced via logging
             logger.error(f"Error processing file {file_path}: {exc}")
             return None, None, None
+
+    # Backwards-compatible alias; prefer the public get_video_metadata.
+    _get_video_metadata = get_video_metadata
 
     def get_video_files(self, directory: Optional[str] = None) -> List[Path]:
         """Get all supported video files in the specified directory."""

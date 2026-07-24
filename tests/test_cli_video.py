@@ -30,7 +30,7 @@ def test_concat_happy_path_fast_mode(tmp_path: Path) -> None:
     with patch("video_tool.cli.video_commands.VideoProcessor") as mock_processor:
         instance = mock_processor.return_value
         instance.concatenate_videos.return_value = str(output)
-        instance._get_video_metadata.return_value = (None, None, None)
+        instance.get_video_metadata.return_value = (None, None, None)
 
         result = runner.invoke(
             app,
@@ -59,7 +59,7 @@ def test_concat_standard_mode_and_relative_output(tmp_path: Path) -> None:
     with patch("video_tool.cli.video_commands.VideoProcessor") as mock_processor:
         instance = mock_processor.return_value
         instance.concatenate_videos.return_value = str(clips / "out.mp4")
-        instance._get_video_metadata.return_value = (None, None, None)
+        instance.get_video_metadata.return_value = (None, None, None)
 
         result = runner.invoke(
             app,

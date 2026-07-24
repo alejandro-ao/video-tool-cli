@@ -369,7 +369,7 @@ class ConcatenationMixin:
         for video_file in video_files:
             duration = None
             try:
-                meta = self._get_video_metadata(str(video_file))
+                meta = self.get_video_metadata(str(video_file))
                 if isinstance(meta, dict):
                     duration = int(meta.get("duration", 0)) if meta.get("duration") else None
                 elif isinstance(meta, tuple) and len(meta) == 3 and meta[2] is not None:

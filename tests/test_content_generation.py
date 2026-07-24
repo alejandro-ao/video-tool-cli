@@ -41,7 +41,7 @@ class TestGenerateTimestamps:
         mock_video_processor.video_dir = temp_dir
         
         # Mock video metadata
-        with patch.object(mock_video_processor, '_get_video_metadata') as mock_metadata:
+        with patch.object(mock_video_processor, 'get_video_metadata') as mock_metadata:
             mock_metadata.side_effect = [
                 {'duration': 300.0},  # 5 minutes
                 {'duration': 450.0},  # 7.5 minutes
@@ -79,7 +79,7 @@ class TestGenerateTimestamps:
         
         mock_video_processor.video_dir = temp_dir
         
-        with patch.object(mock_video_processor, '_get_video_metadata') as mock_metadata:
+        with patch.object(mock_video_processor, 'get_video_metadata') as mock_metadata:
             mock_metadata.side_effect = [
                 {'duration': 240.0},  # 4 minutes
                 {'duration': 360.0}   # 6 minutes
@@ -114,7 +114,7 @@ class TestGenerateTimestamps:
         
         mock_video_processor.video_dir = temp_dir
         
-        with patch.object(mock_video_processor, '_get_video_metadata') as mock_metadata:
+        with patch.object(mock_video_processor, 'get_video_metadata') as mock_metadata:
             mock_metadata.return_value = None  # Simulate metadata failure
             
             with patch('video_tool.video_processor.concatenation.logger') as mock_logger:
@@ -142,7 +142,7 @@ class TestGenerateTimestamps:
 
         mock_video_processor.video_dir = temp_dir
 
-        with patch.object(mock_video_processor, '_get_video_metadata') as mock_metadata, \
+        with patch.object(mock_video_processor, 'get_video_metadata') as mock_metadata, \
              patch.object(mock_video_processor, '_invoke_openai_chat_structured_output') as mock_structured, \
              patch('video_tool.video_processor.concatenation.is_llm_configured', return_value=True):
             mock_metadata.side_effect = [
@@ -184,7 +184,7 @@ class TestGenerateTimestamps:
 
         mock_video_processor.video_dir = temp_dir
 
-        with patch.object(mock_video_processor, '_get_video_metadata') as mock_metadata, \
+        with patch.object(mock_video_processor, 'get_video_metadata') as mock_metadata, \
              patch.object(mock_video_processor, '_invoke_openai_chat_structured_output') as mock_structured, \
              patch('video_tool.video_processor.concatenation.is_llm_configured', return_value=True):
             mock_metadata.side_effect = [
@@ -849,7 +849,7 @@ class TestContentGenerationIntegration:
         mock_video_processor.video_dir = temp_dir
         
         # Mock all external dependencies
-        with patch.object(mock_video_processor, '_get_video_metadata') as mock_metadata, \
+        with patch.object(mock_video_processor, 'get_video_metadata') as mock_metadata, \
              patch.object(mock_video_processor.groq.audio.transcriptions, 'create') as mock_groq, \
              patch.object(mock_video_processor, '_invoke_openai_chat') as mock_openai, \
              patch('video_tool.video_processor.transcript.VideoFileClip'):
@@ -900,7 +900,7 @@ class TestContentGenerationIntegration:
         mock_video_processor.video_dir = temp_dir
         
         # Test partial failure scenario
-        with patch.object(mock_video_processor, '_get_video_metadata') as mock_metadata, \
+        with patch.object(mock_video_processor, 'get_video_metadata') as mock_metadata, \
              patch.object(mock_video_processor.groq.audio.transcriptions, 'create') as mock_groq, \
              patch.object(mock_video_processor, '_invoke_openai_chat') as mock_openai, \
              patch('video_tool.video_processor.transcript.VideoFileClip'), \
