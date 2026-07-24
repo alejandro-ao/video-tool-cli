@@ -5,13 +5,9 @@ After the PR merge (refactor/project-audit-fixes), it switches to get_credential
 These tests mock get_credential at the correct module level for both branches.
 """
 
-import os
-from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
-
-from video_tool.video_processor.deployment import BunnyDeploymentMixin
 
 
 def _make_response(json_payload=None, status=200):
@@ -31,22 +27,21 @@ class TestBunnyCredentialResolution:
 
     @pytest.fixture
     def mock_processor(self, tmp_path):
-        with patch("video_tool.video_processor.OpenAI"), \
-             patch("video_tool.video_processor.Groq"), \
-             patch("video_tool.config.get_credential", return_value="test-key"):
+        with (
+            patch("video_tool.video_processor.base.OpenAI"),
+            patch("video_tool.video_processor.base.Groq"),
+            patch("video_tool.config.get_credential", return_value="test-key"),
+        ):
             from video_tool.video_processor import VideoProcessor
+
             return VideoProcessor(str(tmp_path))
 
     def test_resolve_library_and_access_with_explicit_args(self, mock_processor) -> None:
         """Explicit library_id and access_key should be used directly."""
-        result = mock_processor._resolve_library_and_access(
-            library_id="lib-1", access_key="access-1"
-        )
+        result = mock_processor._resolve_library_and_access(library_id="lib-1", access_key="access-1")
         assert result == ("lib-1", "access-1")
 
-    def test_resolve_library_and_access_uses_get_credential(
-        self, mock_processor, monkeypatch
-    ) -> None:
+    def test_resolve_library_and_access_uses_get_credential(self, mock_processor, monkeypatch) -> None:
         """When explicit args are None, get_credential provides values."""
         monkeypatch.delenv("BUNNY_LIBRARY_ID", raising=False)
         monkeypatch.delenv("BUNNY_ACCESS_KEY", raising=False)
@@ -55,32 +50,22 @@ class TestBunnyCredentialResolution:
                 "bunny_library_id": "cred-lib",
                 "bunny_access_key": "cred-access",
             }.get(key)
-            result = mock_processor._resolve_library_and_access(
-                library_id=None, access_key=None
-            )
+            result = mock_processor._resolve_library_and_access(library_id=None, access_key=None)
         assert result == ("cred-lib", "cred-access")
 
-    def test_resolve_library_and_access_explicit_overrides_credential(
-        self, mock_processor, monkeypatch
-    ) -> None:
+    def test_resolve_library_and_access_explicit_overrides_credential(self, mock_processor, monkeypatch) -> None:
         """Explicit args should work even when get_credential returns values."""
         monkeypatch.setenv("BUNNY_LIBRARY_ID", "env-lib")
         monkeypatch.setenv("BUNNY_ACCESS_KEY", "env-access")
-        result = mock_processor._resolve_library_and_access(
-            library_id="explicit-lib", access_key="explicit-access"
-        )
+        result = mock_processor._resolve_library_and_access(library_id="explicit-lib", access_key="explicit-access")
         assert result == ("explicit-lib", "explicit-access")
 
-    def test_resolve_library_and_access_returns_none_on_missing(
-        self, mock_processor, monkeypatch
-    ) -> None:
+    def test_resolve_library_and_access_returns_none_on_missing(self, mock_processor, monkeypatch) -> None:
         """Should return None when no credentials are available from any source."""
         monkeypatch.delenv("BUNNY_LIBRARY_ID", raising=False)
         monkeypatch.delenv("BUNNY_ACCESS_KEY", raising=False)
         with patch("video_tool.video_processor.deployment.get_credential", return_value=None):
-            result = mock_processor._resolve_library_and_access(
-                library_id=None, access_key=None
-            )
+            result = mock_processor._resolve_library_and_access(library_id=None, access_key=None)
         assert result is None
 
     def test_format_chapter_time(self, mock_processor) -> None:
@@ -130,10 +115,13 @@ class TestBunnyVideoOperations:
 
     @pytest.fixture
     def mock_processor(self, tmp_path):
-        with patch("video_tool.video_processor.OpenAI"), \
-             patch("video_tool.video_processor.Groq"), \
-             patch("video_tool.config.get_credential", return_value="test-key"):
+        with (
+            patch("video_tool.video_processor.base.OpenAI"),
+            patch("video_tool.video_processor.base.Groq"),
+            patch("video_tool.config.get_credential", return_value="test-key"),
+        ):
             from video_tool.video_processor import VideoProcessor
+
             return VideoProcessor(str(tmp_path))
 
     def test_upload_bunny_video_missing_file(self, mock_processor) -> None:
@@ -145,9 +133,7 @@ class TestBunnyVideoOperations:
         )
         assert result is None
 
-    def test_deploy_to_bunny_requires_credentials(
-        self, mock_processor, tmp_path, monkeypatch
-    ) -> None:
+    def test_deploy_to_bunny_requires_credentials(self, mock_processor, tmp_path, monkeypatch) -> None:
         """Missing credentials should cause the deployment to return None."""
         output_dir = tmp_path / "output"
         output_dir.mkdir()

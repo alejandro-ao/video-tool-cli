@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Optional
 
 from video_tool.ui import console, step_warning
 
 
-def read_metadata(path: Path) -> Optional[dict]:
+def read_metadata(path: Path) -> dict | None:
     """Read metadata.json if it exists.
 
     Returns the parsed dict, or None if the file is missing or invalid.
@@ -17,7 +16,7 @@ def read_metadata(path: Path) -> Optional[dict]:
     if not path.exists():
         return None
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             return json.load(f)
     except (OSError, json.JSONDecodeError):
         return None

@@ -7,7 +7,6 @@ On the current branch (pre-merge) the module may not exist yet; tests will
 be skipped until the PR is merged.
 """
 
-import importlib
 from pathlib import Path
 from unittest.mock import patch
 
@@ -15,6 +14,7 @@ import pytest
 
 try:
     from video_tool.cli.paths import resolve_output_path
+
     PATHS_MODULE_AVAILABLE = True
 except ImportError:
     PATHS_MODULE_AVAILABLE = False
@@ -101,9 +101,7 @@ class TestResolveOutputPath:
         custom_path = str(tmp_path / "custom" / "video.mp4")
 
         with patch("video_tool.ui.ask_path", return_value=custom_path):
-            result = resolve_output_path(
-                None, input_path, "default.mp4", prompt=True
-            )
+            result = resolve_output_path(None, input_path, "default.mp4", prompt=True)
 
         assert result.name == "video.mp4"
 
@@ -113,9 +111,7 @@ class TestResolveOutputPath:
 
         # When ask_path returns empty string (user pressed Enter)
         with patch("video_tool.ui.ask_path", return_value=""):
-            result = resolve_output_path(
-                None, input_path, "default.mp4", prompt=True
-            )
+            result = resolve_output_path(None, input_path, "default.mp4", prompt=True)
 
         assert result == input_path / "default.mp4"
 
@@ -126,21 +122,20 @@ class TestResolveOutputPath:
 
         with patch("video_tool.ui.ask_path", return_value=ok_path) as mock_ask:
             resolve_output_path(
-                None, input_path, "default.mp4",
-                prompt=True, prompt_text="Where should I save this?",
+                None,
+                input_path,
+                "default.mp4",
+                prompt=True,
+                prompt_text="Where should I save this?",
             )
-            mock_ask.assert_called_once_with(
-                "Where should I save this?", required=False
-            )
+            mock_ask.assert_called_once_with("Where should I save this?", required=False)
 
     def test_prompt_mode_relative_path_resolved(self, tmp_path: Path) -> None:
         input_path = tmp_path / "project"
         input_path.mkdir()
 
         with patch("video_tool.ui.ask_path", return_value="relative/video.mp4"):
-            result = resolve_output_path(
-                None, input_path, "default.mp4", prompt=True
-            )
+            result = resolve_output_path(None, input_path, "default.mp4", prompt=True)
 
         assert result == input_path / "relative" / "video.mp4"
 
@@ -150,9 +145,7 @@ class TestResolveOutputPath:
         absolute = tmp_path / "absolute" / "video.mp4"
 
         with patch("video_tool.ui.ask_path", return_value=str(absolute)):
-            result = resolve_output_path(
-                None, input_path, "default.mp4", prompt=True
-            )
+            result = resolve_output_path(None, input_path, "default.mp4", prompt=True)
 
         assert result == absolute
 
@@ -160,9 +153,7 @@ class TestResolveOutputPath:
         input_path = tmp_path / "project"
         input_path.mkdir()
 
-        result = resolve_output_path(
-            None, input_path, "result.txt", suffix=".mp4"
-        )
+        result = resolve_output_path(None, input_path, "result.txt", suffix=".mp4")
 
         assert result.name == "result.mp4"
         assert result.suffix == ".mp4"
@@ -172,8 +163,6 @@ class TestResolveOutputPath:
         input_path.mkdir()
 
         with patch("video_tool.cli.paths.normalize_path", side_effect=lambda x: x):
-            result = resolve_output_path(
-                tmp_path / "output" / "video.mp4", input_path, "default.mp4"
-            )
+            result = resolve_output_path(tmp_path / "output" / "video.mp4", input_path, "default.mp4")
 
         assert result == tmp_path / "output" / "video.mp4"

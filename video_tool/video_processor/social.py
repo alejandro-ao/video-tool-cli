@@ -3,13 +3,12 @@ from __future__ import annotations
 import mimetypes
 import time
 from pathlib import Path
-from typing import Dict, List, Optional
 
 import requests
+from loguru import logger
 from requests_oauthlib import OAuth1
 
 from video_tool.config import get_credential
-from .shared import logger
 
 _X_API_BASE = "https://api.x.com/2"
 _X_MEDIA_UPLOAD_URL = "https://upload.twitter.com/1.1/media/upload.json"
@@ -24,7 +23,7 @@ _X_UPLOAD_MAX_WAIT_SECONDS = 600
 class SocialDeploymentMixin:
     """Handle posting to X and LinkedIn."""
 
-    def _get_x_oauth(self) -> Optional[OAuth1]:
+    def _get_x_oauth(self) -> OAuth1 | None:
         """Get OAuth1 auth object for X API."""
         api_key = get_credential("x_api_key")
         api_secret = get_credential("x_api_secret")
@@ -42,14 +41,14 @@ class SocialDeploymentMixin:
             access_token_secret,
         )
 
-    def _get_linkedin_token(self, access_token: Optional[str]) -> Optional[str]:
+    def _get_linkedin_token(self, access_token: str | None) -> str | None:
         token = (access_token or get_credential("linkedin_access_token") or "").strip()
         if not token:
             logger.error("LinkedIn access token not configured.")
             return None
         return token
 
-    def _get_linkedin_author(self, author_urn: Optional[str]) -> Optional[str]:
+    def _get_linkedin_author(self, author_urn: str | None) -> str | None:
         urn = (author_urn or get_credential("linkedin_author_urn") or "").strip()
         if not urn:
             logger.error("LinkedIn author URN not configured.")
@@ -58,10 +57,10 @@ class SocialDeploymentMixin:
 
     def post_x_thread(
         self,
-        texts: List[str],
+        texts: list[str],
         *,
-        video_path: Optional[str] = None,
-    ) -> Optional[Dict[str, object]]:
+        video_path: str | None = None,
+    ) -> dict[str, object] | None:
         """Post a thread to X. Returns metadata for created tweets."""
         if not texts:
             logger.error("No text provided for X thread.")
@@ -77,11 +76,11 @@ class SocialDeploymentMixin:
             if not media_id:
                 return None
 
-        tweet_ids: List[str] = []
-        in_reply_to: Optional[str] = None
+        tweet_ids: list[str] = []
+        in_reply_to: str | None = None
 
         for idx, text in enumerate(texts):
-            payload: Dict[str, object] = {"text": text}
+            payload: dict[str, object] = {"text": text}
             if idx == 0 and media_id:
                 payload["media"] = {"media_ids": [media_id]}
             if in_reply_to:
@@ -122,10 +121,10 @@ class SocialDeploymentMixin:
         self,
         text: str,
         *,
-        access_token: Optional[str] = None,
-        author_urn: Optional[str] = None,
-        video_path: Optional[str] = None,
-    ) -> Optional[Dict[str, str]]:
+        access_token: str | None = None,
+        author_urn: str | None = None,
+        video_path: str | None = None,
+    ) -> dict[str, str] | None:
         """Publish a LinkedIn post using the Posts API."""
         token = self._get_linkedin_token(access_token)
         if not token:
@@ -143,7 +142,7 @@ class SocialDeploymentMixin:
             media_urn = upload_result
 
         # Build Posts API payload
-        post_payload: Dict[str, object] = {
+        post_payload: dict[str, object] = {
             "author": author,
             "commentary": text,
             "visibility": "PUBLIC",
@@ -182,7 +181,7 @@ class SocialDeploymentMixin:
             result["post_url"] = f"https://www.linkedin.com/feed/update/{post_urn}"
         return result
 
-    def _upload_x_media(self, video_path: str, auth: OAuth1) -> Optional[str]:
+    def _upload_x_media(self, video_path: str, auth: OAuth1) -> str | None:
         """Upload media to X using v1.1 chunked upload."""
         file_path = Path(video_path)
         if not file_path.exists():
@@ -273,7 +272,7 @@ class SocialDeploymentMixin:
 
         return str(media_id)
 
-    def _wait_for_x_processing(self, auth: OAuth1, media_id: str, info: Dict[str, object]) -> bool:
+    def _wait_for_x_processing(self, auth: OAuth1, media_id: str, info: dict[str, object]) -> bool:
         """Poll X media status until processing completes."""
         start_time = time.monotonic()
         state = str(info.get("state") or "").lower()
@@ -314,7 +313,7 @@ class SocialDeploymentMixin:
         logger.error("X media processing timed out after %ss", _X_UPLOAD_MAX_WAIT_SECONDS)
         return False
 
-    def _upload_linkedin_video(self, video_path: str, token: str, author: str) -> Optional[str]:
+    def _upload_linkedin_video(self, video_path: str, token: str, author: str) -> str | None:
         """Upload video to LinkedIn and return the video URN."""
         file_path = Path(video_path)
         if not file_path.exists():
@@ -380,7 +379,7 @@ class SocialDeploymentMixin:
         return str(video_urn)
 
 
-def _safe_json(response: requests.Response) -> Dict[str, object]:
+def _safe_json(response: requests.Response) -> dict[str, object]:
     try:
         return response.json()
     except ValueError:

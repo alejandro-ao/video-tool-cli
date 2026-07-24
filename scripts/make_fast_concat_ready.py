@@ -16,7 +16,6 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Tuple
 
 from loguru import logger
 
@@ -27,9 +26,9 @@ class VideoProfile:
     width: int
     height: int
     fps: float
-    pix_fmt: Optional[str] = None
-    profile: Optional[str] = None
-    level: Optional[int] = None
+    pix_fmt: str | None = None
+    profile: str | None = None
+    level: int | None = None
 
 
 @dataclass
@@ -37,7 +36,7 @@ class AudioProfile:
     codec: str
     sample_rate: int
     channels: int
-    channel_layout: Optional[str] = None
+    channel_layout: str | None = None
 
 
 FFMPEG_VIDEO_ENCODERS = {
@@ -55,7 +54,7 @@ FFMPEG_AUDIO_ENCODERS = {
 }
 
 
-def _run_ffprobe(file_path: Path, selector: str, fields: str) -> Optional[dict]:
+def _run_ffprobe(file_path: Path, selector: str, fields: str) -> dict | None:
     """Run ffprobe for a single stream selector and return the first stream dict."""
     cmd = [
         "ffprobe",
@@ -75,7 +74,7 @@ def _run_ffprobe(file_path: Path, selector: str, fields: str) -> Optional[dict]:
     return streams[0] if streams else None
 
 
-def _parse_fraction(value: Optional[str]) -> Optional[float]:
+def _parse_fraction(value: str | None) -> float | None:
     """Convert ffprobe's fractional values (e.g., '30000/1001') into floats."""
     if not value:
         return None
@@ -91,7 +90,7 @@ def _parse_fraction(value: Optional[str]) -> Optional[float]:
         return None
 
 
-def _format_level(raw_level: Optional[int | float | str]) -> Optional[str]:
+def _format_level(raw_level: int | float | str | None) -> str | None:
     """FFmpeg expects levels like '4.1'; ffprobe often returns 41."""
     if raw_level is None:
         return None
@@ -102,11 +101,9 @@ def _format_level(raw_level: Optional[int | float | str]) -> Optional[str]:
     return str(raw_level)
 
 
-def _extract_profiles(reference: Path) -> Tuple[VideoProfile, Optional[AudioProfile]]:
+def _extract_profiles(reference: Path) -> tuple[VideoProfile, AudioProfile | None]:
     """Probe the reference video to capture video and audio parameters."""
-    video_data = _run_ffprobe(
-        reference, "v:0", "codec_name,width,height,r_frame_rate,pix_fmt,profile,level"
-    )
+    video_data = _run_ffprobe(reference, "v:0", "codec_name,width,height,r_frame_rate,pix_fmt,profile,level")
     if not video_data:
         raise RuntimeError(f"No video stream found in {reference}")
 
@@ -121,9 +118,7 @@ def _extract_profiles(reference: Path) -> Tuple[VideoProfile, Optional[AudioProf
         level=video_data.get("level"),
     )
 
-    audio_data = _run_ffprobe(
-        reference, "a:0", "codec_name,sample_rate,channels,channel_layout"
-    )
+    audio_data = _run_ffprobe(reference, "a:0", "codec_name,sample_rate,channels,channel_layout")
     audio_profile = None
     if audio_data:
         audio_profile = AudioProfile(
@@ -146,16 +141,14 @@ def _choose_audio_encoder(codec: str) -> str:
     return FFMPEG_AUDIO_ENCODERS.get(codec.lower(), codec)
 
 
-def build_ffmpeg_command(
-    source: Path, output: Path, video: VideoProfile, audio: Optional[AudioProfile]
-) -> List[str]:
+def build_ffmpeg_command(source: Path, output: Path, video: VideoProfile, audio: AudioProfile | None) -> list[str]:
     """Create an ffmpeg command that aligns the source to the reference profile."""
     vf_parts = [f"scale={video.width}:{video.height}:flags=lanczos"]
     if video.fps:
         vf_parts.append(f"fps={video.fps:g}")
     vf_filter = ",".join(vf_parts)
 
-    cmd: List[str] = [
+    cmd: list[str] = [
         "ffmpeg",
         "-y",
         "-i",
@@ -202,9 +195,7 @@ def build_ffmpeg_command(
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Re-encode video A to match video B so --fast-concat can stream copy."
-    )
+    parser = argparse.ArgumentParser(description="Re-encode video A to match video B so --fast-concat can stream copy.")
     parser.add_argument("source", help="Path to the video that needs reprocessing (video A).")
     parser.add_argument("reference", help="Path to the reference video to match (video B).")
     parser.add_argument(
@@ -254,9 +245,7 @@ def main() -> None:
     logger.info(f"Re-encoding {source.name} to match {reference.name}")
     subprocess.run(ffmpeg_cmd, check=True)
     logger.success(f"Aligned video written to: {output_path}")
-    logger.success(
-        "You can now use `--fast-concat` with the reference video and the aligned output."
-    )
+    logger.success("You can now use `--fast-concat` with the reference video and the aligned output.")
 
 
 if __name__ == "__main__":

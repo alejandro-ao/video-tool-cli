@@ -5,24 +5,23 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "video-tool"
 version = "0.1.0"
-description = "A professional video processing tool with MCP server capabilities"
+description = "A professional video processing CLI with AI-powered content generation"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "audioop-lts>=0.2.1; python_version >= '3.13'",  # audioop replacement for Python 3.13+
     "loguru>=0.7.3",
-    "mcp>=1.12.2",
     "moviepy>=2.1.2",
     "openai>=1.78.0",
     "pydub>=0.25.1",
     "python-ffmpeg>=2.0.12",
-    "uvicorn>=0.35.0",
     "groq>=0.8.0",
     "pyyaml>=6.0.2",
     "rich>=14.1.0",
     "requests>=2.32.5",
     "requests-oauthlib>=2.0.0",
     "pydantic>=2.11.4",
+    "python-dotenv>=1.0.1",
     "questionary>=2.1.0",
     "typer>=0.15.0",
     "yt-dlp>=2024.0.0",
@@ -35,13 +34,10 @@ video-tool = "video_tool.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["video_tool*", "mcp_server*"]
+include = ["video_tool*"]
 
 [tool.setuptools.package-data]
 video_tool = ["prompts.yaml"]
-
-[tool.uv.workspace]
-members = ["mcp_server"]
 
 [dependency-groups]
 dev = [
@@ -53,4 +49,23 @@ dev = [
     "pytest-cov>=6.2.1",
     "pytest-mock>=3.14.1",
     "responses>=0.25.8",
+    "ruff>=0.8.0",
 ]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+exclude = ["build", "dist"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["video_tool", "tests"]
+
+[tool.ruff.lint.per-file-ignores]
+# Typer's API intentionally uses calls (typer.Option/Argument) in defaults
+"video_tool/cli/*" = ["B008"]
+# Long lines are fixture text (sample transcripts/descriptions); wrapping
+# them would needlessly churn test payloads
+"tests/test_data/sample_data.py" = ["E501"]

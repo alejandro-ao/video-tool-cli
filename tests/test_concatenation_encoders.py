@@ -8,9 +8,7 @@ also imports it. These tests work on both branches.
 
 import json
 import subprocess
-from unittest.mock import patch, MagicMock
-
-import pytest
+from unittest.mock import MagicMock, patch
 
 # The function exists in editing.py on both master and the PR branch
 from video_tool.video_processor.editing import _detect_gpu_encoder
@@ -102,7 +100,7 @@ class TestDetectGPUEncoder:
         }
 
         with patch("subprocess.run") as mock_run:
-            for platform, expected in [("Darwin", "h264_videotoolbox"), ("Linux", "h264_nvenc")]:
+            for platform in ("Darwin", "Linux"):
                 with patch("platform.system", return_value=platform):
                     mock_run.return_value.returncode = 0
                     result = _detect_gpu_encoder()
@@ -140,9 +138,7 @@ class TestConcatenationEncoderSelection:
 
     @patch("video_tool.video_processor.concatenation._detect_gpu_encoder", return_value="h264_nvenc")
     @patch("video_tool.video_processor.concatenation.subprocess.run")
-    def test_match_video_encoding_uses_detected_h264_encoder(
-        self, mock_run, mock_detect, tmp_path
-    ) -> None:
+    def test_match_video_encoding_uses_detected_h264_encoder(self, mock_run, mock_detect, tmp_path) -> None:
         """Linux/Windows GPU detection should not emit macOS VideoToolbox encoders."""
         source_file = tmp_path / "source.mp4"
         reference_file = tmp_path / "reference.mp4"
@@ -169,6 +165,7 @@ class TestConcatenationEncoderSelection:
         mock_run.side_effect = [video_probe, audio_probe, ffmpeg_result]
 
         from video_tool.video_processor import VideoProcessor
+
         with patch.object(VideoProcessor, "_load_prompts", return_value={}):
             processor = VideoProcessor(str(tmp_path))
 
@@ -195,6 +192,7 @@ class TestEditingGPUIntegration:
         mock_run.return_value.returncode = 0
 
         from video_tool.video_processor import VideoProcessor
+
         with patch.object(VideoProcessor, "_load_prompts", return_value={}):
             processor = VideoProcessor(str(tmp_path))
 
@@ -215,6 +213,7 @@ class TestEditingGPUIntegration:
         mock_run.return_value.returncode = 0
 
         from video_tool.video_processor import VideoProcessor
+
         with patch.object(VideoProcessor, "_load_prompts", return_value={}):
             processor = VideoProcessor(str(tmp_path))
 

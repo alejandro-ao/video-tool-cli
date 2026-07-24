@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import List, Optional
 
 import typer
 
@@ -25,7 +24,7 @@ from video_tool.video_processor.constants import SUPPORTED_VIDEO_SUFFIXES
 SUPPORTED_VIDEO_LABEL = ", ".join(ext.lstrip(".").upper() for ext in SUPPORTED_VIDEO_SUFFIXES)
 
 
-def _load_text(text: Optional[str], text_file: Optional[Path]) -> str:
+def _load_text(text: str | None, text_file: Path | None) -> str:
     if text and text_file:
         step_error("Provide only one of --text or --text-file")
         raise typer.Exit(1)
@@ -42,12 +41,12 @@ def _load_text(text: Optional[str], text_file: Optional[Path]) -> str:
             return resolved.read_text(encoding="utf-8").strip()
         except OSError as exc:
             step_error(f"Unable to read text file: {exc}")
-            raise typer.Exit(1)
+            raise typer.Exit(1) from exc
 
     return (text or "").strip()
 
 
-def _parse_thread_file(thread_file: Optional[Path]) -> List[str]:
+def _parse_thread_file(thread_file: Path | None) -> list[str]:
     if not thread_file:
         return []
 
@@ -60,10 +59,10 @@ def _parse_thread_file(thread_file: Optional[Path]) -> List[str]:
         content = resolved.read_text(encoding="utf-8")
     except OSError as exc:
         step_error(f"Unable to read thread file: {exc}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from exc
 
-    segments: List[str] = []
-    buffer: List[str] = []
+    segments: list[str] = []
+    buffer: list[str] = []
     for line in content.splitlines():
         if line.strip() == "---":
             segment = "\n".join(buffer).strip()
@@ -80,7 +79,7 @@ def _parse_thread_file(thread_file: Optional[Path]) -> List[str]:
     return segments
 
 
-def _resolve_output_dir(output_dir: Optional[Path], video_path: Optional[Path]) -> Path:
+def _resolve_output_dir(output_dir: Path | None, video_path: Path | None) -> Path:
     if output_dir:
         resolved = Path(normalize_path(str(output_dir)))
     elif video_path:
@@ -92,7 +91,7 @@ def _resolve_output_dir(output_dir: Optional[Path], video_path: Optional[Path]) 
     return resolved
 
 
-def _validate_video_path(video_path: Optional[Path]) -> Optional[Path]:
+def _validate_video_path(video_path: Path | None) -> Path | None:
     if not video_path:
         return None
 
@@ -109,7 +108,7 @@ def _validate_video_path(video_path: Optional[Path]) -> Optional[Path]:
     return resolved
 
 
-def _append_url_to_text(text: str, url: Optional[str]) -> str:
+def _append_url_to_text(text: str, url: str | None) -> str:
     if not url:
         return text
     url_value = url.strip()
@@ -120,13 +119,10 @@ def _append_url_to_text(text: str, url: Optional[str]) -> str:
     return f"{text.rstrip()}\n{url_value}"
 
 
-def _warn_if_too_long(texts: List[str]) -> None:
+def _warn_if_too_long(texts: list[str]) -> None:
     for idx, text in enumerate(texts, start=1):
         if len(text) > 280:
             step_warning(f"Thread item {idx} is {len(text)} characters (X limit is 280).")
-
-
-
 
 
 def _write_social_artifact(output_dir: Path, name: str, payload: dict) -> None:
@@ -143,25 +139,25 @@ def _write_social_artifact(output_dir: Path, name: str, payload: dict) -> None:
 @upload_app.command("twitter")
 @upload_app.command("x")
 def post_twitter(
-    text: Optional[str] = typer.Option(None, "--text", help="Text for the first post"),
-    text_file: Optional[Path] = typer.Option(None, "--text-file", help="Path to file with first post text"),
-    thread_item: Optional[List[str]] = typer.Option(
+    text: str | None = typer.Option(None, "--text", help="Text for the first post"),
+    text_file: Path | None = typer.Option(None, "--text-file", help="Path to file with first post text"),
+    thread_item: list[str] | None = typer.Option(
         None,
         "--thread-item",
         help="Additional thread item text (repeatable)",
     ),
-    thread_file: Optional[Path] = typer.Option(
+    thread_file: Path | None = typer.Option(
         None,
         "--thread-file",
         help="Path to thread items file (--- delimiter)",
     ),
-    video_path: Optional[Path] = typer.Option(None, "--video-path", help="Path to video to upload"),
-    video_url: Optional[str] = typer.Option(None, "--video-url", help="Video URL to include"),
-    output_dir: Optional[Path] = typer.Option(None, "--output-dir", help="Output directory for metadata"),
+    video_path: Path | None = typer.Option(None, "--video-path", help="Path to video to upload"),
+    video_url: str | None = typer.Option(None, "--video-url", help="Video URL to include"),
+    output_dir: Path | None = typer.Option(None, "--output-dir", help="Output directory for metadata"),
 ) -> None:
     """Post a thread to X (Twitter)."""
     primary_text = _load_text(text, text_file)
-    thread_items: List[str] = []
+    thread_items: list[str] = []
     if thread_item:
         thread_items.extend([item for item in thread_item if item.strip()])
     thread_items.extend(_parse_thread_file(thread_file))
@@ -210,13 +206,13 @@ def post_twitter(
 
 @upload_app.command("linkedin")
 def post_linkedin(
-    text: Optional[str] = typer.Option(None, "--text", help="Post text"),
-    text_file: Optional[Path] = typer.Option(None, "--text-file", help="Path to file with post text"),
-    video_path: Optional[Path] = typer.Option(None, "--video-path", help="Path to video to upload"),
-    video_url: Optional[str] = typer.Option(None, "--video-url", help="Video URL to include"),
-    output_dir: Optional[Path] = typer.Option(None, "--output-dir", help="Output directory for metadata"),
-    access_token: Optional[str] = typer.Option(None, "--access-token", help="LinkedIn access token"),
-    author_urn: Optional[str] = typer.Option(None, "--author-urn", help="LinkedIn author URN"),
+    text: str | None = typer.Option(None, "--text", help="Post text"),
+    text_file: Path | None = typer.Option(None, "--text-file", help="Path to file with post text"),
+    video_path: Path | None = typer.Option(None, "--video-path", help="Path to video to upload"),
+    video_url: str | None = typer.Option(None, "--video-url", help="Video URL to include"),
+    output_dir: Path | None = typer.Option(None, "--output-dir", help="Output directory for metadata"),
+    access_token: str | None = typer.Option(None, "--access-token", help="LinkedIn access token"),
+    author_urn: str | None = typer.Option(None, "--author-urn", help="LinkedIn author URN"),
 ) -> None:
     """Publish a LinkedIn post."""
     body_text = _load_text(text, text_file)

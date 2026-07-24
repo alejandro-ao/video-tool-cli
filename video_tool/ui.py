@@ -9,9 +9,9 @@ Provides consistent formatting for CLI output:
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Dict, Iterator, List, Optional
 
 import questionary
 from questionary import Style as QStyle
@@ -23,13 +23,15 @@ from rich.status import Status
 console = Console()
 
 # Style for questionary prompts (matches Rich cyan theme)
-CHOICE_STYLE = QStyle([
-    ("qmark", "fg:cyan bold"),
-    ("question", "fg:cyan bold"),
-    ("pointer", "fg:cyan bold"),
-    ("highlighted", "fg:cyan bold"),
-    ("selected", "fg:green"),
-])
+CHOICE_STYLE = QStyle(
+    [
+        ("qmark", "fg:cyan bold"),
+        ("question", "fg:cyan bold"),
+        ("pointer", "fg:cyan bold"),
+        ("highlighted", "fg:cyan bold"),
+        ("selected", "fg:green"),
+    ]
+)
 
 
 @contextmanager
@@ -44,7 +46,7 @@ def status_spinner(message: str) -> Iterator[Status]:
         yield status
 
 
-def step_start(name: str, details: Optional[Dict[str, str]] = None) -> None:
+def step_start(name: str, details: dict[str, str] | None = None) -> None:
     """Print a step header with optional details.
 
     Args:
@@ -57,7 +59,7 @@ def step_start(name: str, details: Optional[Dict[str, str]] = None) -> None:
             console.print(f"  [dim]{key}:[/dim] {value}")
 
 
-def step_complete(message: str, output_path: Optional[str | Path] = None) -> None:
+def step_complete(message: str, output_path: str | Path | None = None) -> None:
     """Print step completion with optional output path.
 
     Args:
@@ -69,7 +71,7 @@ def step_complete(message: str, output_path: Optional[str | Path] = None) -> Non
         console.print(f"  [dim]Output:[/dim] {output_path}")
 
 
-def step_error(message: str, details: Optional[str] = None) -> None:
+def step_error(message: str, details: str | None = None) -> None:
     """Print an error message.
 
     Args:
@@ -113,7 +115,7 @@ def normalize_path(raw: str) -> str:
     return str(Path(trimmed).expanduser())
 
 
-def ask_path(prompt_text: str, required: bool = True) -> Optional[str]:
+def ask_path(prompt_text: str, required: bool = True) -> str | None:
     """Prompt for a filesystem path.
 
     Args:
@@ -136,7 +138,7 @@ def ask_path(prompt_text: str, required: bool = True) -> Optional[str]:
         return normalize_path(response)
 
 
-def ask_text(prompt_text: str, required: bool = True, default: Optional[str] = None) -> Optional[str]:
+def ask_text(prompt_text: str, required: bool = True, default: str | None = None) -> str | None:
     """Prompt for text input.
 
     Args:
@@ -183,7 +185,7 @@ def ask_confirm(prompt_text: str, default: bool = False) -> bool:
     return Confirm.ask(f"[bold cyan]{prompt_text}[/bold cyan]", default=default, console=console)
 
 
-def ask_choice(prompt_text: str, choices: List[str], default: Optional[str] = None) -> str:
+def ask_choice(prompt_text: str, choices: list[str], default: str | None = None) -> str:
     """Prompt for a choice using arrow-key navigation.
 
     Args:

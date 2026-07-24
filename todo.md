@@ -22,6 +22,13 @@
 
 ## New Commands
 
-- [ ] `video extract-audio` - extract audio track from video
-- [ ] `video enhance-audio` - voice enhancement (noise reduction, normalization)
-- [ ] `video youtube-upload` - upload to YouTube via Data API
+- [x] `video extract-audio` - extract audio track from video
+- [x] `video enhance-audio` - voice enhancement (noise reduction, normalization)
+- [x] `video youtube-upload` - upload to YouTube via Data API
+
+## Maintenance
+
+- [ ] Split the `VideoProcessor` facade into per-domain modules/functions with explicit dependencies (mixins currently share implicit state)
+- [ ] Standardize exit codes and add a `--json` output option for scripting
+- [ ] Add a LICENSE file
+- [ ] Add mypy to dev tooling

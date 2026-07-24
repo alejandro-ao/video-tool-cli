@@ -6,18 +6,17 @@ Eliminates the repeated pattern of resolving output paths across all CLI command
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 from video_tool.ui import normalize_path
 
 
 def resolve_output_path(
-    output_path: Optional[Path],
+    output_path: Path | None,
     input_path: Path,
     default_name: str,
-    suffix: Optional[str] = None,
+    suffix: str | None = None,
     prompt: bool = False,
-    prompt_text: Optional[str] = None,
+    prompt_text: str | None = None,
 ) -> Path:
     """Resolve an output path from CLI flags, falling back to defaults.
 

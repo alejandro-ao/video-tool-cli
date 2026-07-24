@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import base64
 import json
+from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence
 
 import requests
+from loguru import logger
 from requests import Response
 
 from video_tool.config import get_credential
-from .shared import logger
 
 
 class BunnyDeploymentMixin:
@@ -19,20 +19,20 @@ class BunnyDeploymentMixin:
 
     def deploy_to_bunny(
         self,
-        video_path: Optional[str],
+        video_path: str | None,
         *,
         upload_video: bool,
         upload_chapters: bool,
         upload_transcript: bool,
-        library_id: Optional[str] = None,
-        access_key: Optional[str] = None,
-        collection_id: Optional[str] = None,
-        video_title: Optional[str] = None,
-        chapters: Optional[Sequence[Dict[str, str]]] = None,
-        transcript_path: Optional[str] = None,
-        caption_language: Optional[str] = None,
-        video_id: Optional[str] = None,
-    ) -> Optional[Dict[str, str]]:
+        library_id: str | None = None,
+        access_key: str | None = None,
+        collection_id: str | None = None,
+        video_title: str | None = None,
+        chapters: Sequence[dict[str, str]] | None = None,
+        transcript_path: str | None = None,
+        caption_language: str | None = None,
+        video_id: str | None = None,
+    ) -> dict[str, str] | None:
         """Upload and/or enrich a Bunny Stream video with additional metadata."""
         if not (upload_video or upload_chapters or upload_transcript):
             logger.info("Bunny deployment skipped: no actions requested.")
@@ -44,16 +44,11 @@ class BunnyDeploymentMixin:
         library, access = resolved_credentials
 
         collection = (collection_id or get_credential("bunny_collection_id") or "").strip() or None
-        caption_lang = (
-            (caption_language or get_credential("bunny_caption_language") or "en").strip() or "en"
-        )
+        caption_lang = (caption_language or get_credential("bunny_caption_language") or "en").strip() or "en"
         existing_video_id = (video_id or get_credential("bunny_video_id") or "").strip()
-        resolved_title = (
-            (video_title or "").strip()
-            or (self.video_title or "").strip()
-        )
+        resolved_title = (video_title or "").strip() or (self.video_title or "").strip()
 
-        effective_video_id: Optional[str] = existing_video_id or None
+        effective_video_id: str | None = existing_video_id or None
         video_uploaded = False
         chapters_uploaded = False
         transcript_uploaded = False
@@ -73,9 +68,7 @@ class BunnyDeploymentMixin:
             resolved_title = upload_result["title"]
 
         if (upload_chapters or upload_transcript) and not effective_video_id:
-            logger.error(
-                "Bunny metadata update skipped: provide BUNNY_VIDEO_ID or select video upload."
-            )
+            logger.error("Bunny metadata update skipped: provide BUNNY_VIDEO_ID or select video upload.")
             return None
 
         if upload_chapters and effective_video_id:
@@ -86,9 +79,7 @@ class BunnyDeploymentMixin:
                 chapters=chapters,
             )
             if not chapters_uploaded:
-                logger.warning(
-                    "Bunny chapter update failed; the video may still be processing."
-                )
+                logger.warning("Bunny chapter update failed; the video may still be processing.")
 
         if upload_transcript and effective_video_id:
             transcript_uploaded = self.update_bunny_transcript(
@@ -99,18 +90,14 @@ class BunnyDeploymentMixin:
                 language=caption_lang,
             )
             if not transcript_uploaded:
-                logger.warning(
-                    "Bunny transcript upload failed; the video may still be processing."
-                )
+                logger.warning("Bunny transcript upload failed; the video may still be processing.")
 
         actions_performed = video_uploaded or chapters_uploaded or transcript_uploaded
 
         if effective_video_id:
             pending = not actions_performed
             if pending:
-                logger.warning(
-                    "Bunny sync deferred: no actions completed (video likely still processing)."
-                )
+                logger.warning("Bunny sync deferred: no actions completed (video likely still processing).")
             return {
                 "library_id": library,
                 "video_id": effective_video_id,
@@ -127,12 +114,12 @@ class BunnyDeploymentMixin:
     def upload_bunny_video(
         self,
         *,
-        video_path: Optional[str],
-        library_id: Optional[str] = None,
-        access_key: Optional[str] = None,
-        collection_id: Optional[str] = None,
-        video_title: Optional[str] = None,
-    ) -> Optional[Dict[str, str]]:
+        video_path: str | None,
+        library_id: str | None = None,
+        access_key: str | None = None,
+        collection_id: str | None = None,
+        video_title: str | None = None,
+    ) -> dict[str, str] | None:
         """Create a Bunny video record and upload its binary content."""
         resolved_credentials = self._resolve_library_and_access(library_id, access_key)
         if not resolved_credentials:
@@ -149,11 +136,7 @@ class BunnyDeploymentMixin:
             return None
 
         collection = (collection_id or get_credential("bunny_collection_id") or "").strip() or None
-        resolved_title = (
-            (video_title or "").strip()
-            or (self.video_title or "").strip()
-            or video_file.stem
-        )
+        resolved_title = (video_title or "").strip() or (self.video_title or "").strip() or video_file.stem
 
         create_response = self._create_video_entry(
             library=library,
@@ -164,9 +147,7 @@ class BunnyDeploymentMixin:
         if not create_response:
             return None
 
-        new_video_id = (
-            str(create_response.get("videoId") or create_response.get("guid") or "").strip()
-        )
+        new_video_id = str(create_response.get("videoId") or create_response.get("guid") or "").strip()
         if not new_video_id:
             logger.error("Bunny video creation response missing videoId/guid.")
             return None
@@ -194,10 +175,10 @@ class BunnyDeploymentMixin:
     def update_bunny_chapters(
         self,
         *,
-        video_id: Optional[str],
-        library_id: Optional[str] = None,
-        access_key: Optional[str] = None,
-        chapters: Optional[Sequence[Dict[str, str]]] = None,
+        video_id: str | None,
+        library_id: str | None = None,
+        access_key: str | None = None,
+        chapters: Sequence[dict[str, str]] | None = None,
     ) -> bool:
         """Update chapter metadata for an existing Bunny video."""
         resolved_credentials = self._resolve_library_and_access(library_id, access_key)
@@ -207,9 +188,7 @@ class BunnyDeploymentMixin:
 
         resolved_video_id = (video_id or get_credential("bunny_video_id") or "").strip()
         if not resolved_video_id:
-            logger.error(
-                "Bunny chapter update skipped: a video identifier is required."
-            )
+            logger.error("Bunny chapter update skipped: a video identifier is required.")
             return False
 
         payload = self._prepare_chapters(chapters)
@@ -227,11 +206,11 @@ class BunnyDeploymentMixin:
     def update_bunny_transcript(
         self,
         *,
-        video_id: Optional[str],
-        library_id: Optional[str] = None,
-        access_key: Optional[str] = None,
-        transcript_path: Optional[str] = None,
-        language: Optional[str] = None,
+        video_id: str | None,
+        library_id: str | None = None,
+        access_key: str | None = None,
+        transcript_path: str | None = None,
+        language: str | None = None,
     ) -> bool:
         """Upload transcript captions for an existing Bunny video."""
         resolved_credentials = self._resolve_library_and_access(library_id, access_key)
@@ -241,21 +220,15 @@ class BunnyDeploymentMixin:
 
         resolved_video_id = (video_id or get_credential("bunny_video_id") or "").strip()
         if not resolved_video_id:
-            logger.error(
-                "Bunny transcript upload skipped: a video identifier is required."
-            )
+            logger.error("Bunny transcript upload skipped: a video identifier is required.")
             return False
 
         transcript_file = self._resolve_transcript(transcript_path)
         if not transcript_file or not transcript_file.exists():
-            logger.warning(
-                "Transcript file not found for Bunny captions; skipping transcript upload."
-            )
+            logger.warning("Transcript file not found for Bunny captions; skipping transcript upload.")
             return False
 
-        resolved_language = (
-            (language or get_credential("bunny_caption_language") or "en").strip() or "en"
-        )
+        resolved_language = (language or get_credential("bunny_caption_language") or "en").strip() or "en"
 
         return self._upload_transcript_caption(
             library=library,
@@ -271,31 +244,29 @@ class BunnyDeploymentMixin:
 
     def _resolve_library_and_access(
         self,
-        library_id: Optional[str],
-        access_key: Optional[str],
-    ) -> Optional[tuple[str, str]]:
+        library_id: str | None,
+        access_key: str | None,
+    ) -> tuple[str, str] | None:
         """Resolve and validate Bunny library credentials."""
         library = (library_id or get_credential("bunny_library_id") or "").strip()
         access = (access_key or get_credential("bunny_access_key") or "").strip()
 
         if not library or not access:
-            logger.error(
-                "Bunny sync skipped: BUNNY_LIBRARY_ID and BUNNY_ACCESS_KEY are required."
-            )
+            logger.error("Bunny sync skipped: BUNNY_LIBRARY_ID and BUNNY_ACCESS_KEY are required.")
             return None
 
         return library, access
 
     def _prepare_chapters(
         self,
-        chapters: Optional[Sequence[Dict[str, str]]],
-    ) -> List[Dict[str, str]]:
+        chapters: Sequence[dict[str, str]] | None,
+    ) -> list[dict[str, str]]:
         """Load and normalise chapter data for Bunny."""
         if not chapters:
             timestamps_path = self.output_dir / "timestamps.json"
             if timestamps_path.exists():
                 try:
-                    with open(timestamps_path, "r", encoding="utf-8") as handle:
+                    with open(timestamps_path, encoding="utf-8") as handle:
                         stored = json.load(handle)
                     candidate = stored[0].get("timestamps") if stored else None
                     chapters = candidate if isinstance(candidate, list) else None
@@ -306,7 +277,7 @@ class BunnyDeploymentMixin:
         if not chapters:
             return []
 
-        normalised: List[Dict[str, int]] = []
+        normalised: list[dict[str, int]] = []
         for entry in chapters:
             title = (entry.get("title") or "").strip()
             raw_start = entry.get("start")
@@ -327,7 +298,7 @@ class BunnyDeploymentMixin:
         normalised.sort(key=lambda item: item["start"])
         return normalised
 
-    def _resolve_transcript(self, transcript_path: Optional[str]) -> Optional[Path]:
+    def _resolve_transcript(self, transcript_path: str | None) -> Path | None:
         """Resolve transcript file path, if any is present."""
         if transcript_path:
             candidate = Path(transcript_path)
@@ -342,10 +313,10 @@ class BunnyDeploymentMixin:
         library: str,
         access_key: str,
         title: str,
-        collection_id: Optional[str],
-    ) -> Optional[Dict[str, str]]:
+        collection_id: str | None,
+    ) -> dict[str, str] | None:
         """Create a Bunny video record and return the decoded payload."""
-        payload: Dict[str, str] = {"title": title}
+        payload: dict[str, str] = {"title": title}
         if collection_id:
             payload["collectionId"] = collection_id
 
@@ -400,7 +371,7 @@ class BunnyDeploymentMixin:
         library: str,
         access_key: str,
         video_id: str,
-        chapters: Iterable[Dict[str, str]],
+        chapters: Iterable[dict[str, str]],
     ) -> bool:
         """Update Bunny video metadata with chapter information."""
         url = f"{self._API_BASE}/library/{library}/videos/{video_id}"
@@ -450,9 +421,7 @@ class BunnyDeploymentMixin:
             return True
 
         # Fallback: legacy flow — create/get caption track and PUT VTT file
-        logger.info(
-            "srclang upload failed; attempting legacy caption track create + file PUT."
-        )
+        logger.info("srclang upload failed; attempting legacy caption track create + file PUT.")
         caption_id = self._ensure_caption_track(
             library=library,
             access_key=access_key,
@@ -484,7 +453,7 @@ class BunnyDeploymentMixin:
         access_key: str,
         video_id: str,
         language: str,
-    ) -> Optional[str]:
+    ) -> str | None:
         """Ensure a caption slot exists and return its identifier."""
         url = f"{self._API_BASE}/library/{library}/videos/{video_id}/captions"
         payload = {
@@ -529,10 +498,10 @@ class BunnyDeploymentMixin:
         method: str,
         url: str,
         access_key: str,
-        allow_error_statuses: Optional[Iterable[int]] = None,
+        allow_error_statuses: Iterable[int] | None = None,
         timeout: int,
         **kwargs,
-    ) -> Optional[Response]:
+    ) -> Response | None:
         """Wrapper around requests.request with logging and error handling."""
         headers = kwargs.pop("headers", {}) or {}
         headers.setdefault("AccessKey", access_key)
@@ -560,23 +529,20 @@ class BunnyDeploymentMixin:
                     detail = ""
             if status in {400, 404}:
                 logger.warning(
-                    "Bunny API is not ready for %s %s (status %s). The video may still "
-                    "be processing. %s",
+                    "Bunny API is not ready for %s %s (status %s). The video may still be processing. %s",
                     method,
                     url,
                     status,
                     detail,
                 )
             else:
-                logger.error(
-                    f"Bunny API request failed ({method} {url}): {detail or exc}"
-                )
+                logger.error(f"Bunny API request failed ({method} {url}): {detail or exc}")
             return None
         except requests.RequestException as exc:
             logger.error(f"Bunny API request failed ({method} {url}): {exc}")
             return None
 
-    def _format_chapter_time(self, raw: Optional[str]) -> Optional[int]:
+    def _format_chapter_time(self, raw: str | None) -> int | None:
         """Convert HH:MM:SS timestamps (or seconds) into integer offsets."""
         if raw is None:
             return None

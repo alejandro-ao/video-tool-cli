@@ -6,15 +6,15 @@ import unicodedata
 from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Type, TypeVar, Union
+from typing import TypeVar
 
 import yaml
+from groq import Groq
+from loguru import logger
 from openai import OpenAI
 from pydantic import BaseModel
 
-from video_tool.config import get_llm_config, get_credential
-
-from .shared import Groq, logger
+from video_tool.config import get_credential, get_llm_config
 
 StructuredResponse = TypeVar("StructuredResponse", bound=BaseModel)
 
@@ -25,9 +25,9 @@ class VideoProcessorBase:
     def __init__(
         self,
         input_dir: str,
-        video_title: Optional[str] = None,
+        video_title: str | None = None,
         show_external_logs: bool = False,
-        output_dir: Optional[str] = None,
+        output_dir: str | None = None,
     ):
         self.input_dir = Path(input_dir)
         self.output_dir = Path(output_dir) if output_dir else self.input_dir / "output"
@@ -39,14 +39,10 @@ class VideoProcessorBase:
         self.groq = Groq(api_key=groq_key) if groq_key else None
         self.prompts = self._load_prompts()
         self.setup_logging()
-        self._preferred_output_filename = (
-            self._sanitize_filename(self.video_title)
-            if self.video_title
-            else None
-        )
-        self.last_output_path: Optional[Path] = None
+        self._preferred_output_filename = self._sanitize_filename(self.video_title) if self.video_title else None
+        self.last_output_path: Path | None = None
 
-    def _sanitize_filename(self, candidate: Optional[str]) -> Optional[str]:
+    def _sanitize_filename(self, candidate: str | None) -> str | None:
         """Sanitize a user provided title for safe filesystem usage."""
         if not candidate:
             return None
@@ -77,13 +73,11 @@ class VideoProcessorBase:
         while True:
             candidate = self.output_dir / f"{stem}_{counter}{suffix}"
             if not candidate.exists():
-                logger.warning(
-                    f"Output file {output_path.name} exists, using {candidate.name} instead"
-                )
+                logger.warning(f"Output file {output_path.name} exists, using {candidate.name} instead")
                 return candidate
             counter += 1
 
-    def _determine_output_filename(self, requested_filename: Optional[str]) -> str:
+    def _determine_output_filename(self, requested_filename: str | None) -> str:
         """Determine the appropriate output filename based on priority order."""
         sanitized_requested = self._sanitize_filename(requested_filename)
         if sanitized_requested:
@@ -92,7 +86,7 @@ class VideoProcessorBase:
             return self._preferred_output_filename
         return f"{datetime.now().strftime('%Y-%m-%d')}_concatenated.mp4"
 
-    def _find_existing_output(self) -> Optional[Path]:
+    def _find_existing_output(self) -> Path | None:
         """Locate an existing concatenated video produced during this session."""
         if self.last_output_path and self.last_output_path.exists():
             return self.last_output_path
@@ -131,7 +125,7 @@ class VideoProcessorBase:
 
         configure_logging(verbose=self.show_external_logs)
 
-    def _quiet_subprocess_kwargs(self) -> Dict[str, object]:
+    def _quiet_subprocess_kwargs(self) -> dict[str, object]:
         """Return subprocess kwargs that suppress stdout/stderr unless verbose logging is enabled."""
         if self.show_external_logs:
             return {}
@@ -160,15 +154,15 @@ class VideoProcessorBase:
         self,
         *,
         command: str,
-        messages: List[Dict[str, str]],
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
+        messages: list[dict[str, str]],
+        temperature: float | None = None,
+        max_tokens: int | None = None,
     ) -> str:
         """Execute a chat completion request using the OpenAI SDK."""
         client = self._get_openai_client(command)
         llm_config = get_llm_config(command)
 
-        kwargs: Dict[str, Union[str, float, int, List]] = {
+        kwargs: dict[str, str | float | int | list] = {
             "model": llm_config.model,
             "messages": messages,
         }
@@ -184,16 +178,16 @@ class VideoProcessorBase:
         self,
         *,
         command: str,
-        messages: List[Dict[str, str]],
-        schema: Type[StructuredResponse],
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
+        messages: list[dict[str, str]],
+        schema: type[StructuredResponse],
+        temperature: float | None = None,
+        max_tokens: int | None = None,
     ) -> StructuredResponse:
         """Execute a chat request that returns structured output defined by the schema."""
         client = self._get_openai_client(command)
         llm_config = get_llm_config(command)
 
-        kwargs: Dict[str, Union[str, float, int, List, Type]] = {
+        kwargs: dict[str, str | float | int | list | type] = {
             "model": llm_config.model,
             "messages": messages,
             "response_format": schema,

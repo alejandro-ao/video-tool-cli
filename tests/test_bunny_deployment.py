@@ -32,8 +32,10 @@ def test_deploy_to_bunny_requires_credentials(mock_video_processor, temp_dir, mo
 
     monkeypatch.delenv("BUNNY_LIBRARY_ID", raising=False)
     monkeypatch.delenv("BUNNY_ACCESS_KEY", raising=False)
-    with patch("video_tool.video_processor.deployment.get_credential", return_value=None), \
-         patch("video_tool.video_processor.deployment.requests.request") as mock_request:
+    with (
+        patch("video_tool.video_processor.deployment.get_credential", return_value=None),
+        patch("video_tool.video_processor.deployment.requests.request") as mock_request,
+    ):
         result = mock_video_processor.deploy_to_bunny(
             str(video_path),
             upload_video=True,
@@ -112,9 +114,7 @@ def test_deploy_to_bunny_uploads_video_and_metadata(mock_video_processor, temp_d
 
     # Chapter update request payload should be normalised
     chapters_kwargs = mock_request.call_args_list[2].kwargs
-    assert chapters_kwargs["json"] == {
-        "chapters": [{"title": "Intro", "start": 0, "end": 60}]
-    }
+    assert chapters_kwargs["json"] == {"chapters": [{"title": "Intro", "start": 0, "end": 60}]}
 
     # Caption upload using srclang JSON endpoint
     caption_kwargs = mock_request.call_args_list[3].kwargs

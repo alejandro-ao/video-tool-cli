@@ -3,9 +3,10 @@ from __future__ import annotations
 import subprocess
 from datetime import timedelta
 from pathlib import Path
-from typing import List, Tuple
 
-from .shared import AudioSegment, detect_nonsilent, logger
+from loguru import logger
+from pydub import AudioSegment
+from pydub.silence import detect_nonsilent
 
 
 class SilenceProcessingMixin:
@@ -39,7 +40,7 @@ class SilenceProcessingMixin:
         audio_format = video_file.suffix.lower().lstrip(".") or None
         audio = AudioSegment.from_file(str(video_file), format=audio_format)
 
-        nonsilent_chunks: List[Tuple[int, int]] = detect_nonsilent(
+        nonsilent_chunks: list[tuple[int, int]] = detect_nonsilent(
             audio,
             min_silence_len=min_silence_len,
             silence_thresh=silence_thresh,
@@ -58,6 +59,7 @@ class SilenceProcessingMixin:
         if not nonsilent_chunks:
             logger.warning(f"No non-silent chunks found in {video_file.name}, copying original.")
             import shutil
+
             shutil.copy2(video_file, output_file)
             return str(output_file)
 
@@ -107,7 +109,7 @@ class SilenceProcessingMixin:
             audio_format = video_file.suffix.lower().lstrip(".") or None
             audio = AudioSegment.from_file(str(video_file), format=audio_format)
 
-            nonsilent_chunks: List[Tuple[int, int]] = detect_nonsilent(
+            nonsilent_chunks: list[tuple[int, int]] = detect_nonsilent(
                 audio,
                 min_silence_len=1000,
                 silence_thresh=-45,
@@ -125,18 +127,14 @@ class SilenceProcessingMixin:
                 nonsilent_chunks[idx] = buffered
 
             if not nonsilent_chunks:
-                logger.warning(
-                f"No non-silent chunks found in {video_file.name}, skipping."
-                )
+                logger.warning(f"No non-silent chunks found in {video_file.name}, skipping.")
                 continue
 
             last_start, last_end = nonsilent_chunks[-1]
             audio_duration_ms = len(audio)
             if last_end < audio_duration_ms:
                 extension = (audio_duration_ms - last_end) / 1000
-                logger.info(
-                    f"Extending last chunk to the end of the video by {extension:.2f}s."
-                )
+                logger.info(f"Extending last chunk to the end of the video by {extension:.2f}s.")
                 nonsilent_chunks[-1] = (
                     last_start,
                     audio_duration_ms,
@@ -144,14 +142,10 @@ class SilenceProcessingMixin:
 
             num_silences = len(nonsilent_chunks) - 1
             total_duration = audio.duration_seconds
-            total_nonsilent_duration = sum(
-                (end - start) / 1000 for start, end in nonsilent_chunks
-            )
+            total_nonsilent_duration = sum((end - start) / 1000 for start, end in nonsilent_chunks)
             silence_duration = total_duration - total_nonsilent_duration
 
-            silence_ratio = (
-                (silence_duration / total_duration) * 100 if total_duration else 0
-            )
+            silence_ratio = (silence_duration / total_duration) * 100 if total_duration else 0
             logger.info(
                 f"Found {num_silences} silences in {video_file.name}. "
                 f"Total silence duration: {silence_duration:.2f} seconds "
@@ -170,14 +164,16 @@ class SilenceProcessingMixin:
                         f"(duration: {silence_length:.2f}s)"
                     )
 
-            self._process_video_with_concat_filter(
-                video_file, nonsilent_chunks, processed_dir
-            )
+            self._process_video_with_concat_filter(video_file, nonsilent_chunks, processed_dir)
 
         return str(processed_dir)
 
     def _process_video_with_concat_filter(
-        self, video_file: Path, nonsilent_chunks: List[Tuple[int, int]], processed_dir: Path, output_filename: str | None = None
+        self,
+        video_file: Path,
+        nonsilent_chunks: list[tuple[int, int]],
+        processed_dir: Path,
+        output_filename: str | None = None,
     ):
         """Use ffmpeg concat filters to stitch non-silent segments."""
         output_path = processed_dir / (output_filename or video_file.name)
@@ -186,23 +182,17 @@ class SilenceProcessingMixin:
             logger.warning(f"No content to process for {video_file.name}.")
             return
 
-        filter_complex: List[str] = []
+        filter_complex: list[str] = []
         for idx, (start, end) in enumerate(nonsilent_chunks):
             filter_complex.append(
-                "[0:v]trim=start={start}:end={end},setpts=PTS-STARTPTS[v{idx}];"
-                "[0:a]atrim=start={start}:end={end},asetpts=PTS-STARTPTS[a{idx}]".format(
-                    start=start / 1000, end=end / 1000, idx=idx
-                )
+                f"[0:v]trim=start={start / 1000}:end={end / 1000},setpts=PTS-STARTPTS[v{idx}];"
+                f"[0:a]atrim=start={start / 1000}:end={end / 1000},asetpts=PTS-STARTPTS[a{idx}]"
             )
 
         concat_video_streams = "".join(f"[v{idx}]" for idx in range(len(nonsilent_chunks)))
         concat_audio_streams = "".join(f"[a{idx}]" for idx in range(len(nonsilent_chunks)))
-        filter_complex.append(
-            f"{concat_video_streams}concat=n={len(nonsilent_chunks)}:v=1:a=0[outv]"
-        )
-        filter_complex.append(
-            f"{concat_audio_streams}concat=n={len(nonsilent_chunks)}:v=0:a=1[outa]"
-        )
+        filter_complex.append(f"{concat_video_streams}concat=n={len(nonsilent_chunks)}:v=1:a=0[outv]")
+        filter_complex.append(f"{concat_audio_streams}concat=n={len(nonsilent_chunks)}:v=0:a=1[outa]")
 
         cmd = [
             "ffmpeg",

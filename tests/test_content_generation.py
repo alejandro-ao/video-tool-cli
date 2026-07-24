@@ -7,125 +7,118 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from video_tool.video_processor import VideoProcessor
 from tests.test_data.mock_generators import (
-    MockVideoGenerator,
-    MockTranscriptGenerator,
     MockDescriptionGenerator,
     MockTimestampGenerator,
-    MockKeywordsGenerator
+    MockTranscriptGenerator,
+    MockVideoGenerator,
 )
 from tests.test_data.sample_data import (
     SAMPLE_GROQ_RESPONSE,
+    SAMPLE_LINKEDIN_POST,
     SAMPLE_OPENAI_DESCRIPTION_RESPONSE,
     SAMPLE_OPENAI_KEYWORDS_RESPONSE,
+    SAMPLE_TWITTER_POST,
     SAMPLE_VTT_CONTENT,
-    SAMPLE_DESCRIPTION_MD,
-    SAMPLE_KEYWORDS,
-    SAMPLE_ERROR_RESPONSES,
-    SAMPLE_LINKEDIN_POST,
-    SAMPLE_TWITTER_POST
 )
 
 
 class TestGenerateTimestamps:
     """Test generate_timestamps method."""
-    
+
     def test_generate_timestamps_with_processed_videos(self, temp_dir, mock_video_processor):
         """Test timestamp generation with processed videos."""
         # Create processed video files
         processed_dir = temp_dir / "processed"
-        processed_files = MockVideoGenerator.create_test_video_set(processed_dir, count=3)
+        MockVideoGenerator.create_test_video_set(processed_dir, count=3)
         output_dir = temp_dir / "output"
-        
+
         mock_video_processor.video_dir = temp_dir
-        
+
         # Mock video metadata
-        with patch.object(mock_video_processor, '_get_video_metadata') as mock_metadata:
+        with patch.object(mock_video_processor, "get_video_metadata") as mock_metadata:
             mock_metadata.side_effect = [
-                {'duration': 300.0},  # 5 minutes
-                {'duration': 450.0},  # 7.5 minutes
-                {'duration': 600.0}   # 10 minutes
+                {"duration": 300.0},  # 5 minutes
+                {"duration": 450.0},  # 7.5 minutes
+                {"duration": 600.0},  # 10 minutes
             ]
-            
-            result = mock_video_processor.generate_timestamps()
-            
+
+            mock_video_processor.generate_timestamps()
+
             # Verify timestamps file was created
             timestamps_file = output_dir / "timestamps.json"
             assert timestamps_file.exists()
-            
+
             # Verify content
-            with open(timestamps_file, 'r') as f:
+            with open(timestamps_file) as f:
                 timestamps_data = json.load(f)
-            
+
             assert len(timestamps_data) == 1
-            assert 'timestamps' in timestamps_data[0]
-            assert len(timestamps_data[0]['timestamps']) == 3
-            
+            assert "timestamps" in timestamps_data[0]
+            assert len(timestamps_data[0]["timestamps"]) == 3
+
             # Verify cumulative timing
-            timestamps = timestamps_data[0]['timestamps']
-            assert timestamps[0]['start'] == "00:00:00.000"
-            assert timestamps[0]['end'] == "00:05:00.000"
-            assert timestamps[1]['start'] == "00:05:00.000"
-            assert timestamps[1]['end'] == "00:12:30.000"
-            assert timestamps[2]['start'] == "00:12:30.000"
-            assert timestamps[2]['end'] == "00:22:30.000"
-    
+            timestamps = timestamps_data[0]["timestamps"]
+            assert timestamps[0]["start"] == "00:00:00.000"
+            assert timestamps[0]["end"] == "00:05:00.000"
+            assert timestamps[1]["start"] == "00:05:00.000"
+            assert timestamps[1]["end"] == "00:12:30.000"
+            assert timestamps[2]["start"] == "00:12:30.000"
+            assert timestamps[2]["end"] == "00:22:30.000"
+
     def test_generate_timestamps_fallback_to_original(self, temp_dir, mock_video_processor):
         """Test timestamp generation falls back to original videos when no processed videos."""
         # Create only original video files (no processed directory)
-        video_files = MockVideoGenerator.create_test_video_set(temp_dir, count=2)
+        MockVideoGenerator.create_test_video_set(temp_dir, count=2)
         output_dir = temp_dir / "output"
-        
+
         mock_video_processor.video_dir = temp_dir
-        
-        with patch.object(mock_video_processor, '_get_video_metadata') as mock_metadata:
+
+        with patch.object(mock_video_processor, "get_video_metadata") as mock_metadata:
             mock_metadata.side_effect = [
-                {'duration': 240.0},  # 4 minutes
-                {'duration': 360.0}   # 6 minutes
+                {"duration": 240.0},  # 4 minutes
+                {"duration": 360.0},  # 6 minutes
             ]
-            
-            result = mock_video_processor.generate_timestamps()
-            
+
+            mock_video_processor.generate_timestamps()
+
             timestamps_file = output_dir / "timestamps.json"
             assert timestamps_file.exists()
-            
-            with open(timestamps_file, 'r') as f:
+
+            with open(timestamps_file) as f:
                 timestamps_data = json.load(f)
-            
-            timestamps = timestamps_data[0]['timestamps']
+
+            timestamps = timestamps_data[0]["timestamps"]
             assert len(timestamps) == 2
-            assert timestamps[0]['end'] == "00:04:00.000"
-            assert timestamps[1]['end'] == "00:10:00.000"
-    
+            assert timestamps[0]["end"] == "00:04:00.000"
+            assert timestamps[1]["end"] == "00:10:00.000"
+
     def test_generate_timestamps_no_videos(self, temp_dir, mock_video_processor):
         """Test timestamp generation with no video files."""
         mock_video_processor.video_dir = temp_dir
-        
-        with patch('video_tool.video_processor.logger') as mock_logger:
-            result = mock_video_processor.generate_timestamps()
-            
+
+        with patch("video_tool.video_processor.concatenation.logger") as mock_logger:
+            mock_video_processor.generate_timestamps()
+
             # Should warn about no videos found
             mock_logger.warning.assert_called()
-    
+
     def test_generate_timestamps_metadata_error(self, temp_dir, mock_video_processor):
         """Test timestamp generation when metadata extraction fails."""
-        video_files = MockVideoGenerator.create_test_video_set(temp_dir, count=1)
-        
-        mock_video_processor.video_dir = temp_dir
-        
-        with patch.object(mock_video_processor, '_get_video_metadata') as mock_metadata:
-            mock_metadata.return_value = None  # Simulate metadata failure
-            
-            with patch('video_tool.video_processor.logger') as mock_logger:
-                result = mock_video_processor.generate_timestamps()
-                
-                # Should handle error gracefully
-                mock_logger.assert_called()
+        MockVideoGenerator.create_test_video_set(temp_dir, count=1)
 
-    def test_generate_timestamps_refines_titles_with_transcript(
-        self, temp_dir, mock_video_processor
-    ):
+        mock_video_processor.video_dir = temp_dir
+
+        with patch.object(mock_video_processor, "get_video_metadata") as mock_metadata:
+            mock_metadata.return_value = None  # Simulate metadata failure
+
+            with patch("video_tool.video_processor.concatenation.logger") as mock_logger:
+                mock_video_processor.generate_timestamps()
+
+                # Should handle error gracefully (and log something about it)
+                assert mock_logger.method_calls
+
+    def test_generate_timestamps_refines_titles_with_transcript(self, temp_dir, mock_video_processor):
         """Structured output should refine chapter titles using transcript excerpts."""
         processed_dir = temp_dir / "processed"
         MockVideoGenerator.create_test_video_set(processed_dir, count=2)
@@ -142,12 +135,14 @@ class TestGenerateTimestamps:
 
         mock_video_processor.video_dir = temp_dir
 
-        with patch.object(mock_video_processor, '_get_video_metadata') as mock_metadata, \
-             patch.object(mock_video_processor, '_invoke_openai_chat_structured_output') as mock_structured, \
-             patch('video_tool.video_processor.concatenation.is_llm_configured', return_value=True):
+        with (
+            patch.object(mock_video_processor, "get_video_metadata") as mock_metadata,
+            patch.object(mock_video_processor, "_invoke_openai_chat_structured_output") as mock_structured,
+            patch("video_tool.video_processor.concatenation.is_llm_configured", return_value=True),
+        ):
             mock_metadata.side_effect = [
-                {'duration': 120.0},
-                {'duration': 180.0},
+                {"duration": 120.0},
+                {"duration": 180.0},
             ]
 
             mock_structured.return_value = SimpleNamespace(
@@ -157,19 +152,17 @@ class TestGenerateTimestamps:
                 ]
             )
 
-            result = mock_video_processor.generate_timestamps()
+            mock_video_processor.generate_timestamps()
 
         timestamps_file = temp_dir / "output" / "timestamps.json"
         assert timestamps_file.exists()
 
         data = json.loads(timestamps_file.read_text())
-        assert data[0]['timestamps'][0]['title'] == "Workflow Overview"
-        assert data[0]['timestamps'][1]['title'] == "Content Generation Deep Dive"
+        assert data[0]["timestamps"][0]["title"] == "Workflow Overview"
+        assert data[0]["timestamps"][1]["title"] == "Content Generation Deep Dive"
         mock_structured.assert_called_once()
 
-    def test_generate_timestamps_structured_fallback_to_singles(
-        self, temp_dir, mock_video_processor
-    ):
+    def test_generate_timestamps_structured_fallback_to_singles(self, temp_dir, mock_video_processor):
         """If batch request fails, fallback per chapter still refines titles."""
         processed_dir = temp_dir / "processed"
         MockVideoGenerator.create_test_video_set(processed_dir, count=2)
@@ -184,12 +177,14 @@ class TestGenerateTimestamps:
 
         mock_video_processor.video_dir = temp_dir
 
-        with patch.object(mock_video_processor, '_get_video_metadata') as mock_metadata, \
-             patch.object(mock_video_processor, '_invoke_openai_chat_structured_output') as mock_structured, \
-             patch('video_tool.video_processor.concatenation.is_llm_configured', return_value=True):
+        with (
+            patch.object(mock_video_processor, "get_video_metadata") as mock_metadata,
+            patch.object(mock_video_processor, "_invoke_openai_chat_structured_output") as mock_structured,
+            patch("video_tool.video_processor.concatenation.is_llm_configured", return_value=True),
+        ):
             mock_metadata.side_effect = [
-                {'duration': 60.0},
-                {'duration': 60.0},
+                {"duration": 60.0},
+                {"duration": 60.0},
             ]
 
             mock_structured.side_effect = [
@@ -206,19 +201,17 @@ class TestGenerateTimestamps:
                 ),
             ]
 
-            result = mock_video_processor.generate_timestamps()
+            mock_video_processor.generate_timestamps()
 
         timestamps_file = temp_dir / "output" / "timestamps.json"
         assert timestamps_file.exists()
 
         data = json.loads(timestamps_file.read_text())
-        assert data[0]['timestamps'][0]['title'] == "Introduction Overview"
-        assert data[0]['timestamps'][1]['title'] == "Deep Dive Topic"
+        assert data[0]["timestamps"][0]["title"] == "Introduction Overview"
+        assert data[0]["timestamps"][1]["title"] == "Deep Dive Topic"
         assert mock_structured.call_count == 3
 
-    def test_generate_timestamps_from_provided_transcript(
-        self, temp_dir, mock_video_processor
-    ):
+    def test_generate_timestamps_from_provided_transcript(self, temp_dir, mock_video_processor):
         """Transcript flag should use the provided transcript and structured output."""
         transcript_file = temp_dir / "output" / "transcript.vtt"
         MockTranscriptGenerator.create_vtt_transcript(
@@ -258,9 +251,7 @@ class TestGenerateTimestamps:
         assert result["metadata"]["transcript_generated"] is False
         mock_structured.assert_called_once()
 
-    def test_generate_timestamps_generates_transcript_when_missing(
-        self, temp_dir, mock_video_processor
-    ):
+    def test_generate_timestamps_generates_transcript_when_missing(self, temp_dir, mock_video_processor):
         """If no transcript path is supplied, the CLI flag triggers transcript creation."""
         transcript_file = temp_dir / "output" / "transcript.vtt"
 
@@ -274,9 +265,10 @@ class TestGenerateTimestamps:
             )
             return str(transcript_file)
 
-        with patch.object(mock_video_processor, "generate_transcript", side_effect=_write_transcript) as mock_generate, patch.object(
-            mock_video_processor, "_invoke_openai_chat_structured_output"
-        ) as mock_structured:
+        with (
+            patch.object(mock_video_processor, "generate_transcript", side_effect=_write_transcript) as mock_generate,
+            patch.object(mock_video_processor, "_invoke_openai_chat_structured_output") as mock_structured,
+        ):
             mock_structured.return_value = SimpleNamespace(
                 chapters=[
                     SimpleNamespace(start="0:00", title="Introduction"),
@@ -284,7 +276,7 @@ class TestGenerateTimestamps:
                 ]
             )
 
-            result = mock_video_processor.generate_timestamps(
+            mock_video_processor.generate_timestamps(
                 stamps_from_transcript=True,
             )
 
@@ -298,9 +290,7 @@ class TestGenerateTimestamps:
         mock_generate.assert_called_once()
         mock_structured.assert_called_once()
 
-    def test_generate_timestamps_single_video_uses_provided_video_path(
-        self, temp_dir, mock_video_processor
-    ):
+    def test_generate_timestamps_single_video_uses_provided_video_path(self, temp_dir, mock_video_processor):
         """Ensure transcript generation uses the requested video when a single MP4 is provided."""
         video_file = temp_dir / "single.mp4"
         video_file.write_bytes(b"\x00\x00mockmp4")
@@ -317,9 +307,10 @@ class TestGenerateTimestamps:
             )
             return str(output_path)
 
-        with patch.object(mock_video_processor, "generate_transcript", side_effect=_write_transcript) as mock_generate, patch.object(
-            mock_video_processor, "_invoke_openai_chat_structured_output"
-        ) as mock_structured:
+        with (
+            patch.object(mock_video_processor, "generate_transcript", side_effect=_write_transcript) as mock_generate,
+            patch.object(mock_video_processor, "_invoke_openai_chat_structured_output") as mock_structured,
+        ):
             mock_structured.return_value = SimpleNamespace(
                 chapters=[
                     SimpleNamespace(start="0:00", title="Intro"),
@@ -343,8 +334,8 @@ class TestGenerateTimestamps:
 
 class TestGenerateTranscript:
     """Test generate_transcript method."""
-    
-    @patch('groq.Groq')
+
+    @patch("groq.Groq")
     def test_generate_transcript_success(self, mock_groq_class, temp_dir, mock_video_processor):
         """Test successful transcript generation."""
         # Create concatenated video in output directory
@@ -352,79 +343,81 @@ class TestGenerateTranscript:
         output_dir.mkdir(parents=True, exist_ok=True)
         video_file = output_dir / "concatenated_video.mp4"
         MockVideoGenerator.create_mock_mp4(video_file)
-        
+
         # Mock Groq client
         mock_groq_instance = Mock()
         mock_groq_class.return_value = mock_groq_instance
-        
+
         # Mock transcription response
         mock_response = Mock()
-        mock_response.text = SAMPLE_GROQ_RESPONSE['text']
-        mock_response.segments = SAMPLE_GROQ_RESPONSE['segments']
-        
+        mock_response.text = SAMPLE_GROQ_RESPONSE["text"]
+        mock_response.segments = SAMPLE_GROQ_RESPONSE["segments"]
+
         mock_groq_instance.audio.transcriptions.create.return_value = mock_response
-        
+
         mock_video_processor.video_dir = temp_dir
         mock_video_processor.groq = mock_groq_instance
-        
-        with patch('video_tool.video_processor.VideoFileClip') as mock_video_clip, \
-             patch.object(mock_video_processor, '_groq_verbose_json_to_vtt') as mock_vtt_converter, \
-             patch('os.path.getsize') as mock_getsize:
+
+        with (
+            patch("video_tool.video_processor.transcript.VideoFileClip") as mock_video_clip,
+            patch.object(mock_video_processor, "_groq_verbose_json_to_vtt") as mock_vtt_converter,
+            patch("os.path.getsize") as mock_getsize,
+        ):
             # Mock audio extraction
             mock_clip = Mock()
             mock_audio = Mock()
             mock_clip.audio = mock_audio
             mock_video_clip.return_value = mock_clip
-            
+
             # Mock file size to be under 25MB limit
             mock_getsize.return_value = 20 * 1024 * 1024  # 20MB
-            
+
             # Mock VTT conversion to return expected content
             mock_vtt_converter.return_value = SAMPLE_VTT_CONTENT
-            
+
             # Create the audio file with content to simulate successful extraction
             audio_file = video_file.with_suffix(".mp3")  # Use the same path as video but with .mp3 extension
             # Create a large file (simulate > 25MB) by writing a lot of content
             large_content = "mock audio content " * 1000000  # Create a large string
             audio_file.write_text(large_content)
-            
+
             try:
                 result = mock_video_processor.generate_transcript(str(video_file))
                 print(f"DEBUG: Test result: {result}")
             except Exception as e:
                 print(f"DEBUG: Exception in test: {e}")
                 raise
-            
+
             # Verify transcript file was created
             transcript_file = output_dir / "transcript.vtt"
             assert transcript_file.exists()
-            
+
             # Verify Groq API was called
             mock_groq_instance.audio.transcriptions.create.assert_called_once()
-    
-    @patch('groq.Groq')
+
+    @patch("groq.Groq")
     def test_generate_transcript_small_file(self, mock_groq_class, temp_dir, mock_video_processor):
         """Test transcript generation with small file (no chunking needed)."""
         video_file = temp_dir / "output" / "concatenated_video.mp4"
         MockVideoGenerator.create_mock_mp4(video_file)
         output_dir = temp_dir / "output"
-        
+
         mock_groq_instance = Mock()
         mock_groq_class.return_value = mock_groq_instance
-        
+
         # Mock single response for small file
         mock_groq_instance.audio.transcriptions.create.return_value = Mock(
-            text="Test transcript", 
-            segments=SAMPLE_GROQ_RESPONSE['segments']
+            text="Test transcript", segments=SAMPLE_GROQ_RESPONSE["segments"]
         )
-        
+
         mock_video_processor.video_dir = temp_dir
         mock_video_processor.groq = mock_groq_instance
-        
-        with patch('video_tool.video_processor.VideoFileClip') as mock_video_clip, \
-             patch.object(mock_video_processor, '_groq_verbose_json_to_vtt') as mock_vtt_converter, \
-             patch('os.path.getsize') as mock_getsize:
 
+        with (
+            patch("video_tool.video_processor.transcript.VideoFileClip") as mock_video_clip,
+            patch.object(mock_video_processor, "_groq_verbose_json_to_vtt") as mock_vtt_converter,
+            patch("os.path.getsize") as mock_getsize,
+        ):
             # Mock small audio file (≤25MB)
             mock_clip = Mock()
             mock_audio = Mock()
@@ -438,7 +431,7 @@ class TestGenerateTranscript:
 
             # Create the audio file to simulate successful extraction (non-empty)
             audio_file = video_file.with_suffix(".mp3")
-            audio_file.write_bytes(b'\x00' * 100)  # Write some bytes to avoid empty file check
+            audio_file.write_bytes(b"\x00" * 100)  # Write some bytes to avoid empty file check
 
             # Mock file size to be small (≤25MB) - no chunking needed
             mock_getsize.return_value = 20 * 1024 * 1024  # 20MB
@@ -447,42 +440,43 @@ class TestGenerateTranscript:
             mock_vtt_converter.return_value = SAMPLE_VTT_CONTENT
 
             result = mock_video_processor.generate_transcript(str(video_file))
-            
+
             # Should call transcription once for small file
             assert mock_groq_instance.audio.transcriptions.create.call_count == 1
-            
+
             # Verify the result is the expected VTT file path
             expected_output = str(output_dir / "transcript.vtt")
             assert result == expected_output
 
-    @patch('groq.Groq')
+    @patch("groq.Groq")
     def test_generate_transcript_large_file_chunking(self, mock_groq_class, temp_dir, mock_video_processor):
         """Test transcript generation with large file chunking."""
         video_file = temp_dir / "output" / "concatenated_video.mp4"
         MockVideoGenerator.create_mock_mp4(video_file)
         output_dir = temp_dir / "output"
-        
+
         mock_groq_instance = Mock()
         mock_groq_class.return_value = mock_groq_instance
-        
+
         # Mock multiple chunk responses
         chunk_responses = [
-            Mock(text="First chunk text", segments=SAMPLE_GROQ_RESPONSE['segments'][:1]),
-            Mock(text="Second chunk text", segments=SAMPLE_GROQ_RESPONSE['segments'][1:2])
+            Mock(text="First chunk text", segments=SAMPLE_GROQ_RESPONSE["segments"][:1]),
+            Mock(text="Second chunk text", segments=SAMPLE_GROQ_RESPONSE["segments"][1:2]),
         ]
-        
+
         mock_groq_instance.audio.transcriptions.create.side_effect = chunk_responses
         mock_video_processor.video_dir = temp_dir
         # Ensure the groq instance is properly set
         mock_video_processor.groq = mock_groq_instance
-         
-        with patch('video_tool.video_processor.VideoFileClip') as mock_video_clip, \
-             patch('video_tool.video_processor.AudioSegment') as mock_audio_segment, \
-             patch.object(mock_video_processor, '_groq_verbose_json_to_vtt') as mock_vtt_converter, \
-             patch.object(mock_video_processor, '_clean_vtt_transcript') as mock_clean_vtt, \
-             patch.object(mock_video_processor, '_merge_vtt_transcripts') as mock_merge, \
-             patch('os.path.getsize') as mock_getsize:
 
+        with (
+            patch("video_tool.video_processor.transcript.VideoFileClip") as mock_video_clip,
+            patch("video_tool.video_processor.transcript.AudioSegment") as mock_audio_segment,
+            patch.object(mock_video_processor, "_groq_verbose_json_to_vtt") as mock_vtt_converter,
+            patch.object(mock_video_processor, "_clean_vtt_transcript") as mock_clean_vtt,
+            patch.object(mock_video_processor, "_merge_vtt_transcripts") as mock_merge,
+            patch("os.path.getsize") as mock_getsize,
+        ):
             # Mock large audio file that needs chunking (>25MB)
             mock_clip = Mock()
             mock_audio = Mock()
@@ -496,7 +490,7 @@ class TestGenerateTranscript:
 
             # Create the audio file to simulate successful extraction
             audio_file = video_file.with_suffix(".mp3")
-            audio_file.write_bytes(b'\x00' * 100)  # Write some bytes to avoid empty file check
+            audio_file.write_bytes(b"\x00" * 100)  # Write some bytes to avoid empty file check
 
             # Mock file size to be large (>25MB) to trigger chunking
             mock_getsize.return_value = 30 * 1024 * 1024  # 30MB
@@ -509,10 +503,12 @@ class TestGenerateTranscript:
 
             # Mock chunk creation and export
             mock_chunk = Mock()
+
             def create_chunk_file(path, format=None):
                 # Create non-empty chunk file when export is called
                 chunk_path = Path(path)
-                chunk_path.write_bytes(b'\x00' * 100)
+                chunk_path.write_bytes(b"\x00" * 100)
+
             mock_chunk.export.side_effect = create_chunk_file
             # Configure the mock to support slicing operations
             type(mock_audio_instance).__getitem__ = Mock(return_value=mock_chunk)
@@ -523,60 +519,60 @@ class TestGenerateTranscript:
             mock_merge.return_value = SAMPLE_VTT_CONTENT
 
             result = mock_video_processor.generate_transcript(str(video_file))
-            
+
             # Should call transcription multiple times for chunks (2 chunks expected)
             assert mock_groq_instance.audio.transcriptions.create.call_count == 2
-            
+
             # Verify the result is the expected VTT file path
             expected_output = str(output_dir / "transcript.vtt")
             assert result == expected_output
-    
-    @patch('groq.Groq')
+
+    @patch("groq.Groq")
     def test_generate_transcript_groq_error(self, mock_groq_class, temp_dir, mock_video_processor):
         """Test transcript generation when Groq API fails."""
         video_file = temp_dir / "output" / "concatenated_video.mp4"
         MockVideoGenerator.create_mock_mp4(video_file)
-        
+
         mock_groq_instance = Mock()
         mock_groq_class.return_value = mock_groq_instance
-        
+
         # Mock API error
         mock_groq_instance.audio.transcriptions.create.side_effect = Exception("API Error")
-        
+
         mock_video_processor.video_dir = temp_dir
         mock_video_processor.groq = mock_groq_instance
-        
-        with patch('video_tool.video_processor.VideoFileClip'):
-            with patch('video_tool.video_processor.logger') as mock_logger:
+
+        with patch("video_tool.video_processor.transcript.VideoFileClip"):
+            with patch("video_tool.video_processor.transcript.logger") as mock_logger:
                 video_file = temp_dir / "test_video.mp4"
                 MockVideoGenerator.create_mock_mp4(video_file)  # Create the video file
-                result = mock_video_processor.generate_transcript(str(video_file))
-                
+                mock_video_processor.generate_transcript(str(video_file))
+
                 # Should log the error
                 mock_logger.error.assert_called()
-    
+
     def test_generate_transcript_no_video_file(self, temp_dir, mock_video_processor):
         """Test transcript generation when concatenated video doesn't exist."""
         mock_video_processor.video_dir = temp_dir
-        
-        with patch('video_tool.video_processor.logger') as mock_logger:
+
+        with patch("video_tool.video_processor.transcript.logger") as mock_logger:
             video_file = temp_dir / "nonexistent_video.mp4"
-            result = mock_video_processor.generate_transcript(str(video_file))
-            
+            mock_video_processor.generate_transcript(str(video_file))
+
             # Should log error about missing video file
             mock_logger.error.assert_called()
-    
+
     def test_vtt_helper_methods(self, mock_video_processor):
         """Test VTT processing helper methods."""
         # Test VTT cleaning
-        if hasattr(mock_video_processor, '_clean_vtt_transcript'):
+        if hasattr(mock_video_processor, "_clean_vtt_transcript"):
             dirty_vtt = "WEBVTT\n\n00:00:00.000 --> 00:00:05.000\n[MUSIC] Hello world [APPLAUSE]\n\n"
             clean_vtt = mock_video_processor._clean_vtt_transcript(dirty_vtt)
             assert "[MUSIC]" not in clean_vtt
             assert "[APPLAUSE]" not in clean_vtt
-        
+
         # Test Groq JSON to VTT conversion
-        if hasattr(mock_video_processor, '_groq_verbose_json_to_vtt'):
+        if hasattr(mock_video_processor, "_groq_verbose_json_to_vtt"):
             vtt_result = mock_video_processor._groq_verbose_json_to_vtt(SAMPLE_GROQ_RESPONSE)
             assert "WEBVTT" in vtt_result
             assert "00:00:00.000 --> 00:00:05.000" in vtt_result
@@ -584,25 +580,25 @@ class TestGenerateTranscript:
 
 class TestGenerateDescription:
     """Test generate_description method."""
-    
+
     def test_generate_description_success(self, temp_dir, mock_video_processor):
         """Test successful description generation."""
         # Create transcript file
         transcript_file = temp_dir / "output" / "transcript.vtt"
         MockTranscriptGenerator.create_vtt_transcript(transcript_file)
-        
+
         # Create timestamps file
         timestamps_file = temp_dir / "output" / "timestamps.json"
         MockTimestampGenerator.create_timestamps_json(timestamps_file, ["test_video.mp4"])
-        
+
         mock_video_processor.video_dir = temp_dir
 
         # Mock OpenAI response
-        with patch.object(mock_video_processor, '_invoke_openai_chat') as mock_invoke:
+        with patch.object(mock_video_processor, "_invoke_openai_chat") as mock_invoke:
             # Mock both generation and polishing responses
             mock_invoke.side_effect = [
-                'Initial description',
-                SAMPLE_OPENAI_DESCRIPTION_RESPONSE['choices'][0]['message']['content'],
+                "Initial description",
+                SAMPLE_OPENAI_DESCRIPTION_RESPONSE["choices"][0]["message"]["content"],
             ]
 
             # Create dummy paths for the test
@@ -611,10 +607,10 @@ class TestGenerateDescription:
             transcript_path = str(temp_dir / "output" / "transcript.vtt")
 
             # Create a dummy transcript file
-            with open(transcript_path, 'w') as f:
+            with open(transcript_path, "w") as f:
                 f.write("Test transcript content")
 
-            result = mock_video_processor.generate_description(video_path, repo_url, transcript_path)
+            mock_video_processor.generate_description(video_path, repo_url, transcript_path)
 
             # Verify description file was created
             description_file = temp_dir / "output" / "description.md"
@@ -625,28 +621,25 @@ class TestGenerateDescription:
 
             # Check that transcript was used in the first prompt (generation call)
             first_call_kwargs = mock_invoke.call_args_list[0].kwargs
-            messages = first_call_kwargs['messages']
-            assert any(
-                isinstance(msg, dict) and 'transcript' in msg.get('content', '').lower()
-                for msg in messages
-            )
-    
+            messages = first_call_kwargs["messages"]
+            assert any(isinstance(msg, dict) and "transcript" in msg.get("content", "").lower() for msg in messages)
+
     def test_generate_description_with_polishing(self, temp_dir, mock_video_processor):
         """Test description generation with polishing step."""
         transcript_file = temp_dir / "output" / "transcript.vtt"
         MockTranscriptGenerator.create_vtt_transcript(transcript_file)
-        
+
         # Create timestamps file
         timestamps_file = temp_dir / "output" / "timestamps.json"
         MockTimestampGenerator.create_timestamps_json(timestamps_file, ["test_video.mp4"])
-        
+
         mock_video_processor.video_dir = temp_dir
 
-        with patch.object(mock_video_processor, '_invoke_openai_chat') as mock_invoke:
+        with patch.object(mock_video_processor, "_invoke_openai_chat") as mock_invoke:
             # Mock both generation and polishing responses
             mock_invoke.side_effect = [
-                'Initial description',
-                SAMPLE_OPENAI_DESCRIPTION_RESPONSE['choices'][0]['message']['content'],
+                "Initial description",
+                SAMPLE_OPENAI_DESCRIPTION_RESPONSE["choices"][0]["message"]["content"],
             ]
 
             # Create dummy paths for the test
@@ -655,81 +648,81 @@ class TestGenerateDescription:
             transcript_path = str(temp_dir / "output" / "transcript.vtt")
 
             # Create a dummy transcript file
-            with open(transcript_path, 'w') as f:
+            with open(transcript_path, "w") as f:
                 f.write("Test transcript content")
 
-            result = mock_video_processor.generate_description(video_path, repo_url, transcript_path)
+            mock_video_processor.generate_description(video_path, repo_url, transcript_path)
 
             # Should call OpenAI twice (generation + polishing)
             assert mock_invoke.call_count == 2
 
             description_file = temp_dir / "output" / "description.md"
             assert description_file.exists()
-    
+
     def test_generate_description_no_transcript(self, temp_dir, mock_video_processor):
         """Test description generation when transcript doesn't exist."""
         # Create timestamps file
         timestamps_file = temp_dir / "output" / "timestamps.json"
         MockTimestampGenerator.create_timestamps_json(timestamps_file, ["test_video.mp4"])
-        
+
         mock_video_processor.video_dir = temp_dir
-        
-        with patch('video_tool.video_processor.logger') as mock_logger:
+
+        with patch("video_tool.video_processor.content.logger") as mock_logger:
             # Create dummy paths for the test
             video_path = str(temp_dir / "test_video.mp4")
             repo_url = "https://github.com/test/repo"
             transcript_path = str(temp_dir / "output" / "transcript.vtt")
-            
+
             # DO NOT create the transcript file - this is what we're testing
-            
+
             result = mock_video_processor.generate_description(video_path, repo_url, transcript_path)
-            
+
             # Should log error about missing transcript
             mock_logger.error.assert_called()
             # Should return empty string when transcript is missing
             assert result == ""
-    
+
     def test_generate_description_openai_error(self, temp_dir, mock_video_processor):
         """Test description generation when OpenAI API fails."""
         transcript_file = temp_dir / "output" / "transcript.vtt"
         MockTranscriptGenerator.create_vtt_transcript(transcript_file)
-        
+
         # Create timestamps file
         timestamps_file = temp_dir / "output" / "timestamps.json"
         MockTimestampGenerator.create_timestamps_json(timestamps_file, ["test_video.mp4"])
-        
+
         mock_video_processor.video_dir = temp_dir
-        
-        with patch.object(mock_video_processor, '_invoke_openai_chat') as mock_invoke:
+
+        with patch.object(mock_video_processor, "_invoke_openai_chat") as mock_invoke:
             mock_invoke.side_effect = Exception("OpenAI API Error")
-            
-            with patch('video_tool.video_processor.logger') as mock_logger:
+
+            with patch("video_tool.video_processor.content.logger"):
                 # Create dummy paths for the test
                 video_path = str(temp_dir / "test_video.mp4")
                 repo_url = "https://github.com/test/repo"
                 transcript_path = str(temp_dir / "output" / "transcript.vtt")
-                
+
                 # Create a dummy transcript file
-                with open(transcript_path, 'w') as f:
+                with open(transcript_path, "w") as f:
                     f.write("Test transcript content")
-                
+
                 # Expect the exception to be raised since there's no error handling
                 with pytest.raises(Exception, match="OpenAI API Error"):
-                    result = mock_video_processor.generate_description(video_path, repo_url, transcript_path)
-    
+                    mock_video_processor.generate_description(video_path, repo_url, transcript_path)
+
     def test_generate_description_with_timestamps(self, temp_dir, mock_video_processor):
         """Test description generation includes timestamps."""
         # Create transcript and timestamps
         transcript_file = temp_dir / "output" / "transcript.vtt"
         timestamps_file = temp_dir / "output" / "timestamps.json"
-        
+
         MockTranscriptGenerator.create_vtt_transcript(transcript_file)
         MockTimestampGenerator.create_timestamps_json(timestamps_file, ["video1.mp4", "video2.mp4"])
-        
+
         mock_video_processor.video_dir = temp_dir
-        
-        with patch.object(mock_video_processor, '_invoke_openai_chat') as mock_invoke:
-            mock_invoke.return_value = SAMPLE_OPENAI_DESCRIPTION_RESPONSE['choices'][0]['message']['content']
+
+        with patch.object(mock_video_processor, "_invoke_openai_chat") as mock_invoke:
+            mock_invoke.return_value = SAMPLE_OPENAI_DESCRIPTION_RESPONSE["choices"][0]["message"]["content"]
 
             # Create dummy paths for the test
             video_path = str(temp_dir / "test_video.mp4")
@@ -737,91 +730,91 @@ class TestGenerateDescription:
             transcript_path = str(temp_dir / "output" / "transcript.vtt")
 
             # Create a dummy transcript file
-            with open(transcript_path, 'w') as f:
+            with open(transcript_path, "w") as f:
                 f.write("Test transcript content")
 
-            result = mock_video_processor.generate_description(video_path, repo_url, transcript_path)
+            mock_video_processor.generate_description(video_path, repo_url, transcript_path)
 
             description_file = temp_dir / "output" / "description.md"
             assert description_file.exists()
 
             # Verify timestamps were included in the description
-            with open(description_file, 'r') as f:
+            with open(description_file) as f:
                 content = f.read()
                 assert "00:00:00" in content or "Timestamps" in content
 
 
 class TestGenerateSEOKeywords:
     """Test generate_seo_keywords method."""
-    
+
     def test_generate_seo_keywords_success(self, temp_dir, mock_video_processor):
         """Test successful SEO keywords generation."""
         # Create description file
         description_file = temp_dir / "output" / "description.md"
         MockDescriptionGenerator.create_description_md(description_file)
-        
-        mock_video_processor.video_dir = temp_dir
-        
-        with patch.object(mock_video_processor, '_invoke_openai_chat') as mock_invoke:
-            mock_invoke.return_value = SAMPLE_OPENAI_KEYWORDS_RESPONSE['choices'][0]['message']['content']
 
-            result = mock_video_processor.generate_seo_keywords(str(description_file))
-            
+        mock_video_processor.video_dir = temp_dir
+
+        with patch.object(mock_video_processor, "_invoke_openai_chat") as mock_invoke:
+            mock_invoke.return_value = SAMPLE_OPENAI_KEYWORDS_RESPONSE["choices"][0]["message"]["content"]
+
+            mock_video_processor.generate_seo_keywords(str(description_file))
+
             # Verify keywords file was created
             keywords_file = temp_dir / "output" / "keywords.txt"
             assert keywords_file.exists()
-            
+
             # Verify content
-            with open(keywords_file, 'r') as f:
+            with open(keywords_file) as f:
                 content = f.read()
                 assert len(content.strip()) > 0
-                assert ',' in content  # Should be comma-separated
-            
+                assert "," in content  # Should be comma-separated
+
             # Verify OpenAI API was called
             mock_invoke.assert_called_once()
-    
+
     def test_generate_seo_keywords_no_description(self, temp_dir, mock_video_processor):
         """Test SEO keywords generation when description doesn't exist."""
         # Create timestamps file
         timestamps_file = temp_dir / "output" / "timestamps.json"
         MockTimestampGenerator.create_timestamps_json(timestamps_file, ["test_video.mp4"])
-        
+
         mock_video_processor.video_dir = temp_dir
-        
+
         # Create a non-existent description path to test error handling
         description_path = str(temp_dir / "output" / "nonexistent_description.md")
-        
-        with patch('video_tool.video_processor.logger') as mock_logger:
-            result = mock_video_processor.generate_seo_keywords(description_path)
-            
+
+        with patch("video_tool.video_processor.content.logger") as mock_logger:
+            mock_video_processor.generate_seo_keywords(description_path)
+
             # Should log error about missing description
             mock_logger.error.assert_called()
-    
+
     def test_generate_seo_keywords_openai_error(self, temp_dir, mock_video_processor, mock_logger):
         """Test SEO keywords generation when OpenAI API fails."""
         description_file = temp_dir / "output" / "description.md"
         MockDescriptionGenerator.create_description_md(description_file)
-        
+
         mock_video_processor.video_dir = temp_dir
-        
-        with patch.object(mock_video_processor, '_invoke_openai_chat') as mock_invoke:
+
+        with patch.object(mock_video_processor, "_invoke_openai_chat") as mock_invoke:
             mock_invoke.side_effect = Exception("OpenAI API Error")
-            
+
             # Should return empty string and log error instead of raising exception
             result = mock_video_processor.generate_seo_keywords(str(description_file))
             assert result == ""
             mock_logger.error.assert_called()
-    
+
     def test_generate_seo_keywords_rate_limit_handling(self, temp_dir, mock_video_processor, mock_logger):
         """Test SEO keywords generation with rate limit handling."""
         description_file = temp_dir / "output" / "description.md"
         MockDescriptionGenerator.create_description_md(description_file)
-        
+
         mock_video_processor.video_dir = temp_dir
-        
-        with patch.object(mock_video_processor, '_invoke_openai_chat') as mock_invoke:
+
+        with patch.object(mock_video_processor, "_invoke_openai_chat") as mock_invoke:
             mock_invoke.side_effect = Exception("Rate limit exceeded")
-            
+
             # Should return empty string and log error instead of raising exception
             result = mock_video_processor.generate_seo_keywords(str(description_file))
             assert result == ""
@@ -830,168 +823,172 @@ class TestGenerateSEOKeywords:
 
 class TestContentGenerationIntegration:
     """Integration tests for content generation workflow."""
-    
+
     def test_complete_content_generation_workflow(self, temp_dir, mock_video_processor):
         """Test complete content generation from timestamps to keywords."""
         # Create initial video files
-        video_files = MockVideoGenerator.create_test_video_set(temp_dir, count=2)
+        MockVideoGenerator.create_test_video_set(temp_dir, count=2)
         processed_dir = temp_dir / "processed"
-        processed_files = MockVideoGenerator.create_test_video_set(processed_dir, count=2)
-        
+        MockVideoGenerator.create_test_video_set(processed_dir, count=2)
+
         # Create concatenated video
         concat_video = temp_dir / "output" / "concatenated_video.mp4"
         MockVideoGenerator.create_mock_mp4(concat_video)
-        
+
         # Create timestamps file
         timestamps_file = temp_dir / "output" / "timestamps.json"
         MockTimestampGenerator.create_timestamps_json(timestamps_file, ["test_video.mp4"])
-        
+
         mock_video_processor.video_dir = temp_dir
-        
+
         # Mock all external dependencies
-        with patch.object(mock_video_processor, '_get_video_metadata') as mock_metadata, \
-             patch.object(mock_video_processor.groq.audio.transcriptions, 'create') as mock_groq, \
-             patch.object(mock_video_processor, '_invoke_openai_chat') as mock_openai, \
-             patch('video_tool.video_processor.VideoFileClip'):
-            
+        with (
+            patch.object(mock_video_processor, "get_video_metadata") as mock_metadata,
+            patch.object(mock_video_processor.groq.audio.transcriptions, "create") as mock_groq,
+            patch.object(mock_video_processor, "_invoke_openai_chat") as mock_openai,
+            patch("video_tool.video_processor.transcript.VideoFileClip"),
+        ):
             # Setup mocks
-            mock_metadata.return_value = {'duration': 300.0}
-            
+            mock_metadata.return_value = {"duration": 300.0}
+
             mock_groq_response = Mock()
-            mock_groq_response.text = SAMPLE_GROQ_RESPONSE['text']
-            mock_groq_response.segments = SAMPLE_GROQ_RESPONSE['segments']
+            mock_groq_response.text = SAMPLE_GROQ_RESPONSE["text"]
+            mock_groq_response.segments = SAMPLE_GROQ_RESPONSE["segments"]
             mock_groq.return_value = mock_groq_response
-            
+
             # Set up mock responses for multiple OpenAI calls (2 for description, 1 for keywords)
-            description_response = SAMPLE_OPENAI_DESCRIPTION_RESPONSE['choices'][0]['message']['content']
-            polished_description_response = "Polished: " + SAMPLE_OPENAI_DESCRIPTION_RESPONSE['choices'][0]['message']['content']
-            keywords_response = SAMPLE_OPENAI_KEYWORDS_RESPONSE['choices'][0]['message']['content']
+            description_response = SAMPLE_OPENAI_DESCRIPTION_RESPONSE["choices"][0]["message"]["content"]
+            polished_description_response = (
+                "Polished: " + SAMPLE_OPENAI_DESCRIPTION_RESPONSE["choices"][0]["message"]["content"]
+            )
+            keywords_response = SAMPLE_OPENAI_KEYWORDS_RESPONSE["choices"][0]["message"]["content"]
             mock_openai.side_effect = [description_response, polished_description_response, keywords_response]
-            
+
             # Run complete workflow
-            timestamps_result = mock_video_processor.generate_timestamps()
-            transcript_result = mock_video_processor.generate_transcript()
-            
+            mock_video_processor.generate_timestamps()
+            mock_video_processor.generate_transcript()
+
             # Ensure transcript file exists for description generation
             transcript_file = temp_dir / "output" / "transcript.vtt"
             if not transcript_file.exists():
                 MockTranscriptGenerator.create_vtt_file(transcript_file)
-            
-            description_result = mock_video_processor.generate_description()
-            
+
+            mock_video_processor.generate_description()
+
             # Create a dummy description file for the test
             description_file = temp_dir / "output" / "description.md"
             MockDescriptionGenerator.create_description_md(description_file)
-            keywords_result = mock_video_processor.generate_seo_keywords(str(description_file))
-            
+            mock_video_processor.generate_seo_keywords(str(description_file))
+
             # Verify all files were created
             assert (temp_dir / "output" / "timestamps.json").exists()
             assert (temp_dir / "output" / "transcript.vtt").exists()
             assert (temp_dir / "output" / "description.md").exists()
             assert (temp_dir / "output" / "keywords.txt").exists()
-    
+
     def test_content_generation_error_recovery(self, temp_dir, mock_video_processor):
         """Test error recovery in content generation workflow."""
         # Create minimal setup
-        video_files = MockVideoGenerator.create_test_video_set(temp_dir, count=1)
+        MockVideoGenerator.create_test_video_set(temp_dir, count=1)
         concat_video = temp_dir / "output" / "concatenated_video.mp4"
         MockVideoGenerator.create_mock_mp4(concat_video)
-        
+
         mock_video_processor.video_dir = temp_dir
-        
+
         # Test partial failure scenario
-        with patch.object(mock_video_processor, '_get_video_metadata') as mock_metadata, \
-             patch.object(mock_video_processor.groq.audio.transcriptions, 'create') as mock_groq, \
-             patch.object(mock_video_processor, '_invoke_openai_chat') as mock_openai, \
-             patch('video_tool.video_processor.VideoFileClip'), \
-             patch('video_tool.video_processor.logger') as mock_logger:
-            
+        with (
+            patch.object(mock_video_processor, "get_video_metadata") as mock_metadata,
+            patch.object(mock_video_processor.groq.audio.transcriptions, "create") as mock_groq,
+            patch.object(mock_video_processor, "_invoke_openai_chat") as mock_openai,
+            patch("video_tool.video_processor.transcript.VideoFileClip"),
+            patch("video_tool.video_processor.transcript.logger") as mock_logger,
+        ):
             # Setup mocks - some succeed, some fail
-            mock_metadata.return_value = {'duration': 300.0}
+            mock_metadata.return_value = {"duration": 300.0}
             mock_groq.side_effect = Exception("Groq API Error")
-            mock_openai.return_value = SAMPLE_OPENAI_DESCRIPTION_RESPONSE['choices'][0]['message']['content']
-            
+            mock_openai.return_value = SAMPLE_OPENAI_DESCRIPTION_RESPONSE["choices"][0]["message"]["content"]
+
             # Run workflow - should handle errors gracefully
-            timestamps_result = mock_video_processor.generate_timestamps()
-            transcript_result = mock_video_processor.generate_transcript()
-            
+            mock_video_processor.generate_timestamps()
+            mock_video_processor.generate_transcript()
+
             # Timestamps should succeed, transcript should fail
             assert (temp_dir / "output" / "timestamps.json").exists()
             assert not (temp_dir / "output" / "transcript.vtt").exists()
-            
+
             # Should log errors
             mock_logger.error.assert_called()
-    
+
     def test_file_dependencies_in_workflow(self, temp_dir, mock_video_processor):
         """Test that methods properly handle file dependencies."""
         # Create timestamps file
         timestamps_file = temp_dir / "output" / "timestamps.json"
         MockTimestampGenerator.create_timestamps_json(timestamps_file, ["test_video.mp4"])
-        
+
         mock_video_processor.video_dir = temp_dir
-        
+
         # Test description generation without transcript
-        with patch('video_tool.video_processor.logger') as mock_logger:
+        with patch("video_tool.video_processor.content.logger") as mock_logger:
             video_path = str(temp_dir / "test_video.mp4")
             repo_url = "https://github.com/test/repo"
             transcript_path = str(temp_dir / "output" / "nonexistent_transcript.vtt")
-            description_result = mock_video_processor.generate_description(video_path, repo_url, transcript_path)
+            mock_video_processor.generate_description(video_path, repo_url, transcript_path)
             mock_logger.error.assert_called()  # Should error about missing transcript
-        
+
         # Test keywords generation without description
-        with patch('video_tool.video_processor.logger') as mock_logger:
+        with patch("video_tool.video_processor.content.logger") as mock_logger:
             description_path = str(temp_dir / "output" / "nonexistent_description.md")
-            keywords_result = mock_video_processor.generate_seo_keywords(description_path)
+            mock_video_processor.generate_seo_keywords(description_path)
             mock_logger.error.assert_called()  # Should error about missing description
-        
+
         # Test transcript generation without concatenated video
-        with patch('video_tool.video_processor.logger') as mock_logger:
+        with patch("video_tool.video_processor.transcript.logger") as mock_logger:
             video_path = str(temp_dir / "nonexistent_video.mp4")
-            transcript_result = mock_video_processor.generate_transcript(video_path)
+            mock_video_processor.generate_transcript(video_path)
             mock_logger.error.assert_called()  # Should error about missing video
 
 
 class TestGenerateLinkedInPost:
     """Test generate_linkedin_post method."""
-    
+
     def test_generate_linkedin_post_success(self, temp_dir, mock_video_processor):
         """Test successful LinkedIn post generation."""
         # Create transcript file
         transcript_file = temp_dir / "output" / "transcript.vtt"
         transcript_file.write_text(SAMPLE_VTT_CONTENT)
-        
+
         mock_video_processor.input_dir = temp_dir
-        
+
         # Mock OpenAI response
-        with patch.object(mock_video_processor, '_invoke_openai_chat', return_value=SAMPLE_LINKEDIN_POST):
+        with patch.object(mock_video_processor, "_invoke_openai_chat", return_value=SAMPLE_LINKEDIN_POST):
             result = mock_video_processor.generate_linkedin_post(str(transcript_file))
-            
+
             # Verify file was created
             linkedin_file = temp_dir / "output" / "linkedin_post.md"
             assert linkedin_file.exists()
             assert result == str(linkedin_file)
-            
+
             # Verify content
             content = linkedin_file.read_text()
             assert "🚀" in content  # Should contain emojis
-            assert "#" in content   # Should contain hashtags
-    
+            assert "#" in content  # Should contain hashtags
+
     def test_generate_linkedin_post_no_transcript(self, temp_dir, mock_video_processor):
         """Test LinkedIn post generation with missing transcript file."""
         mock_video_processor.input_dir = temp_dir
-        
+
         with pytest.raises(FileNotFoundError):
             mock_video_processor.generate_linkedin_post(str(temp_dir / "nonexistent.vtt"))
-    
+
     def test_generate_linkedin_post_openai_error(self, temp_dir, mock_video_processor, mock_logger):
         """Test LinkedIn post generation with OpenAI API error."""
         transcript_file = temp_dir / "output" / "transcript.vtt"
         transcript_file.write_text(SAMPLE_VTT_CONTENT)
-        
+
         mock_video_processor.input_dir = temp_dir
-        
+
         # Mock OpenAI error
-        with patch.object(mock_video_processor, '_invoke_openai_chat', side_effect=Exception("API Error")):
+        with patch.object(mock_video_processor, "_invoke_openai_chat", side_effect=Exception("API Error")):
             with pytest.raises(Exception, match="API Error"):
                 mock_video_processor.generate_linkedin_post(str(transcript_file))
 
@@ -1004,39 +1001,39 @@ class TestGenerateTwitterPost:
         # Create transcript file
         transcript_file = temp_dir / "output" / "transcript.vtt"
         transcript_file.write_text(SAMPLE_VTT_CONTENT)
-        
+
         mock_video_processor.input_dir = temp_dir
-        
+
         # Mock OpenAI response
-        with patch.object(mock_video_processor, '_invoke_openai_chat', return_value=SAMPLE_TWITTER_POST):
+        with patch.object(mock_video_processor, "_invoke_openai_chat", return_value=SAMPLE_TWITTER_POST):
             result = mock_video_processor.generate_twitter_post(str(transcript_file))
-            
+
             # Verify file was created
             twitter_file = temp_dir / "output" / "twitter_post.md"
             assert twitter_file.exists()
             assert result == str(twitter_file)
-            
+
             # Verify content
             content = twitter_file.read_text()
             assert len(content) <= 280  # Twitter character limit
-            assert "#" in content       # Should contain hashtags
-    
+            assert "#" in content  # Should contain hashtags
+
     def test_generate_twitter_post_no_transcript(self, temp_dir, mock_video_processor):
         """Test Twitter post generation with missing transcript file."""
         mock_video_processor.input_dir = temp_dir
-        
+
         with pytest.raises(FileNotFoundError):
             mock_video_processor.generate_twitter_post(str(temp_dir / "nonexistent.vtt"))
-    
+
     def test_generate_twitter_post_openai_error(self, temp_dir, mock_video_processor, mock_logger):
         """Test Twitter post generation with OpenAI API error."""
         transcript_file = temp_dir / "output" / "transcript.vtt"
         transcript_file.write_text(SAMPLE_VTT_CONTENT)
-        
+
         mock_video_processor.input_dir = temp_dir
 
         # Mock OpenAI error
-        with patch.object(mock_video_processor, '_invoke_openai_chat', side_effect=Exception("API Error")):
+        with patch.object(mock_video_processor, "_invoke_openai_chat", side_effect=Exception("API Error")):
             with pytest.raises(Exception, match="API Error"):
                 mock_video_processor.generate_twitter_post(str(transcript_file))
 
@@ -1058,9 +1055,7 @@ class TestGenerateSummary:
         transcript_file = self._create_transcript(temp_dir)
 
         with patch.object(mock_video_processor, "_invoke_openai_chat") as mock_chat:
-            result = mock_video_processor.generate_summary(
-                str(transcript_file), config={"enabled": False}
-            )
+            result = mock_video_processor.generate_summary(str(transcript_file), config={"enabled": False})
 
         assert result == ""
         mock_chat.assert_not_called()
@@ -1098,9 +1093,7 @@ class TestGenerateSummary:
             }
         )
 
-        with patch.object(
-            mock_video_processor, "_invoke_openai_chat_structured_output"
-        ) as mock_structured:
+        with patch.object(mock_video_processor, "_invoke_openai_chat_structured_output") as mock_structured:
             mock_structured.return_value = structured_response
 
             summary_path = mock_video_processor.generate_summary(
