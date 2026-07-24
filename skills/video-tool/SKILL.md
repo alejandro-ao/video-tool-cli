@@ -20,7 +20,7 @@ allowed-tools: Bash(which:*), Bash(curl:*), Bash(uv:*), Bash(tmux:*), Bash(video
 
 # Video Tool CLI
 
-AI-powered video processing toolkit with ffmpeg operations, Whisper transcription, and content generation.
+AI-powered video processing toolkit with ffmpeg operations, local or remote Parakeet/Whisper transcription, and content generation.
 
 ## Installation Status
 
@@ -42,6 +42,7 @@ uv tool install git+https://github.com/alejandro-ao/video-tool-cli.git
 ### Dependencies
 - **ffmpeg**: Required for all video operations (`brew install ffmpeg` on macOS)
 - **yt-dlp**: Required for video downloads (`brew install yt-dlp` on macOS)
+- Local transcription runtimes are optional; install the platform-specific extra described under **Transcription & Timestamps**
 
 ### API Keys Setup
 
@@ -72,10 +73,10 @@ video-tool config keys
 ```
 
 Required keys:
-- **groq_api_key** - Transcription (Whisper)
-- **openai_api_key** - Content generation (descriptions, timestamps)
+- **openai_api_key** - CLI content generation (descriptions, context cards, transcript-based timestamps)
 
 Optional keys:
+- **groq_api_key** - Remote Groq Whisper transcription; not needed for local models
 - **bunny_library_id**, **bunny_access_key** - Bunny.net CDN uploads
 - **replicate_api_token** - Audio enhancement
 
@@ -111,7 +112,8 @@ video-tool config keys --reset  # Clear all credentials
 After user configures (either way), retry the original command.
 
 **Commands that require credentials:**
-- `video-tool generate transcript` → Requires **Groq API key**
+- `video-tool generate transcript -m groq/whisper-large-v3-turbo` → Requires **Groq API key**
+- Local transcription models → Require no API key, but their optional runtime must be installed
 - `video-tool video timestamps -m transcript` → Requires **OpenAI API key** (structured output)
 - `video-tool upload bunny-*` → Requires **Bunny.net credentials**
 - `video-tool video enhance-audio` → Requires **Replicate API token**
@@ -290,10 +292,64 @@ video-tool video replace-audio -v video.mp4 -a new_audio.mp3 -o output.mp4
 ### Transcription & Timestamps
 
 #### Generate Transcript
-Create VTT captions using Groq Whisper (requires Groq API key).
+Create VTT captions with an automatically selected installed runtime, an explicit local model, or Groq.
+
+Before the first transcription on a machine, inspect the recommendation and available model IDs:
+```bash
+video-tool config transcription --recommend
+video-tool config transcription --list-models
+```
+
+Install the appropriate optional runtime when local transcription is desired:
+```bash
+# Apple Silicon: MLX Parakeet (English) and MLX Whisper (multilingual)
+uv tool install --force 'video-tool[transcription-mlx] @ git+https://github.com/alejandro-ao/video-tool-cli.git'
+
+# Portable CPU/CUDA Whisper
+uv tool install --force 'video-tool[transcription-faster-whisper] @ git+https://github.com/alejandro-ao/video-tool-cli.git'
+
+# Standard Hugging Face Transformers Whisper
+uv tool install --force 'video-tool[transcription-transformers] @ git+https://github.com/alejandro-ao/video-tool-cli.git'
+
+# NVIDIA NeMo Parakeet on Linux/CUDA
+uv tool install --force 'video-tool[transcription-nemo] @ git+https://github.com/alejandro-ao/video-tool-cli.git'
+```
+
+Transcribe using automatic selection or an explicit model:
 ```bash
 video-tool generate transcript -i video.mp4 -o transcript.vtt
+video-tool generate transcript -i video.mp4 -o transcript.vtt -m mlx/parakeet-tdt-0.6b-v2 --language en
+video-tool generate transcript -i video.mp4 -o transcript.vtt -m mlx/whisper-large-v3-turbo --language es
+video-tool generate transcript -i video.mp4 -o transcript.vtt -m groq/whisper-large-v3-turbo
 ```
+
+Model guidance:
+- Apple Silicon + English: `mlx/parakeet-tdt-0.6b-v2`
+- Apple Silicon + multilingual: `mlx/whisper-large-v3-turbo`
+- Portable CPU/CUDA: `faster-whisper/large-v3-turbo`
+- Standard Transformers/MPS/CUDA: `transformers/whisper-large-v3-turbo`
+- NVIDIA Linux/CUDA + English: `nemo/parakeet-tdt-0.6b-v2`
+- No local runtime or remote preference: `groq/whisper-large-v3-turbo`
+
+Parakeet TDT 0.6B V2 is English-only. Models download on first use and are cached locally. Missing optional runtimes produce an installation command. Only Groq transcription requires a Groq API key.
+
+Advanced options:
+| Option | Description |
+|--------|-------------|
+| `--backend` | Backend override: `auto`, `groq`, `mlx-parakeet`, `mlx-whisper`, `faster-whisper`, `transformers`, `nemo` |
+| `-m, --model` | Registered model ID; preferred over selecting only a backend |
+| `--language` | `auto` or a language code such as `en`, `es`, or `fr` |
+| `--device` | `auto`, `cpu`, `mps`, or `cuda` |
+| `--compute-type` | Runtime precision such as `float16` or `int8` |
+
+Persist or inspect defaults:
+```bash
+video-tool config transcription --model mlx/parakeet-tdt-0.6b-v2 --language en
+video-tool config transcription --show
+video-tool config transcription --reset
+```
+
+When operating this skill, prefer the recommended local model when its runtime is installed. Ask before installing a large optional runtime or downloading model weights. Use Groq if the user prefers remote processing or local hardware/runtime is unsuitable.
 
 #### Generate Timestamps
 Create chapter markers (requires OpenAI API key for transcript mode).
@@ -382,6 +438,9 @@ video-tool config keys                        # Configure API keys (interactive)
 video-tool config keys --set KEY=VALUE        # Set key non-interactively
 video-tool config keys --show                 # View configured keys
 video-tool config llm                         # Configure LLM settings and persistent links
+video-tool config transcription --recommend  # Recommend a transcription model
+video-tool config transcription --list-models # List supported transcription models
+video-tool config transcription --show       # Show saved transcription defaults
 video-tool config x-auth                      # Set up X OAuth credentials
 video-tool config youtube-auth                # Set up YouTube OAuth2
 video-tool config youtube-status              # Check YouTube credentials
@@ -394,15 +453,18 @@ video-tool config youtube-status              # Check YouTube credentials
 Common tasks that other skills can reference by name.
 
 ### Transcribe Video
-Generate VTT transcript from video/audio file.
+Generate a VTT transcript from a video/audio file using automatic selection or an explicit model.
 ```bash
-video-tool generate transcript -i <INPUT_FILE> -o <OUTPUT_FILE>
+video-tool config transcription --recommend
+video-tool generate transcript -i <INPUT_FILE> -o <OUTPUT_FILE> [-m <MODEL_ID>] [--language <LANGUAGE>]
 ```
 **Inputs:**
 - `<INPUT_FILE>`: Path to video or audio file
 - `<OUTPUT_FILE>`: Path to output VTT file
+- `<MODEL_ID>`: Optional registered local or Groq model ID
+- `<LANGUAGE>`: Optional language code; use `en` with Parakeet
 
-**Requirements:** Groq API key
+**Requirements:** The selected local runtime extra, or a Groq API key only when selecting Groq
 
 ---
 

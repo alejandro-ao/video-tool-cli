@@ -1,5 +1,32 @@
 # Common Workflows
 
+## Choose a Transcription Model
+
+Inspect the system recommendation before the first transcription:
+
+```bash
+video-tool config transcription --recommend
+video-tool config transcription --list-models
+```
+
+Common choices:
+
+```bash
+# Apple Silicon, English (requires transcription-mlx extra)
+video-tool config transcription --model mlx/parakeet-tdt-0.6b-v2 --language en
+
+# Apple Silicon, multilingual (requires transcription-mlx extra)
+video-tool config transcription --model mlx/whisper-large-v3-turbo --language auto
+
+# Portable CPU/CUDA (requires transcription-faster-whisper extra)
+video-tool config transcription --model faster-whisper/large-v3-turbo --language auto
+
+# Remote transcription (requires Groq API key)
+video-tool config transcription --model groq/whisper-large-v3-turbo
+```
+
+Use `video-tool config transcription --reset` to return to automatic selection. Local model weights download on first use and are cached. Ask the user before installing a runtime or starting a large model download.
+
 ## Download and Process YouTube Video
 
 ```bash
@@ -9,7 +36,7 @@ video-tool video download -u "https://youtube.com/watch?v=XXX" -o ./downloads/my
 # Remove silence
 video-tool video silence-removal -i ./downloads/my-video.mp4 -o ./output/cleaned.mp4
 
-# Generate transcript
+# Generate transcript with the configured/recommended backend
 video-tool generate transcript -i ./output/cleaned.mp4 -o ./output/transcript.vtt
 ```
 
@@ -35,7 +62,7 @@ video-tool video concat -i ./clips/ -o ./output/full.mp4 -f
 # Generate timestamps from clips
 video-tool video timestamps -m clips -i ./clips/ -o ./output/timestamps.json
 
-# Generate transcript
+# Generate transcript with the configured/recommended backend
 video-tool generate transcript -i ./output/full.mp4 -o ./output/transcript.vtt
 
 # Generate description with chapters

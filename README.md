@@ -7,7 +7,7 @@ Automate common YouTube production tasks with independent CLI commands. The tool
 - Silence trimming with `pydub` to tighten raw footage before assembly
 - MP4 concatenation with `ffmpeg`, including optional fast-path when reprocessing is unnecessary
 - Automatic chapter map (`timestamps.json`) with ISO-formatted timecode
-- Whisper transcription (`transcript.vtt`) via Groq
+- Local or remote transcription (`transcript.vtt`) via Parakeet, Whisper, or Groq
 - Markdown description and context cards derived from `prompts.yaml`
 - Optional Bunny.net deployment with independent toggles for uploading the final cut, chapters, and transcript captions
 - YouTube deployment with OAuth2 authentication for uploading videos, thumbnails, and captions
@@ -18,7 +18,7 @@ Automate common YouTube production tasks with independent CLI commands. The tool
 - `ffmpeg` available on the system path
 - `yt-dlp` for video downloads (installed automatically)
 - API keys (configured via `video-tool config keys`):
-  - Groq API key (transcription via Groq Whisper Large V3 Turbo)
+  - *(Optional)* Groq API key (remote transcription; local models need no API key)
   - OpenAI API key (content generation: descriptions, context cards, timestamps)
   - *(Optional)* Bunny.net credentials (library ID, access key, collection ID)
   - *(Optional)* Replicate API token (audio enhancement)
@@ -83,6 +83,24 @@ video-tool upload <command> ...      # Bunny.net / YouTube uploads
    video-tool generate description -i ./output/transcript.vtt -t ./output/timestamps.json -o ./output/description.md
    ```
 
+### Local transcription models
+
+The tool selects an installed backend automatically. Inspect recommendations and supported models with:
+
+```bash
+video-tool config transcription --recommend
+video-tool config transcription --list-models
+```
+
+Apple Silicon users can install MLX Parakeet and Whisper support:
+
+```bash
+pip install 'video-tool[transcription-mlx]'
+video-tool generate transcript -i video.mp4 -m mlx/parakeet-tdt-0.6b-v2
+```
+
+For portable local Whisper use `transcription-faster-whisper`; standard Transformers and NVIDIA NeMo are available through `transcription-transformers` and `transcription-nemo`. Models download on first use and remain in their runtime cache. Parakeet 0.6B V2 is English-only; choose MLX or faster-whisper for multilingual audio. Groq remains available with `--model groq/whisper-large-v3-turbo`.
+
 ### Download Videos
 
 Download from YouTube and 1000+ supported sites:
@@ -106,7 +124,7 @@ Note: In zsh, wrap URLs with `?` or `&` in quotes (or prefix with `noglob`) to a
 - `video-tool video download` - Download from URL
 
 **Content generation:**
-- `video-tool generate transcript` - Transcribe video/audio with Groq Whisper
+- `video-tool generate transcript` - Transcribe with an automatically selected local model or Groq
 - `video-tool generate description` - Generate video description
 - `video-tool generate context-cards` - Generate context cards
 
@@ -151,7 +169,7 @@ This tool is available as a [Claude Code](https://claude.ai/code) skill. Skills 
 - Change playback speed, get video metadata
 
 **Transcription & Timestamps:**
-- Generate VTT transcripts (via Groq Whisper)
+- Generate VTT transcripts with local Parakeet/Whisper or remote Groq
 - Create chapter timestamps from transcript or clip names
 
 **Content Generation:**

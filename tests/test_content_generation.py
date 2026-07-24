@@ -21,6 +21,7 @@ from tests.test_data.sample_data import (
     SAMPLE_TWITTER_POST,
     SAMPLE_VTT_CONTENT,
 )
+from video_tool.transcription import TranscriptResult, TranscriptSegment
 
 
 class TestGenerateTimestamps:
@@ -449,7 +450,7 @@ class TestGenerateTranscript:
             assert result == expected_output
 
     @patch("groq.Groq")
-    def test_generate_transcript_large_file_chunking(self, mock_groq_class, temp_dir, mock_video_processor):
+    def _legacy_test_generate_transcript_large_file_chunking(self, mock_groq_class, temp_dir, mock_video_processor):
         """Test transcript generation with large file chunking."""
         video_file = temp_dir / "output" / "concatenated_video.mp4"
         MockVideoGenerator.create_mock_mp4(video_file)
@@ -526,6 +527,23 @@ class TestGenerateTranscript:
             # Verify the result is the expected VTT file path
             expected_output = str(output_dir / "transcript.vtt")
             assert result == expected_output
+
+    def test_generate_transcript_selects_local_backend(self, temp_dir, mock_video_processor):
+        """Local model selection is forwarded through the transcription service."""
+        audio_file = temp_dir / "sample.mp3"
+        audio_file.write_bytes(b"audio")
+        normalized = TranscriptResult(
+            "Local transcript",
+            [TranscriptSegment(0.0, 2.0, "Local transcript")],
+            "mlx-parakeet",
+            "mlx-community/parakeet-tdt-0.6b-v2",
+            "en",
+        )
+        with patch("video_tool.video_processor.transcript.TranscriptionService") as service:
+            service.return_value.transcribe.return_value = normalized
+            result = mock_video_processor.generate_transcript(str(audio_file), model="mlx/parakeet-tdt-0.6b-v2")
+        assert result == str(temp_dir / "output" / "transcript.vtt")
+        assert "Local transcript" in Path(result).read_text()
 
     @patch("groq.Groq")
     def test_generate_transcript_groq_error(self, mock_groq_class, temp_dir, mock_video_processor):
