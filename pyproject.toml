@@ -49,4 +49,23 @@ dev = [
     "pytest-cov>=6.2.1",
     "pytest-mock>=3.14.1",
     "responses>=0.25.8",
+    "ruff>=0.8.0",
 ]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+exclude = ["build", "dist"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["video_tool", "tests"]
+
+[tool.ruff.lint.per-file-ignores]
+# Typer's API intentionally uses calls (typer.Option/Argument) in defaults
+"video_tool/cli/*" = ["B008"]
+# Long lines are fixture text (sample transcripts/descriptions); wrapping
+# them would needlessly churn test payloads
+"tests/test_data/sample_data.py" = ["E501"]
