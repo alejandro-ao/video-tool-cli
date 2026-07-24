@@ -3,12 +3,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from textwrap import dedent
-from typing import Optional
 
+from loguru import logger
 from pydantic import BaseModel, Field
 
 from .constants import SUPPORTED_VIDEO_SUFFIXES
-from loguru import logger
 
 
 class SummaryResponse(BaseModel):
@@ -41,12 +40,12 @@ class ContentGenerationMixin:
 
     def generate_description(
         self,
-        video_path: Optional[str] = None,
-        repo_url: Optional[str] = None,
-        transcript_path: Optional[str] = None,
-        output_path: Optional[str] = None,
-        timestamps_path: Optional[str] = None,
-        links: Optional[list[dict]] = None,
+        video_path: str | None = None,
+        repo_url: str | None = None,
+        transcript_path: str | None = None,
+        output_path: str | None = None,
+        timestamps_path: str | None = None,
+        links: list[dict] | None = None,
     ) -> str:
         """Generate video description using LLM."""
         if video_path is None:
@@ -142,8 +141,8 @@ class ContentGenerationMixin:
 
     def generate_context_cards(
         self,
-        transcript_path: Optional[str] = None,
-        output_path: Optional[str] = None,
+        transcript_path: str | None = None,
+        output_path: str | None = None,
     ) -> str:
         """Generate Markdown file with suggested YouTube cards and resource mentions."""
         try:
@@ -215,7 +214,7 @@ class ContentGenerationMixin:
             logger.error(f"Error generating SEO keywords: {exc}")
             return ""
 
-    def generate_linkedin_post(self, transcript_path: str, output_path: Optional[str] = None) -> str:
+    def generate_linkedin_post(self, transcript_path: str, output_path: str | None = None) -> str:
         """Generate LinkedIn post based on video transcript."""
         try:
             with open(transcript_path) as file:
@@ -246,7 +245,7 @@ class ContentGenerationMixin:
             logger.error(f"Error generating LinkedIn post: {exc}")
             raise
 
-    def generate_twitter_post(self, transcript_path: str, output_path: Optional[str] = None) -> str:
+    def generate_twitter_post(self, transcript_path: str, output_path: str | None = None) -> str:
         """Generate Twitter post based on video transcript."""
         try:
             with open(transcript_path) as file:
@@ -279,10 +278,10 @@ class ContentGenerationMixin:
 
     def generate_summary(
         self,
-        transcript_path: Optional[str] = None,
+        transcript_path: str | None = None,
         *,
-        output_path: Optional[str] = None,
-        config: Optional[dict] = None,
+        output_path: str | None = None,
+        config: dict | None = None,
     ) -> str:
         """Generate a structured technical summary from a transcript."""
 
@@ -339,7 +338,11 @@ class ContentGenerationMixin:
 
         system_message = dedent(
             f"""
-            You are a specialized summary-generation agent integrated into a video-processing pipeline for a private community of AI/ML engineers and developers. Your role is to produce a high-quality, structured summary of a technical video based solely on the transcript. The audience is already technically literate. Do not explain basic concepts unless the video does; instead, emphasize the technical depth, tools, frameworks, and skills covered.
+            You are a specialized summary-generation agent integrated into a video-processing pipeline for a private
+            community of AI/ML engineers and developers. Your role is to produce a high-quality, structured summary of a
+            technical video based solely on the transcript. The audience is already technically literate. Do not explain
+            basic concepts unless the video does; instead, emphasize the technical depth, tools, frameworks, and skills
+            covered.
 
             Follow this structure exactly:
             1. What This Video Is About
@@ -357,7 +360,8 @@ class ContentGenerationMixin:
             - The tone should be clear, concise, and professional.
             - Calibrate the level of detail for a {difficulty} audience and aim for a {length} summary.
             - Target audience: {target_audience}.
-            - If SEO keywords are disabled, still include section 8 and state that keywords are omitted per configuration.
+            - If SEO keywords are disabled, still include section 8 and state that keywords are omitted per
+              configuration.
             """
         ).strip()
 

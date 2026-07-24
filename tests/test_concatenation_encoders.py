@@ -8,9 +8,7 @@ also imports it. These tests work on both branches.
 
 import json
 import subprocess
-from unittest.mock import patch, MagicMock
-
-import pytest
+from unittest.mock import MagicMock, patch
 
 # The function exists in editing.py on both master and the PR branch
 from video_tool.video_processor.editing import _detect_gpu_encoder
@@ -102,7 +100,7 @@ class TestDetectGPUEncoder:
         }
 
         with patch("subprocess.run") as mock_run:
-            for platform, expected in [("Darwin", "h264_videotoolbox"), ("Linux", "h264_nvenc")]:
+            for platform in ("Darwin", "Linux"):
                 with patch("platform.system", return_value=platform):
                     mock_run.return_value.returncode = 0
                     result = _detect_gpu_encoder()

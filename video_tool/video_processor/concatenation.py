@@ -2,18 +2,18 @@ from __future__ import annotations
 
 import json
 import subprocess
+from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
 from textwrap import dedent
-from typing import Dict, List, Optional, Sequence, Tuple
 
+from loguru import logger
+from moviepy import VideoFileClip
 from pydantic import BaseModel
 
 from video_tool.config import is_llm_configured, prompt_optional_llm_setup
 
 from .editing import _detect_gpu_encoder
-from loguru import logger
-from moviepy import VideoFileClip
 
 
 class ChapterUpdate(BaseModel):
@@ -23,7 +23,7 @@ class ChapterUpdate(BaseModel):
 
 
 class ChapterUpdateResponse(BaseModel):
-    chapters: List[ChapterUpdate]
+    chapters: list[ChapterUpdate]
 
 
 class TranscriptChapter(BaseModel):
@@ -32,7 +32,7 @@ class TranscriptChapter(BaseModel):
 
 
 class TranscriptChapterResponse(BaseModel):
-    chapters: List[TranscriptChapter]
+    chapters: list[TranscriptChapter]
 
 
 CHAPTER_SYSTEM_PROMPT = dedent(
@@ -78,13 +78,13 @@ class ConcatenationMixin:
 
     def concatenate_videos(
         self,
-        output_filename: Optional[str] = None,
+        output_filename: str | None = None,
         skip_reprocessing: bool = False,
-        output_path: Optional[str] = None,
+        output_path: str | None = None,
     ) -> str:
         """Concatenate multiple supported videos in alphabetical order using ffmpeg."""
         processed_dir = self.input_dir / "processed"
-        video_files: List[Path] = []
+        video_files: list[Path] = []
 
         if processed_dir.exists():
             try:
@@ -183,7 +183,7 @@ class ConcatenationMixin:
                 audio_info = json.loads(audio_result.stdout)
                 audio_stream = audio_info["streams"][0] if audio_info["streams"] else None
 
-                processed_files: List[Path] = []
+                processed_files: list[Path] = []
                 for video_file in video_files:
                     output_file = temp_dir / f"processed_{video_file.name}"
                     numerator, denominator = stream_info["r_frame_rate"].split("/")
@@ -279,13 +279,13 @@ class ConcatenationMixin:
 
     def generate_timestamps(
         self,
-        output_path: Optional[str] = None,
-        transcript_path: Optional[str] = None,
+        output_path: str | None = None,
+        transcript_path: str | None = None,
         stamps_from_transcript: bool = False,
-        granularity: Optional[str] = None,
-        timestamp_notes: Optional[str] = None,
-        video_path: Optional[str] = None,
-    ) -> Dict:
+        granularity: str | None = None,
+        timestamp_notes: str | None = None,
+        video_path: str | None = None,
+    ) -> dict:
         """Generate timestamp information for the video with chapters based on input videos or transcript."""
         resolved_output_path = (
             Path(output_path).expanduser() if output_path else self.output_dir / "timestamps.json"
@@ -330,7 +330,7 @@ class ConcatenationMixin:
                 )
 
         processed_dir = self.input_dir / "processed"
-        video_files: List[Path] = []
+        video_files: list[Path] = []
 
         if processed_dir.exists():
             try:
@@ -343,8 +343,6 @@ class ConcatenationMixin:
 
         if not video_files:
             video_files = self.get_video_files()
-            if callable(getattr(logger, "__call__", None)):
-                logger("Generating timestamps from input directory")
             logger.info(f"Generating timestamps from input directory: {self.input_dir}")
 
         if not video_files:
@@ -378,8 +376,6 @@ class ConcatenationMixin:
                 logger.debug(f"Metadata extraction failed for {video_file}: {exc}")
 
             if duration is None:
-                if callable(getattr(logger, "__call__", None)):
-                    logger(f"Metadata unavailable for {video_file}, attempting MoviePy fallback")
                 logger.warning(f"Falling back to MoviePy for duration of {video_file}")
                 try:
                     with self.suppress_external_output():
@@ -390,8 +386,6 @@ class ConcatenationMixin:
                             with VideoFileClip(str(video_file), audio=False) as video:
                                 duration = int(video.duration)
                 except Exception as exc:
-                    if callable(getattr(logger, "__call__", None)):
-                        logger(f"Failed to extract duration for {video_file}: {exc}")
                     logger.error(f"Failed to extract duration for {video_file}: {exc}")
                     continue
 
@@ -451,8 +445,8 @@ class ConcatenationMixin:
         return video_info
 
     def _resolve_transcript_for_timestamps(
-        self, transcript_path: Optional[str], video_path: Optional[str] = None
-    ) -> Tuple[Optional[Path], bool]:
+        self, transcript_path: str | None, video_path: str | None = None
+    ) -> tuple[Path | None, bool]:
         """Resolve or generate a transcript for transcript-driven timestamp creation."""
         if transcript_path:
             candidate = Path(transcript_path).expanduser()
@@ -482,9 +476,9 @@ class ConcatenationMixin:
     def _generate_timestamps_from_transcript_file(
         self,
         transcript_file: Path,
-        granularity: Optional[str] = None,
-        timestamp_notes: Optional[str] = None,
-    ) -> List[Dict[str, str]]:
+        granularity: str | None = None,
+        timestamp_notes: str | None = None,
+    ) -> list[dict[str, str]]:
         """Generate chapters by prompting against a transcript timeline."""
         segments = self._load_transcript_segments(transcript_file)
         if not segments:
@@ -507,7 +501,7 @@ class ConcatenationMixin:
         if not chapter_response or not getattr(chapter_response, "chapters", None):
             raise ValueError("No chapters were returned from the transcript-driven prompt.")
 
-        ordered_chapters: List[Tuple[float, str]] = []
+        ordered_chapters: list[tuple[float, str]] = []
         for chapter in chapter_response.chapters:
             try:
                 start_seconds = self._parse_vtt_timestamp(
@@ -525,8 +519,8 @@ class ConcatenationMixin:
 
         ordered_chapters.sort(key=lambda item: item[0])
 
-        deduped_chapters: List[Tuple[float, str]] = []
-        last_start: Optional[float] = None
+        deduped_chapters: list[tuple[float, str]] = []
+        last_start: float | None = None
         for start_seconds, title in ordered_chapters:
             if last_start is not None and start_seconds <= last_start:
                 logger.warning(
@@ -536,7 +530,7 @@ class ConcatenationMixin:
             deduped_chapters.append((start_seconds, title))
             last_start = start_seconds
 
-        timestamps: List[Dict[str, str]] = []
+        timestamps: list[dict[str, str]] = []
         for index, (start_seconds, title) in enumerate(deduped_chapters):
             next_start = (
                 deduped_chapters[index + 1][0]
@@ -564,10 +558,10 @@ class ConcatenationMixin:
         return timestamps
 
     def _build_transcript_timeline_for_prompt(
-        self, segments: List[Dict[str, object]], max_chars: int = 12000
+        self, segments: list[dict[str, object]], max_chars: int = 12000
     ) -> str:
         """Flatten transcript segments into a prompt-friendly timeline."""
-        lines: List[str] = []
+        lines: list[str] = []
         for segment in segments:
             start = float(segment.get("start", 0))
             text = str(segment.get("text", "")).strip()
@@ -585,9 +579,9 @@ class ConcatenationMixin:
         *,
         transcript_timeline: str,
         video_duration: str,
-        granularity: Optional[str] = None,
-        timestamp_notes: Optional[str] = None,
-    ) -> Optional[TranscriptChapterResponse]:
+        granularity: str | None = None,
+        timestamp_notes: str | None = None,
+    ) -> TranscriptChapterResponse | None:
         prompt_template = self.prompts.get(
             "generate-timestamps-from-transcript",
             DEFAULT_TRANSCRIPT_CHAPTER_PROMPT,
@@ -596,7 +590,10 @@ class ConcatenationMixin:
         granularity_map = {
             "low": "Make timestamps sparse, focusing only on the largest sections and chapter pivots.",
             "medium": "Use medium granularity; group related ideas and avoid every small sentence.",
-            "high": "Be very granular: capture each meaningful topic shift or demo segment, with chapters every few minutes.",
+            "high": (
+                "Be very granular: capture each meaningful topic shift or demo segment,"
+                " with chapters every few minutes."
+            ),
         }
         normalized_granularity = (granularity or "medium").lower()
         granularity_note = granularity_map.get(normalized_granularity, granularity_map["medium"])
@@ -611,7 +608,7 @@ class ConcatenationMixin:
             extra_instructions=extra_instructions,
         )
 
-        messages: List[Dict[str, str]] = [
+        messages: list[dict[str, str]] = [
             {"role": "system", "content": TRANSCRIPT_CHAPTER_SYSTEM_PROMPT},
             {"role": "user", "content": user_prompt},
         ]
@@ -653,7 +650,7 @@ class ConcatenationMixin:
             normalized = f"{normalized}.000"
         return normalized
 
-    def _load_transcript_segments(self, transcript_path: Path) -> List[Dict[str, object]]:
+    def _load_transcript_segments(self, transcript_path: Path) -> list[dict[str, object]]:
         """Parse a VTT transcript into time-bound text segments."""
         try:
             content = transcript_path.read_text(encoding="utf-8")
@@ -662,7 +659,7 @@ class ConcatenationMixin:
             return []
 
         lines = content.splitlines()
-        segments: List[Dict[str, object]] = []
+        segments: list[dict[str, object]] = []
         index = 0
         total_lines = len(lines)
 
@@ -681,7 +678,7 @@ class ConcatenationMixin:
                 continue
 
             index += 1
-            text_lines: List[str] = []
+            text_lines: list[str] = []
             while index < total_lines:
                 text_line = lines[index].strip()
                 if not text_line:
@@ -704,9 +701,9 @@ class ConcatenationMixin:
 
     def _refine_timestamp_titles_with_structured_output(
         self,
-        timestamps: List[Dict[str, str]],
-        transcript_segments: List[Dict[str, object]],
-    ) -> List[Dict[str, str]]:
+        timestamps: list[dict[str, str]],
+        transcript_segments: list[dict[str, object]],
+    ) -> list[dict[str, str]]:
         """Use structured output to enrich chapter titles with transcript context."""
         if not timestamps:
             return timestamps
@@ -717,9 +714,9 @@ class ConcatenationMixin:
             title: str
 
         class ChapterUpdateResponse(BaseModel):
-            chapters: List[ChapterUpdate]
+            chapters: list[ChapterUpdate]
 
-        chapter_contexts: List[Dict[str, str]] = []
+        chapter_contexts: list[dict[str, str]] = []
         context_char_limit = 600
         for entry in timestamps:
             start_seconds = self._parse_vtt_timestamp(
@@ -729,7 +726,7 @@ class ConcatenationMixin:
                 self._normalize_timestamp_for_seconds(entry["end"])
             )
 
-            excerpts: List[str] = []
+            excerpts: list[str] = []
             for segment in transcript_segments:
                 segment_start = float(segment["start"])
                 segment_end = float(segment["end"])
@@ -754,7 +751,7 @@ class ConcatenationMixin:
                 }
             )
 
-        updated_titles: Dict[Tuple[str, str], str] = {}
+        updated_titles: dict[tuple[str, str], str] = {}
         batch_size = 4
         for index in range(0, len(chapter_contexts), batch_size):
             chunk = chapter_contexts[index : index + batch_size]
@@ -786,18 +783,21 @@ class ConcatenationMixin:
         return timestamps
 
     def _request_structured_chapter_updates(
-        self, chapter_contexts: Sequence[Dict[str, str]]
-    ) -> Optional[ChapterUpdateResponse]:
+        self, chapter_contexts: Sequence[dict[str, str]]
+    ) -> ChapterUpdateResponse | None:
         if not chapter_contexts:
             return None
 
         payload = {
             "video_title": self.video_title or Path(self.input_dir).stem,
             "chapters": list(chapter_contexts),
-            "instructions": "Generate clear, descriptive chapter titles using the provided transcript excerpts. Keep titles under 70 characters and make them engaging.",
+            "instructions": (
+                "Generate clear, descriptive chapter titles using the provided transcript excerpts."
+                " Keep titles under 70 characters and make them engaging."
+            ),
         }
 
-        messages: List[Dict[str, str]] = [
+        messages: list[dict[str, str]] = [
             {"role": "system", "content": CHAPTER_SYSTEM_PROMPT},
             {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
         ]
@@ -821,7 +821,7 @@ class ConcatenationMixin:
         self,
         source_video_path: str,
         reference_video_path: str,
-        output_filename: Optional[str] = None,
+        output_filename: str | None = None,
     ) -> str:
         """Re-encode source video to match the encoding parameters of the reference video."""
         source_path = Path(source_video_path)
@@ -959,7 +959,7 @@ class ConcatenationMixin:
     def compress_video(
         self,
         input_path: str,
-        output_filename: Optional[str] = None,
+        output_filename: str | None = None,
         codec: str = "h265",
         crf: int = 23,
         preset: str = "medium",

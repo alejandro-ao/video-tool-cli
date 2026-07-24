@@ -1,13 +1,12 @@
 """Tests for the generate command group."""
 
 import json
+from unittest.mock import patch
 
 import pytest
 from typer.testing import CliRunner
-from unittest.mock import patch
 
 from video_tool.cli import app
-
 
 runner = CliRunner()
 

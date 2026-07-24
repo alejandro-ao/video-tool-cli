@@ -8,12 +8,12 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from loguru import logger
 
 
-def _detect_gpu_encoder(codec: str = "h264") -> Optional[str]:
+def _detect_gpu_encoder(codec: str = "h264") -> str | None:
     """Detect available hardware video encoder for a codec.
 
     Returns encoder name (for example, h264_videotoolbox, hevc_videotoolbox,
@@ -89,7 +89,7 @@ def _format_timestamp(seconds: float) -> str:
 class EditingMixin:
     """Video editing operations: trim, cut, extract-segment, speed, info."""
 
-    def get_video_info(self, video_path: str) -> Dict[str, Any]:
+    def get_video_info(self, video_path: str) -> dict[str, Any]:
         """Get detailed video metadata using ffprobe.
 
         Returns dict with: duration, resolution, fps, codec, bitrate, audio_channels, file_size
@@ -117,7 +117,7 @@ class EditingMixin:
         video_stream = next((s for s in streams if s.get("codec_type") == "video"), None)
         audio_stream = next((s for s in streams if s.get("codec_type") == "audio"), None)
 
-        info: Dict[str, Any] = {
+        info: dict[str, Any] = {
             "file_path": str(path.absolute()),
             "file_name": path.name,
             "file_size_bytes": path.stat().st_size,
@@ -149,7 +149,9 @@ class EditingMixin:
             info.update({
                 "audio_codec": audio_stream.get("codec_name"),
                 "audio_channels": audio_stream.get("channels"),
-                "audio_sample_rate": int(audio_stream.get("sample_rate", 0)) if audio_stream.get("sample_rate") else None,
+                "audio_sample_rate": (
+                    int(audio_stream.get("sample_rate", 0)) if audio_stream.get("sample_rate") else None
+                ),
             })
 
         # Format duration as HH:MM:SS
@@ -165,8 +167,8 @@ class EditingMixin:
         self,
         video_path: str,
         output_path: str,
-        start: Optional[str] = None,
-        end: Optional[str] = None,
+        start: str | None = None,
+        end: str | None = None,
         gpu: bool = False,
     ) -> str:
         """Trim video by cutting start and/or end.
@@ -303,7 +305,7 @@ class EditingMixin:
         # Create temp directory for intermediate files
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
-            segments: List[Path] = []
+            segments: list[Path] = []
 
             # Extract part before cut (if cut doesn't start at beginning)
             if from_seconds > 0.1:

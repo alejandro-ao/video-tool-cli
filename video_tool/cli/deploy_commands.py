@@ -4,14 +4,16 @@ from __future__ import annotations
 
 import json
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, cast
+from typing import cast
 
 import typer
 
 from video_tool import VideoProcessor
-from video_tool.cli import validate_bunny_env_vars, upload_app
+from video_tool.cli import upload_app
 from video_tool.config import get_credential, prompt_and_save_credential
+from video_tool.metadata import read_metadata, write_metadata
 from video_tool.ui import (
     ask_path,
     ask_text,
@@ -24,15 +26,14 @@ from video_tool.ui import (
     step_start,
     step_warning,
 )
-from video_tool.metadata import read_metadata, write_metadata
 from video_tool.video_processor.constants import SUPPORTED_VIDEO_SUFFIXES
 
 SUPPORTED_VIDEO_LABEL = ", ".join(ext.lstrip(".").upper() for ext in SUPPORTED_VIDEO_SUFFIXES)
 
 
 def _check_bunny_credentials(
-    library_id: Optional[str] = None,
-    access_key: Optional[str] = None,
+    library_id: str | None = None,
+    access_key: str | None = None,
 ) -> bool:
     """Check if Bunny credentials are available (no prompting)."""
     library = (library_id or get_credential("bunny_library_id") or "").strip()
@@ -48,8 +49,8 @@ def _check_bunny_credentials(
 
 
 def _resolve_bunny_credentials(
-    library_id: Optional[str] = None,
-    access_key: Optional[str] = None,
+    library_id: str | None = None,
+    access_key: str | None = None,
 ) -> tuple[str, str]:
     """Resolve Bunny credentials from args/env/config, prompting interactively if possible."""
     library = (library_id or get_credential("bunny_library_id") or "").strip()
@@ -79,12 +80,12 @@ def _resolve_bunny_credentials(
 
 @upload_app.command("bunny-video")
 def bunny_upload(
-    video_path: Optional[Path] = typer.Option(None, "--video-path", "-v", help="Path to video file to upload"),
-    batch_dir: Optional[Path] = typer.Option(None, "--batch-dir", "-b", help="Directory of videos to upload"),
-    metadata_path: Optional[Path] = typer.Option(None, "--metadata-path", "-m", help="Path to metadata.json"),
-    bunny_library_id: Optional[str] = typer.Option(None, "--bunny-library-id", help="Bunny.net library ID"),
-    bunny_access_key: Optional[str] = typer.Option(None, "--bunny-access-key", help="Bunny.net access key"),
-    bunny_collection_id: Optional[str] = typer.Option(None, "--bunny-collection-id", help="Bunny.net collection ID"),
+    video_path: Path | None = typer.Option(None, "--video-path", "-v", help="Path to video file to upload"),
+    batch_dir: Path | None = typer.Option(None, "--batch-dir", "-b", help="Directory of videos to upload"),
+    metadata_path: Path | None = typer.Option(None, "--metadata-path", "-m", help="Path to metadata.json"),
+    bunny_library_id: str | None = typer.Option(None, "--bunny-library-id", help="Bunny.net library ID"),
+    bunny_access_key: str | None = typer.Option(None, "--bunny-access-key", help="Bunny.net access key"),
+    bunny_collection_id: str | None = typer.Option(None, "--bunny-collection-id", help="Bunny.net collection ID"),
 ) -> None:
     """Upload video(s) to Bunny.net CDN."""
     if video_path and batch_dir:
@@ -92,7 +93,7 @@ def bunny_upload(
         raise typer.Exit(1)
 
     # Resolve batch directory
-    batch_path: Optional[Path] = None
+    batch_path: Path | None = None
     if batch_dir:
         batch_path = Path(normalize_path(str(batch_dir)))
         if not batch_path.exists() or not batch_path.is_dir():
@@ -100,7 +101,7 @@ def bunny_upload(
             raise typer.Exit(1)
 
     # Resolve single video
-    video_file: Optional[Path] = None
+    video_file: Path | None = None
     if video_path:
         video_file = Path(normalize_path(str(video_path)))
     elif not batch_dir:
@@ -139,7 +140,7 @@ def _upload_batch(
     metadata_path: Path,
     library_id: str,
     access_key: str,
-    collection_id: Optional[str],
+    collection_id: str | None,
 ) -> None:
     """Upload multiple videos from a directory."""
     step_start("Uploading videos to Bunny.net", {"Directory": str(batch_path), "Library ID": library_id})
@@ -149,14 +150,14 @@ def _upload_batch(
         video_files = processor.get_video_files(str(batch_path))
     except Exception as e:
         step_error(f"Unable to read directory: {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
     if not video_files:
         step_error(f"No supported video files found in {batch_path}")
         raise typer.Exit(1)
 
-    successes: List[tuple[str, str]] = []
-    failures: List[str] = []
+    successes: list[tuple[str, str]] = []
+    failures: list[str] = []
 
     for file_path in video_files:
         console.print(f"  [cyan]Uploading {file_path.name}...[/cyan]")
@@ -173,7 +174,7 @@ def _upload_batch(
                 console.print(f"    [green]Uploaded[/green] (ID: {video_id})")
             else:
                 failures.append(file_path.name)
-                console.print(f"    [red]Failed[/red]")
+                console.print("    [red]Failed[/red]")
         except Exception as e:
             failures.append(file_path.name)
             console.print(f"    [red]Error: {e}[/red]")
@@ -201,7 +202,7 @@ def _upload_single(
     metadata_path: Path,
     library_id: str,
     access_key: str,
-    collection_id: Optional[str],
+    collection_id: str | None,
 ) -> None:
     """Upload a single video."""
     step_start("Uploading video to Bunny.net", {"Video": str(video_file), "Library ID": library_id})
@@ -235,11 +236,13 @@ def _upload_single(
 
 @upload_app.command("bunny-transcript")
 def bunny_transcript(
-    video_id: Optional[str] = typer.Option(None, "--video-id", "-v", help="Bunny.net video ID"),
-    transcript_path: Optional[Path] = typer.Option(None, "--transcript-path", "-t", help="Path to transcript (.vtt)"),
-    language: Optional[str] = typer.Option(None, "--language", "-l", help="Caption language code (defaults to stored credential or en)"),
-    bunny_library_id: Optional[str] = typer.Option(None, "--bunny-library-id", help="Bunny.net library ID"),
-    bunny_access_key: Optional[str] = typer.Option(None, "--bunny-access-key", help="Bunny.net access key"),
+    video_id: str | None = typer.Option(None, "--video-id", "-v", help="Bunny.net video ID"),
+    transcript_path: Path | None = typer.Option(None, "--transcript-path", "-t", help="Path to transcript (.vtt)"),
+    language: str | None = typer.Option(
+        None, "--language", "-l", help="Caption language code (defaults to stored credential or en)"
+    ),
+    bunny_library_id: str | None = typer.Option(None, "--bunny-library-id", help="Bunny.net library ID"),
+    bunny_access_key: str | None = typer.Option(None, "--bunny-access-key", help="Bunny.net access key"),
 ) -> None:
     """Upload transcript captions to a Bunny.net video."""
     # Resolve video ID
@@ -287,10 +290,10 @@ def bunny_transcript(
 
 @upload_app.command("bunny-chapters")
 def bunny_chapters(
-    video_id: Optional[str] = typer.Option(None, "--video-id", "-v", help="Bunny.net video ID"),
-    chapters_path: Optional[Path] = typer.Option(None, "--chapters-path", "-c", help="Path to chapters JSON"),
-    bunny_library_id: Optional[str] = typer.Option(None, "--bunny-library-id", help="Bunny.net library ID"),
-    bunny_access_key: Optional[str] = typer.Option(None, "--bunny-access-key", help="Bunny.net access key"),
+    video_id: str | None = typer.Option(None, "--video-id", "-v", help="Bunny.net video ID"),
+    chapters_path: Path | None = typer.Option(None, "--chapters-path", "-c", help="Path to chapters JSON"),
+    bunny_library_id: str | None = typer.Option(None, "--bunny-library-id", help="Bunny.net library ID"),
+    bunny_access_key: str | None = typer.Option(None, "--bunny-access-key", help="Bunny.net access key"),
 ) -> None:
     """Upload chapter metadata to a Bunny.net video."""
     # Resolve video ID
@@ -314,11 +317,11 @@ def bunny_chapters(
 
     # Load chapters
     try:
-        with open(chapters_file, "r", encoding="utf-8") as f:
+        with open(chapters_file, encoding="utf-8") as f:
             raw_data = json.load(f)
     except (OSError, json.JSONDecodeError) as e:
         step_error(f"Unable to read chapters file: {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
     chapters_payload = _coerce_chapters(raw_data)
     if not chapters_payload:
@@ -343,11 +346,11 @@ def bunny_chapters(
         raise typer.Exit(1)
 
 
-def _coerce_chapters(data: object) -> Optional[List[Dict[str, str]]]:
+def _coerce_chapters(data: object) -> list[dict[str, str]] | None:
     """Extract chapters from various JSON structures."""
 
-    def _collect_dicts(items: Sequence[object]) -> List[Dict[str, str]]:
-        return [cast(Dict[str, str], item) for item in items if isinstance(item, dict)]
+    def _collect_dicts(items: Sequence[object]) -> list[dict[str, str]]:
+        return [cast(dict[str, str], item) for item in items if isinstance(item, dict)]
 
     if isinstance(data, list):
         if data and isinstance(data[0], dict) and "timestamps" in data[0]:
@@ -363,7 +366,7 @@ def _coerce_chapters(data: object) -> Optional[List[Dict[str, str]]]:
             if isinstance(value, list):
                 return _collect_dicts(value) or None
         if all(key in data for key in ("title", "start", "end")):
-            return [cast(Dict[str, str], data)]
+            return [cast(dict[str, str], data)]
 
     return None
 
@@ -377,7 +380,7 @@ def _coerce_chapters(data: object) -> Optional[List[Dict[str, str]]]:
 # --- YouTube Commands ---
 
 
-def _check_youtube_credentials(youtube_profile: Optional[str] = None) -> bool:
+def _check_youtube_credentials(youtube_profile: str | None = None) -> bool:
     """Check if YouTube credentials are configured."""
     from video_tool.video_processor.youtube import YouTubeDeploymentMixin
 
@@ -396,17 +399,17 @@ def _check_youtube_credentials(youtube_profile: Optional[str] = None) -> bool:
 
 @upload_app.command("youtube-video")
 def youtube_upload(
-    video_path: Optional[Path] = typer.Option(None, "--video-path", "-i", help="Path to video file"),
-    title: Optional[str] = typer.Option(None, "--title", "-t", help="Video title"),
-    description: Optional[str] = typer.Option(None, "--description", "-d", help="Video description"),
-    description_file: Optional[Path] = typer.Option(None, "--description-file", help="Read description from file"),
-    tags: Optional[str] = typer.Option(None, "--tags", help="Comma-separated tags"),
-    tags_file: Optional[Path] = typer.Option(None, "--tags-file", help="Read tags from file (one per line)"),
+    video_path: Path | None = typer.Option(None, "--video-path", "-i", help="Path to video file"),
+    title: str | None = typer.Option(None, "--title", "-t", help="Video title"),
+    description: str | None = typer.Option(None, "--description", "-d", help="Video description"),
+    description_file: Path | None = typer.Option(None, "--description-file", help="Read description from file"),
+    tags: str | None = typer.Option(None, "--tags", help="Comma-separated tags"),
+    tags_file: Path | None = typer.Option(None, "--tags-file", help="Read tags from file (one per line)"),
     category: int = typer.Option(27, "--category", "-c", help="YouTube category ID (default: 27 Education)"),
     privacy: str = typer.Option("private", "--privacy", "-p", help="Privacy: private (draft) or unlisted only"),
-    thumbnail: Optional[Path] = typer.Option(None, "--thumbnail", help="Path to thumbnail image (PNG/JPG, max 2MB)"),
-    metadata_path: Optional[Path] = typer.Option(None, "--metadata-path", "-m", help="Path to metadata.json"),
-    profile: Optional[str] = typer.Option(None, "--profile", help="YouTube auth profile to use"),
+    thumbnail: Path | None = typer.Option(None, "--thumbnail", help="Path to thumbnail image (PNG/JPG, max 2MB)"),
+    metadata_path: Path | None = typer.Option(None, "--metadata-path", "-m", help="Path to metadata.json"),
+    profile: str | None = typer.Option(None, "--profile", help="YouTube auth profile to use"),
 ) -> None:
     """Upload video to YouTube (as draft by default).
 
@@ -444,7 +447,7 @@ def youtube_upload(
         video_description = description
 
     # Resolve tags
-    video_tags: List[str] = []
+    video_tags: list[str] = []
     if tags_file:
         tags_path = Path(normalize_path(str(tags_file)))
         if tags_path.exists():
@@ -458,7 +461,7 @@ def youtube_upload(
         video_tags = [t.strip() for t in tags.split(",") if t.strip()]
 
     # Resolve thumbnail
-    thumb_path: Optional[str] = None
+    thumb_path: str | None = None
     if thumbnail:
         thumb_file = Path(normalize_path(str(thumbnail)))
         if thumb_file.exists():
@@ -520,14 +523,14 @@ def youtube_upload(
 
 @upload_app.command("youtube-metadata")
 def youtube_metadata(
-    video_id: Optional[str] = typer.Option(None, "--video-id", "-v", help="YouTube video ID"),
-    title: Optional[str] = typer.Option(None, "--title", "-t", help="New video title"),
-    description: Optional[str] = typer.Option(None, "--description", "-d", help="New description"),
-    description_file: Optional[Path] = typer.Option(None, "--description-file", help="Read description from file"),
-    tags: Optional[str] = typer.Option(None, "--tags", help="Comma-separated tags"),
-    tags_file: Optional[Path] = typer.Option(None, "--tags-file", help="Read tags from file (one per line)"),
-    category: Optional[int] = typer.Option(None, "--category", "-c", help="YouTube category ID"),
-    profile: Optional[str] = typer.Option(None, "--profile", help="YouTube auth profile to use"),
+    video_id: str | None = typer.Option(None, "--video-id", "-v", help="YouTube video ID"),
+    title: str | None = typer.Option(None, "--title", "-t", help="New video title"),
+    description: str | None = typer.Option(None, "--description", "-d", help="New description"),
+    description_file: Path | None = typer.Option(None, "--description-file", help="Read description from file"),
+    tags: str | None = typer.Option(None, "--tags", help="Comma-separated tags"),
+    tags_file: Path | None = typer.Option(None, "--tags-file", help="Read tags from file (one per line)"),
+    category: int | None = typer.Option(None, "--category", "-c", help="YouTube category ID"),
+    profile: str | None = typer.Option(None, "--profile", help="YouTube auth profile to use"),
 ) -> None:
     """Update metadata for an existing YouTube video.
 
@@ -543,7 +546,7 @@ def youtube_metadata(
         vid_id = ask_text("YouTube Video ID", required=True)
 
     # Resolve description
-    new_description: Optional[str] = None
+    new_description: str | None = None
     if description_file:
         desc_path = Path(normalize_path(str(description_file)))
         if desc_path.exists():
@@ -555,7 +558,7 @@ def youtube_metadata(
         new_description = description
 
     # Resolve tags
-    new_tags: Optional[List[str]] = None
+    new_tags: list[str] | None = None
     if tags_file:
         tags_path = Path(normalize_path(str(tags_file)))
         if tags_path.exists():
@@ -597,12 +600,12 @@ def youtube_metadata(
 
 @upload_app.command("youtube-transcript")
 def youtube_transcript(
-    video_id: Optional[str] = typer.Option(None, "--video-id", "-v", help="YouTube video ID"),
-    transcript_path: Optional[Path] = typer.Option(None, "--transcript-path", "-t", help="Path to transcript (.vtt)"),
+    video_id: str | None = typer.Option(None, "--video-id", "-v", help="YouTube video ID"),
+    transcript_path: Path | None = typer.Option(None, "--transcript-path", "-t", help="Path to transcript (.vtt)"),
     language: str = typer.Option("en", "--language", "-l", help="Caption language code"),
-    name: Optional[str] = typer.Option(None, "--name", "-n", help="Caption track name"),
+    name: str | None = typer.Option(None, "--name", "-n", help="Caption track name"),
     draft: bool = typer.Option(False, "--draft", help="Upload as draft (not visible)"),
-    profile: Optional[str] = typer.Option(None, "--profile", help="YouTube auth profile to use"),
+    profile: str | None = typer.Option(None, "--profile", help="YouTube auth profile to use"),
 ) -> None:
     """Upload captions/transcript to a YouTube video.
 

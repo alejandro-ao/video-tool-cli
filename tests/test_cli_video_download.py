@@ -8,7 +8,6 @@ from typer.testing import CliRunner
 
 from video_tool.cli import app
 
-
 runner = CliRunner()
 
 

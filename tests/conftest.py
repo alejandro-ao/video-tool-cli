@@ -1,11 +1,11 @@
 import os
-import tempfile
 import shutil
+import tempfile
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import Mock, patch
+
 import pytest
-import json
-from datetime import datetime
 
 # Test data and fixtures
 
@@ -28,7 +28,7 @@ def mock_video_processor(temp_dir):
     """Create a VideoProcessor instance with mocked dependencies."""
     with patch('video_tool.video_processor.base.OpenAI') as mock_openai, \
          patch('video_tool.video_processor.base.Groq') as mock_groq:
-        
+
         # Mock the prompts loading
         mock_prompts = {
             'generate-description': 'Test description prompt: {transcript}',
@@ -36,9 +36,12 @@ def mock_video_processor(temp_dir):
             'generate-seo-keywords': 'SEO prompt: {description}',
             'generate-linkedin-post': 'Test LinkedIn prompt: {transcript}',
             'generate-twitter-post': 'Test Twitter prompt: {transcript}',
-            'generate-timestamps-from-transcript': 'Transcript prompt: {transcript} {granularity_note} {extra_instructions} {video_duration} {video_title}',
+            'generate-timestamps-from-transcript': (
+                'Transcript prompt: {transcript} {granularity_note} {extra_instructions}'
+                ' {video_duration} {video_title}'
+            ),
         }
-        
+
         with patch('video_tool.video_processor.VideoProcessor._load_prompts', return_value=mock_prompts):
             from video_tool.video_processor import VideoProcessor
             processor = VideoProcessor(str(temp_dir))
@@ -113,7 +116,7 @@ def create_mock_video_file(file_path: Path, duration_seconds: float = 10.0):
     """Create a mock video file with basic metadata."""
     # Create a minimal file that looks like an MP4
     file_path.write_bytes(b'\x00\x00\x00\x20ftypmp42' + b'\x00' * 1000)
-    
+
     # Set file modification time to simulate creation date
     timestamp = datetime(2024, 1, 1, 12, 0, 0).timestamp()
     os.utime(file_path, (timestamp, timestamp))

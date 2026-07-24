@@ -3,16 +3,16 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List, Optional
 
 import typer
 
 from video_tool import VideoProcessor
-from video_tool.cli import generate_app, ensure_openai_key, ensure_groq_key
-from video_tool.config import get_llm_config, ensure_config, get_links, prompt_links_setup
+from video_tool.cli import ensure_groq_key, ensure_openai_key, generate_app
+from video_tool.cli.paths import resolve_output_path
+from video_tool.config import ensure_config, get_links, get_llm_config, prompt_links_setup
+from video_tool.metadata import read_metadata, write_metadata
 from video_tool.ui import (
     ask_path,
-    console,
     normalize_path,
     status_spinner,
     step_complete,
@@ -20,11 +20,9 @@ from video_tool.ui import (
     step_start,
     step_warning,
 )
-from video_tool.cli.paths import resolve_output_path
-from video_tool.metadata import read_metadata, write_metadata
 from video_tool.video_processor.constants import (
-    SUPPORTED_VIDEO_SUFFIXES,
     SUPPORTED_AUDIO_SUFFIXES,
+    SUPPORTED_VIDEO_SUFFIXES,
 )
 
 SUPPORTED_VIDEO_LABEL = ", ".join(ext.lstrip(".").upper() for ext in SUPPORTED_VIDEO_SUFFIXES)
@@ -33,9 +31,9 @@ SUPPORTED_MEDIA_LABEL = f"{SUPPORTED_VIDEO_LABEL}, {SUPPORTED_AUDIO_LABEL}"
 TRANSCRIPT_SUFFIXES = (".vtt", ".md", ".txt")
 
 
-def _find_supported_videos(directory: Path) -> List[Path]:
+def _find_supported_videos(directory: Path) -> list[Path]:
     """Return supported video files within a directory, sorted by name."""
-    videos: List[Path] = []
+    videos: list[Path] = []
     for suffix in SUPPORTED_VIDEO_SUFFIXES:
         videos.extend(directory.glob(f"*{suffix}"))
     return sorted(videos)
@@ -43,8 +41,8 @@ def _find_supported_videos(directory: Path) -> List[Path]:
 
 @generate_app.command("transcript")
 def transcript(
-    input_path: Optional[Path] = typer.Option(None, "--input", "-i", help="Input video or audio file"),
-    output_path: Optional[Path] = typer.Option(None, "--output-path", "-o", help="Output VTT file path"),
+    input_path: Path | None = typer.Option(None, "--input", "-i", help="Input video or audio file"),
+    output_path: Path | None = typer.Option(None, "--output-path", "-o", help="Output VTT file path"),
 ) -> None:
     """Generate VTT transcript from video or audio using Groq Whisper."""
     if not ensure_groq_key():
@@ -67,7 +65,9 @@ def transcript(
     is_video = suffix in SUPPORTED_VIDEO_SUFFIXES
 
     if not is_audio and not is_video:
-        step_error(f"Unsupported format: {suffix}. Use video ({SUPPORTED_VIDEO_LABEL}) or audio ({SUPPORTED_AUDIO_LABEL})")
+        step_error(
+            f"Unsupported format: {suffix}. Use video ({SUPPORTED_VIDEO_LABEL}) or audio ({SUPPORTED_AUDIO_LABEL})"
+        )
         raise typer.Exit(1)
 
     base_dir = input_path.parent
@@ -118,19 +118,19 @@ def _update_transcript_metadata(transcript_path: str) -> None:
 
 @generate_app.command("description")
 def description(
-    input_path: Optional[Path] = typer.Option(None, "--input", "-i", help="Input file (video/audio/vtt/md/txt)"),
-    output_path: Optional[Path] = typer.Option(None, "--output-path", "-o", help="Full path for output description"),
-    timestamps: Optional[Path] = typer.Option(None, "--timestamps", "-t", help="Path to timestamps JSON"),
+    input_path: Path | None = typer.Option(None, "--input", "-i", help="Input file (video/audio/vtt/md/txt)"),
+    output_path: Path | None = typer.Option(None, "--output-path", "-o", help="Full path for output description"),
+    timestamps: Path | None = typer.Option(None, "--timestamps", "-t", help="Path to timestamps JSON"),
     links: bool = typer.Option(False, "--links", "-l", help="Include persistent links from config"),
-    code_link: Optional[str] = typer.Option(None, "--code-link", help="Link to code repository"),
-    article_link: Optional[str] = typer.Option(None, "--article-link", help="Link to written article"),
+    code_link: str | None = typer.Option(None, "--code-link", help="Link to code repository"),
+    article_link: str | None = typer.Option(None, "--article-link", help="Link to written article"),
 ) -> None:
     """Generate video description from transcript or media file."""
     # Ensure config exists (first-time setup if needed)
     ensure_config()
 
-    transcript_file: Optional[Path] = None
-    media_file: Optional[Path] = None
+    transcript_file: Path | None = None
+    media_file: Path | None = None
     transcript_generated = False
 
     # Resolve input
@@ -177,7 +177,7 @@ def description(
     output_dir_path = Path(final_output_path).parent
 
     # Generate transcript if needed
-    processor: Optional[VideoProcessor] = None
+    processor: VideoProcessor | None = None
     if transcript_file is None and media_file:
         output_dir_path.mkdir(parents=True, exist_ok=True)
         processor = VideoProcessor(str(media_file.parent), output_dir=str(output_dir_path))
@@ -256,7 +256,7 @@ def description(
     _update_description_metadata(output_dir_path, transcript_file if transcript_generated else None, description_result)
 
 
-def _update_description_metadata(output_dir: Path, transcript_file: Optional[Path], description_path: str) -> None:
+def _update_description_metadata(output_dir: Path, transcript_file: Path | None, description_path: str) -> None:
     """Update metadata.json with description content."""
     metadata_path = output_dir / "metadata.json"
     existing = read_metadata(metadata_path) or {}
@@ -278,12 +278,12 @@ def _update_description_metadata(output_dir: Path, transcript_file: Optional[Pat
 
 @generate_app.command("context-cards")
 def context_cards(
-    input_path: Optional[Path] = typer.Option(None, "--input", "-i", help="Input file (video/audio/vtt)"),
-    output_path: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path"),
+    input_path: Path | None = typer.Option(None, "--input", "-i", help="Input file (video/audio/vtt)"),
+    output_path: Path | None = typer.Option(None, "--output", "-o", help="Output file path"),
 ) -> None:
     """Generate context cards from transcript or media file."""
-    transcript_file: Optional[Path] = None
-    media_file: Optional[Path] = None
+    transcript_file: Path | None = None
+    media_file: Path | None = None
     transcript_generated = False
 
     # Resolve input
@@ -328,7 +328,7 @@ def context_cards(
     output_dir_path = Path(final_output_path).parent
 
     # Generate transcript if needed
-    processor: Optional[VideoProcessor] = None
+    processor: VideoProcessor | None = None
     if transcript_file is None and media_file:
         output_dir_path.mkdir(parents=True, exist_ok=True)
         processor = VideoProcessor(str(media_file.parent), output_dir=str(output_dir_path))
@@ -365,7 +365,7 @@ def context_cards(
         raise typer.Exit(1)
 
 
-def _update_context_cards_metadata(output_dir: Path, cards_path: str, transcript_file: Optional[Path] = None) -> None:
+def _update_context_cards_metadata(output_dir: Path, cards_path: str, transcript_file: Path | None = None) -> None:
     """Update metadata.json with context cards and optional transcript."""
     metadata_path = output_dir / "metadata.json"
     existing = read_metadata(metadata_path) or {}

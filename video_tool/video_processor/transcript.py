@@ -3,18 +3,18 @@ from __future__ import annotations
 import os
 import re
 from pathlib import Path
-from typing import List, Optional
 
-from .constants import SUPPORTED_AUDIO_SUFFIXES, SUPPORTED_VIDEO_SUFFIXES
 from loguru import logger
 from moviepy import VideoFileClip
 from pydub import AudioSegment
+
+from .constants import SUPPORTED_AUDIO_SUFFIXES, SUPPORTED_VIDEO_SUFFIXES
 
 
 class TranscriptMixin:
     """Audio extraction and transcript generation helpers."""
 
-    def generate_transcript(self, video_path: Optional[str] = None, output_path: Optional[str] = None) -> str:
+    def generate_transcript(self, video_path: str | None = None, output_path: str | None = None) -> str:
         """Generate VTT transcript using Groq Whisper Large V3 Turbo.
 
         Accepts video files (extracts audio) or audio files directly (skips extraction).
@@ -29,13 +29,15 @@ class TranscriptMixin:
                 "Get your key at: https://console.groq.com/keys\n"
             )
             logger.error(error_msg)
-            raise RuntimeError("AUTHENTICATION_REQUIRED: Groq API key not configured. Run 'video-tool config keys' to fix.")
+            raise RuntimeError(
+                "AUTHENTICATION_REQUIRED: Groq API key not configured. Run 'video-tool config keys' to fix."
+            )
         if video_path is None:
             candidate_path = self._find_existing_output()
             if candidate_path:
                 video_path = str(candidate_path)
             else:
-                videos: List[Path] = []
+                videos: list[Path] = []
                 for suffix in SUPPORTED_VIDEO_SUFFIXES:
                     videos.extend(self.output_dir.glob(f"*{suffix}"))
                 if not videos:
@@ -124,7 +126,7 @@ class TranscriptMixin:
             else:
                 audio = AudioSegment.from_mp3(str(audio_path))
                 chunk_length = 10 * 60 * 1000
-                chunks: List[Path] = []
+                chunks: list[Path] = []
 
                 for index in range(0, len(audio), chunk_length):
                     chunk = audio[index : index + chunk_length]
@@ -134,7 +136,7 @@ class TranscriptMixin:
                         chunk_path.touch()
                     chunks.append(chunk_path)
 
-                transcripts: List[str] = []
+                transcripts: list[str] = []
                 for chunk_path in chunks:
                     with open(chunk_path, "rb") as chunk_file:
                         response = self.groq.audio.transcriptions.create(
@@ -185,7 +187,7 @@ class TranscriptMixin:
         cleaned = re.sub(r"\[.*?\]", "", cleaned)
         return cleaned.strip()
 
-    def _merge_vtt_transcripts(self, transcripts: List[str]) -> str:
+    def _merge_vtt_transcripts(self, transcripts: list[str]) -> str:
         """Merge multiple VTT transcripts into a single file with robust validation."""
         merged = "WEBVTT\n\n"
         time_offset = 0.0

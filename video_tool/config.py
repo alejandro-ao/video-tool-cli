@@ -6,7 +6,6 @@ import os
 import stat
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 import yaml
 
@@ -108,10 +107,10 @@ def get_llm_config(command: str) -> LLMConfig:
 
 
 def set_llm_config(
-    command: Optional[str] = None,
+    command: str | None = None,
     *,
-    base_url: Optional[str] = None,
-    model: Optional[str] = None,
+    base_url: str | None = None,
+    model: str | None = None,
 ) -> None:
     """Set LLM config for a command (or default if command is None)."""
     config = load_config()
@@ -149,7 +148,7 @@ def set_links(links: list[dict]) -> None:
 
 def prompt_links_setup() -> list[dict]:
     """Interactive add/edit links, saves result, returns links."""
-    from video_tool.ui import ask_text, ask_confirm, console
+    from video_tool.ui import ask_confirm, ask_text, console
 
     config = load_config()
     links = config.get("links", [])
@@ -177,7 +176,7 @@ def prompt_links_setup() -> list[dict]:
             console.print(f"  [green]Added:[/green] {desc}: {url}\n")
 
     set_links(links)
-    console.print(f"\n[green]Links saved to config[/green]")
+    console.print("\n[green]Links saved to config[/green]")
     return links
 
 
@@ -219,7 +218,7 @@ def prompt_optional_llm_setup() -> bool:
     Used for features like timestamp title refinement that enhance output but aren't required.
     If user skips configuration, the feature will be skipped.
     """
-    from video_tool.ui import ask_text, ask_confirm, console
+    from video_tool.ui import ask_confirm, ask_text, console
 
     console.print("\n[bold]LLM Configuration (Optional)[/bold]")
     console.print("[dim]An LLM can improve chapter titles using transcript context.[/dim]")
@@ -276,7 +275,7 @@ def save_credentials(creds: dict) -> None:
     os.chmod(CREDENTIALS_PATH, stat.S_IRUSR | stat.S_IWUSR)
 
 
-def _is_valid_credential(value: Optional[str]) -> bool:
+def _is_valid_credential(value: str | None) -> bool:
     """Check if a credential value looks valid (not empty, not placeholder)."""
     if not value:
         return False
@@ -291,7 +290,7 @@ def _is_valid_credential(value: Optional[str]) -> bool:
     return True
 
 
-def get_credential(key: str) -> Optional[str]:
+def get_credential(key: str) -> str | None:
     """Get credential from credentials.yaml, falling back to env vars.
 
     Checks credentials.yaml first. If not found there, falls back to the
@@ -324,7 +323,7 @@ def prompt_and_save_credential(
     label: str,
     required: bool = True,
     hide_input: bool = True,
-) -> Optional[str]:
+) -> str | None:
     """Prompt user for credential and save it.
 
     Args:

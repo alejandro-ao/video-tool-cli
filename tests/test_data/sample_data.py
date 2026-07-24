@@ -1,6 +1,5 @@
 """Sample test data for unit tests."""
 
-from typing import Dict, List, Any
 
 # Sample video metadata for testing
 SAMPLE_VIDEO_METADATA = {
@@ -268,11 +267,11 @@ What's your biggest challenge when working with video content? Drop a comment be
 #VideoProcessing #Python #AI #MachineLearning #ContentCreation #TechTutorial #Programming #Automation"""
 
 # Sample Twitter post content
-SAMPLE_TWITTER_POST = """🎥 New tutorial: Advanced video processing with Python! 
+SAMPLE_TWITTER_POST = """🎥 New tutorial: Advanced video processing with Python!
 
 Covered:
 ✅ AI transcription
-✅ SEO optimization 
+✅ SEO optimization
 ✅ Batch processing
 ✅ Quality testing
 

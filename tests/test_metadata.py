@@ -5,7 +5,6 @@ branch (pre-merge) the module may not exist yet; the tests are designed to run
 both before and after the PR merge.
 """
 
-import importlib
 import json
 from pathlib import Path
 

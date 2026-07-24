@@ -1,15 +1,15 @@
 """Unit tests for video editing operations (trim, cut, extract-segment, speed, info)."""
 
 import json
-import pytest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from video_tool.video_processor.editing import (
-    _parse_timestamp,
-    _format_timestamp,
     _detect_gpu_encoder,
-    EditingMixin,
+    _format_timestamp,
+    _parse_timestamp,
 )
 
 
@@ -188,7 +188,7 @@ class TestTrimVideo:
 
         with patch.object(VideoProcessor, "_load_prompts", return_value={}):
             processor = VideoProcessor(str(temp_dir))
-            result = processor.trim_video(str(video_file), str(output_file), start="30")
+            processor.trim_video(str(video_file), str(output_file), start="30")
 
         call_args = mock_run.call_args[0][0]
         assert "-ss" in call_args
@@ -206,7 +206,7 @@ class TestTrimVideo:
 
         with patch.object(VideoProcessor, "_load_prompts", return_value={}):
             processor = VideoProcessor(str(temp_dir))
-            result = processor.trim_video(str(video_file), str(output_file), end="01:00")
+            processor.trim_video(str(video_file), str(output_file), end="01:00")
 
         call_args = mock_run.call_args[0][0]
         assert "-ss" not in call_args
@@ -225,7 +225,7 @@ class TestTrimVideo:
 
         with patch.object(VideoProcessor, "_load_prompts", return_value={}):
             processor = VideoProcessor(str(temp_dir))
-            result = processor.trim_video(
+            processor.trim_video(
                 str(video_file), str(output_file), start="10", gpu=True
             )
 
@@ -398,7 +398,7 @@ class TestChangeVideoSpeed:
 
         with patch.object(VideoProcessor, "_load_prompts", return_value={}):
             processor = VideoProcessor(str(temp_dir))
-            result = processor.change_video_speed(
+            processor.change_video_speed(
                 str(video_file), str(output_file), factor=4.0
             )
 

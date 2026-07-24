@@ -9,14 +9,12 @@ import os
 import re
 import stat
 from pathlib import Path
-from typing import Dict, List, Optional
 
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build, Resource
-from googleapiclient.http import MediaFileUpload
+from googleapiclient.discovery import Resource, build
 from googleapiclient.errors import HttpError
-
+from googleapiclient.http import MediaFileUpload
 from loguru import logger
 
 # YouTube API scopes
@@ -59,13 +57,13 @@ class YouTubeDeploymentMixin:
     """Handle YouTube video uploads, metadata, and caption management."""
 
     @staticmethod
-    def _normalize_youtube_profile_name(profile: Optional[str]) -> str:
+    def _normalize_youtube_profile_name(profile: str | None) -> str:
         value = (profile or DEFAULT_YOUTUBE_PROFILE).strip().lower()
         value = re.sub(r"[^a-z0-9._-]+", "-", value).strip("._-")
         return value or DEFAULT_YOUTUBE_PROFILE
 
     @classmethod
-    def get_effective_youtube_profile(cls, profile: Optional[str] = None) -> str:
+    def get_effective_youtube_profile(cls, profile: str | None = None) -> str:
         if profile:
             return cls._normalize_youtube_profile_name(profile)
 
@@ -80,7 +78,7 @@ class YouTubeDeploymentMixin:
         return DEFAULT_YOUTUBE_PROFILE
 
     @classmethod
-    def get_youtube_credentials_path(cls, profile: Optional[str] = None) -> Path:
+    def get_youtube_credentials_path(cls, profile: str | None = None) -> Path:
         effective_profile = cls.get_effective_youtube_profile(profile)
         if effective_profile == LEGACY_YOUTUBE_PROFILE:
             return CREDENTIALS_PATH
@@ -95,18 +93,18 @@ class YouTubeDeploymentMixin:
         return ACTIVE_PROFILE_PATH
 
     @staticmethod
-    def _read_credentials_file(path: Path) -> Optional[Dict]:
+    def _read_credentials_file(path: Path) -> dict | None:
         if not path.exists():
             return None
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 return json.load(f)
         except (OSError, json.JSONDecodeError):
             return None
 
     @classmethod
-    def list_youtube_profiles(cls) -> List[Dict[str, Optional[str]]]:
-        profiles: List[Dict[str, Optional[str]]] = []
+    def list_youtube_profiles(cls) -> list[dict[str, str | None]]:
+        profiles: list[dict[str, str | None]] = []
         active_profile = cls.get_effective_youtube_profile()
 
         if YOUTUBE_PROFILES_DIR.exists():
@@ -138,7 +136,7 @@ class YouTubeDeploymentMixin:
         return profiles
 
     @classmethod
-    def _fetch_authenticated_channel_info(cls, credentials: Credentials) -> Dict[str, str]:
+    def _fetch_authenticated_channel_info(cls, credentials: Credentials) -> dict[str, str]:
         service = build("youtube", "v3", credentials=credentials)
         response = service.channels().list(part="id,snippet", mine=True).execute()
         items = response.get("items") or []
@@ -151,18 +149,18 @@ class YouTubeDeploymentMixin:
             "channel_title": snippet.get("title", ""),
         }
 
-    def _get_youtube_service(self, youtube_profile: Optional[str] = None) -> Optional[Resource]:
+    def _get_youtube_service(self, youtube_profile: str | None = None) -> Resource | None:
         """Load credentials and build YouTube API service."""
         credentials_path = self.get_youtube_credentials_path(youtube_profile)
         if not credentials_path.exists():
             logger.error(
-                "YouTube credentials not found for profile '%s'. Run 'video-tool config youtube-auth' first."
-                % self.get_effective_youtube_profile(youtube_profile)
+                f"YouTube credentials not found for profile '{self.get_effective_youtube_profile(youtube_profile)}'. "
+                "Run 'video-tool config youtube-auth' first."
             )
             return None
 
         try:
-            with open(credentials_path, "r", encoding="utf-8") as f:
+            with open(credentials_path, encoding="utf-8") as f:
                 creds_data = json.load(f)
 
             credentials = Credentials(
@@ -192,9 +190,9 @@ class YouTubeDeploymentMixin:
             return None
 
     def _save_youtube_credentials(
-        self, credentials: Credentials, existing_data: Optional[Dict] = None
-        , profile: Optional[str] = None,
-        credentials_path: Optional[Path] = None,
+        self, credentials: Credentials, existing_data: dict | None = None
+        , profile: str | None = None,
+        credentials_path: Path | None = None,
     ) -> None:
         """Save credentials to disk."""
         creds_data = existing_data or {}
@@ -218,8 +216,8 @@ class YouTubeDeploymentMixin:
 
     @staticmethod
     def youtube_authenticate(
-        client_secrets_path: Optional[str] = None,
-        profile: Optional[str] = None,
+        client_secrets_path: str | None = None,
+        profile: str | None = None,
         set_active: bool = True,
     ) -> bool:
         """Run OAuth2 flow and save credentials.
@@ -299,12 +297,12 @@ class YouTubeDeploymentMixin:
         video_path: str,
         title: str,
         description: str = "",
-        tags: Optional[List[str]] = None,
+        tags: list[str] | None = None,
         category_id: int = 27,  # Education
         privacy_status: str = "private",
-        thumbnail_path: Optional[str] = None,
-        youtube_profile: Optional[str] = None,
-    ) -> Optional[Dict[str, str]]:
+        thumbnail_path: str | None = None,
+        youtube_profile: str | None = None,
+    ) -> dict[str, str] | None:
         """Upload a video to YouTube.
 
         Args:
@@ -402,11 +400,11 @@ class YouTubeDeploymentMixin:
     def update_youtube_metadata(
         self,
         video_id: str,
-        title: Optional[str] = None,
-        description: Optional[str] = None,
-        tags: Optional[List[str]] = None,
-        category_id: Optional[int] = None,
-        youtube_profile: Optional[str] = None,
+        title: str | None = None,
+        description: str | None = None,
+        tags: list[str] | None = None,
+        category_id: int | None = None,
+        youtube_profile: str | None = None,
     ) -> bool:
         """Update metadata for an existing YouTube video.
 
@@ -470,7 +468,7 @@ class YouTubeDeploymentMixin:
         self,
         video_id: str,
         thumbnail_path: str,
-        youtube_profile: Optional[str] = None,
+        youtube_profile: str | None = None,
     ) -> bool:
         """Upload or update thumbnail for a YouTube video.
 
@@ -520,7 +518,7 @@ class YouTubeDeploymentMixin:
         language: str = "en",
         name: str = "",
         is_draft: bool = False,
-        youtube_profile: Optional[str] = None,
+        youtube_profile: str | None = None,
     ) -> bool:
         """Upload caption track to a YouTube video.
 
@@ -551,7 +549,11 @@ class YouTubeDeploymentMixin:
             ".sbv": "text/x-youtube-sbv",
             ".sub": "text/x-mpsub",
         }
-        mimetype = caption_mime_types.get(suffix) or mimetypes.guess_type(str(caption_file))[0] or "application/octet-stream"
+        mimetype = (
+            caption_mime_types.get(suffix)
+            or mimetypes.guess_type(str(caption_file))[0]
+            or "application/octet-stream"
+        )
 
         try:
             media = MediaFileUpload(str(caption_file), mimetype=mimetype)
@@ -582,7 +584,7 @@ class YouTubeDeploymentMixin:
             return False
 
     @staticmethod
-    def get_youtube_credentials_status() -> Dict[str, bool]:
+    def get_youtube_credentials_status() -> dict[str, bool]:
         """Check status of YouTube credentials.
 
         Returns:

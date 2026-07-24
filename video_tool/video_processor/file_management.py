@@ -4,11 +4,11 @@ import csv
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Tuple
 
-from .constants import is_supported_video_file
 from loguru import logger
 from moviepy import VideoFileClip
+
+from .constants import is_supported_video_file
 
 
 class FileManagementMixin:
@@ -38,7 +38,7 @@ class FileManagementMixin:
 
     def get_video_metadata(
         self, file_path: str
-    ) -> Tuple[Optional[str], Optional[str], Optional[float]]:
+    ) -> tuple[str | None, str | None, float | None]:
         """Extract creation timestamp, stem, and duration in minutes."""
         try:
             creation_timestamp = os.path.getctime(file_path)
@@ -67,7 +67,7 @@ class FileManagementMixin:
     # Backwards-compatible alias; prefer the public get_video_metadata.
     _get_video_metadata = get_video_metadata
 
-    def get_video_files(self, directory: Optional[str] = None) -> List[Path]:
+    def get_video_files(self, directory: str | None = None) -> list[Path]:
         """Get all supported video files in the specified directory."""
         try:
             search_dir = Path(directory) if directory else self.input_dir
@@ -93,7 +93,7 @@ class FileManagementMixin:
             logger.error(f"Error accessing directory {search_dir}: {exc}")
             raise
 
-    def get_mp4_files(self, directory: Optional[str] = None) -> List[Path]:
+    def get_mp4_files(self, directory: str | None = None) -> list[Path]:
         """
         Backwards-compatible alias for get_video_files.
 

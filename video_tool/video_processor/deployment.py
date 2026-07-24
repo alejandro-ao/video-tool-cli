@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import base64
 import json
+from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence
 
 import requests
+from loguru import logger
 from requests import Response
 
 from video_tool.config import get_credential
-from loguru import logger
 
 
 class BunnyDeploymentMixin:
@@ -19,20 +19,20 @@ class BunnyDeploymentMixin:
 
     def deploy_to_bunny(
         self,
-        video_path: Optional[str],
+        video_path: str | None,
         *,
         upload_video: bool,
         upload_chapters: bool,
         upload_transcript: bool,
-        library_id: Optional[str] = None,
-        access_key: Optional[str] = None,
-        collection_id: Optional[str] = None,
-        video_title: Optional[str] = None,
-        chapters: Optional[Sequence[Dict[str, str]]] = None,
-        transcript_path: Optional[str] = None,
-        caption_language: Optional[str] = None,
-        video_id: Optional[str] = None,
-    ) -> Optional[Dict[str, str]]:
+        library_id: str | None = None,
+        access_key: str | None = None,
+        collection_id: str | None = None,
+        video_title: str | None = None,
+        chapters: Sequence[dict[str, str]] | None = None,
+        transcript_path: str | None = None,
+        caption_language: str | None = None,
+        video_id: str | None = None,
+    ) -> dict[str, str] | None:
         """Upload and/or enrich a Bunny Stream video with additional metadata."""
         if not (upload_video or upload_chapters or upload_transcript):
             logger.info("Bunny deployment skipped: no actions requested.")
@@ -53,7 +53,7 @@ class BunnyDeploymentMixin:
             or (self.video_title or "").strip()
         )
 
-        effective_video_id: Optional[str] = existing_video_id or None
+        effective_video_id: str | None = existing_video_id or None
         video_uploaded = False
         chapters_uploaded = False
         transcript_uploaded = False
@@ -127,12 +127,12 @@ class BunnyDeploymentMixin:
     def upload_bunny_video(
         self,
         *,
-        video_path: Optional[str],
-        library_id: Optional[str] = None,
-        access_key: Optional[str] = None,
-        collection_id: Optional[str] = None,
-        video_title: Optional[str] = None,
-    ) -> Optional[Dict[str, str]]:
+        video_path: str | None,
+        library_id: str | None = None,
+        access_key: str | None = None,
+        collection_id: str | None = None,
+        video_title: str | None = None,
+    ) -> dict[str, str] | None:
         """Create a Bunny video record and upload its binary content."""
         resolved_credentials = self._resolve_library_and_access(library_id, access_key)
         if not resolved_credentials:
@@ -194,10 +194,10 @@ class BunnyDeploymentMixin:
     def update_bunny_chapters(
         self,
         *,
-        video_id: Optional[str],
-        library_id: Optional[str] = None,
-        access_key: Optional[str] = None,
-        chapters: Optional[Sequence[Dict[str, str]]] = None,
+        video_id: str | None,
+        library_id: str | None = None,
+        access_key: str | None = None,
+        chapters: Sequence[dict[str, str]] | None = None,
     ) -> bool:
         """Update chapter metadata for an existing Bunny video."""
         resolved_credentials = self._resolve_library_and_access(library_id, access_key)
@@ -227,11 +227,11 @@ class BunnyDeploymentMixin:
     def update_bunny_transcript(
         self,
         *,
-        video_id: Optional[str],
-        library_id: Optional[str] = None,
-        access_key: Optional[str] = None,
-        transcript_path: Optional[str] = None,
-        language: Optional[str] = None,
+        video_id: str | None,
+        library_id: str | None = None,
+        access_key: str | None = None,
+        transcript_path: str | None = None,
+        language: str | None = None,
     ) -> bool:
         """Upload transcript captions for an existing Bunny video."""
         resolved_credentials = self._resolve_library_and_access(library_id, access_key)
@@ -271,9 +271,9 @@ class BunnyDeploymentMixin:
 
     def _resolve_library_and_access(
         self,
-        library_id: Optional[str],
-        access_key: Optional[str],
-    ) -> Optional[tuple[str, str]]:
+        library_id: str | None,
+        access_key: str | None,
+    ) -> tuple[str, str] | None:
         """Resolve and validate Bunny library credentials."""
         library = (library_id or get_credential("bunny_library_id") or "").strip()
         access = (access_key or get_credential("bunny_access_key") or "").strip()
@@ -288,14 +288,14 @@ class BunnyDeploymentMixin:
 
     def _prepare_chapters(
         self,
-        chapters: Optional[Sequence[Dict[str, str]]],
-    ) -> List[Dict[str, str]]:
+        chapters: Sequence[dict[str, str]] | None,
+    ) -> list[dict[str, str]]:
         """Load and normalise chapter data for Bunny."""
         if not chapters:
             timestamps_path = self.output_dir / "timestamps.json"
             if timestamps_path.exists():
                 try:
-                    with open(timestamps_path, "r", encoding="utf-8") as handle:
+                    with open(timestamps_path, encoding="utf-8") as handle:
                         stored = json.load(handle)
                     candidate = stored[0].get("timestamps") if stored else None
                     chapters = candidate if isinstance(candidate, list) else None
@@ -306,7 +306,7 @@ class BunnyDeploymentMixin:
         if not chapters:
             return []
 
-        normalised: List[Dict[str, int]] = []
+        normalised: list[dict[str, int]] = []
         for entry in chapters:
             title = (entry.get("title") or "").strip()
             raw_start = entry.get("start")
@@ -327,7 +327,7 @@ class BunnyDeploymentMixin:
         normalised.sort(key=lambda item: item["start"])
         return normalised
 
-    def _resolve_transcript(self, transcript_path: Optional[str]) -> Optional[Path]:
+    def _resolve_transcript(self, transcript_path: str | None) -> Path | None:
         """Resolve transcript file path, if any is present."""
         if transcript_path:
             candidate = Path(transcript_path)
@@ -342,10 +342,10 @@ class BunnyDeploymentMixin:
         library: str,
         access_key: str,
         title: str,
-        collection_id: Optional[str],
-    ) -> Optional[Dict[str, str]]:
+        collection_id: str | None,
+    ) -> dict[str, str] | None:
         """Create a Bunny video record and return the decoded payload."""
-        payload: Dict[str, str] = {"title": title}
+        payload: dict[str, str] = {"title": title}
         if collection_id:
             payload["collectionId"] = collection_id
 
@@ -400,7 +400,7 @@ class BunnyDeploymentMixin:
         library: str,
         access_key: str,
         video_id: str,
-        chapters: Iterable[Dict[str, str]],
+        chapters: Iterable[dict[str, str]],
     ) -> bool:
         """Update Bunny video metadata with chapter information."""
         url = f"{self._API_BASE}/library/{library}/videos/{video_id}"
@@ -484,7 +484,7 @@ class BunnyDeploymentMixin:
         access_key: str,
         video_id: str,
         language: str,
-    ) -> Optional[str]:
+    ) -> str | None:
         """Ensure a caption slot exists and return its identifier."""
         url = f"{self._API_BASE}/library/{library}/videos/{video_id}/captions"
         payload = {
@@ -529,10 +529,10 @@ class BunnyDeploymentMixin:
         method: str,
         url: str,
         access_key: str,
-        allow_error_statuses: Optional[Iterable[int]] = None,
+        allow_error_statuses: Iterable[int] | None = None,
         timeout: int,
         **kwargs,
-    ) -> Optional[Response]:
+    ) -> Response | None:
         """Wrapper around requests.request with logging and error handling."""
         headers = kwargs.pop("headers", {}) or {}
         headers.setdefault("AccessKey", access_key)
@@ -576,7 +576,7 @@ class BunnyDeploymentMixin:
             logger.error(f"Bunny API request failed ({method} {url}): {exc}")
             return None
 
-    def _format_chapter_time(self, raw: Optional[str]) -> Optional[int]:
+    def _format_chapter_time(self, raw: str | None) -> int | None:
         """Convert HH:MM:SS timestamps (or seconds) into integer offsets."""
         if raw is None:
             return None

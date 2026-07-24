@@ -6,14 +6,13 @@ are snake_case. After the merge, they become kebab-case. These tests verify
 both states and will catch regressions.
 """
 
-import yaml
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+import yaml
 
 from video_tool.video_processor import VideoProcessor
-
 
 PROMPTS_FILE = Path(__file__).resolve().parent.parent / "video_tool" / "prompts.yaml"
 

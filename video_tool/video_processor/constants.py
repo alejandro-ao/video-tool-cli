@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 # Containers we handle throughout the pipeline. Keep lowercase with leading dots.
 SUPPORTED_VIDEO_SUFFIXES: tuple[str, ...] = (".mp4", ".mov")

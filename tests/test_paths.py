@@ -7,7 +7,6 @@ On the current branch (pre-merge) the module may not exist yet; tests will
 be skipped until the PR is merged.
 """
 
-import importlib
 from pathlib import Path
 from unittest.mock import patch
 

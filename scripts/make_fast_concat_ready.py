@@ -16,7 +16,6 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Tuple
 
 from loguru import logger
 
@@ -27,9 +26,9 @@ class VideoProfile:
     width: int
     height: int
     fps: float
-    pix_fmt: Optional[str] = None
-    profile: Optional[str] = None
-    level: Optional[int] = None
+    pix_fmt: str | None = None
+    profile: str | None = None
+    level: int | None = None
 
 
 @dataclass
@@ -37,7 +36,7 @@ class AudioProfile:
     codec: str
     sample_rate: int
     channels: int
-    channel_layout: Optional[str] = None
+    channel_layout: str | None = None
 
 
 FFMPEG_VIDEO_ENCODERS = {
@@ -55,7 +54,7 @@ FFMPEG_AUDIO_ENCODERS = {
 }
 
 
-def _run_ffprobe(file_path: Path, selector: str, fields: str) -> Optional[dict]:
+def _run_ffprobe(file_path: Path, selector: str, fields: str) -> dict | None:
     """Run ffprobe for a single stream selector and return the first stream dict."""
     cmd = [
         "ffprobe",
@@ -75,7 +74,7 @@ def _run_ffprobe(file_path: Path, selector: str, fields: str) -> Optional[dict]:
     return streams[0] if streams else None
 
 
-def _parse_fraction(value: Optional[str]) -> Optional[float]:
+def _parse_fraction(value: str | None) -> float | None:
     """Convert ffprobe's fractional values (e.g., '30000/1001') into floats."""
     if not value:
         return None
@@ -91,7 +90,7 @@ def _parse_fraction(value: Optional[str]) -> Optional[float]:
         return None
 
 
-def _format_level(raw_level: Optional[int | float | str]) -> Optional[str]:
+def _format_level(raw_level: int | float | str | None) -> str | None:
     """FFmpeg expects levels like '4.1'; ffprobe often returns 41."""
     if raw_level is None:
         return None
@@ -102,7 +101,7 @@ def _format_level(raw_level: Optional[int | float | str]) -> Optional[str]:
     return str(raw_level)
 
 
-def _extract_profiles(reference: Path) -> Tuple[VideoProfile, Optional[AudioProfile]]:
+def _extract_profiles(reference: Path) -> tuple[VideoProfile, AudioProfile | None]:
     """Probe the reference video to capture video and audio parameters."""
     video_data = _run_ffprobe(
         reference, "v:0", "codec_name,width,height,r_frame_rate,pix_fmt,profile,level"
@@ -147,15 +146,15 @@ def _choose_audio_encoder(codec: str) -> str:
 
 
 def build_ffmpeg_command(
-    source: Path, output: Path, video: VideoProfile, audio: Optional[AudioProfile]
-) -> List[str]:
+    source: Path, output: Path, video: VideoProfile, audio: AudioProfile | None
+) -> list[str]:
     """Create an ffmpeg command that aligns the source to the reference profile."""
     vf_parts = [f"scale={video.width}:{video.height}:flags=lanczos"]
     if video.fps:
         vf_parts.append(f"fps={video.fps:g}")
     vf_filter = ",".join(vf_parts)
 
-    cmd: List[str] = [
+    cmd: list[str] = [
         "ffmpeg",
         "-y",
         "-i",

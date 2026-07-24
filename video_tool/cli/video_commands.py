@@ -3,24 +3,24 @@
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Optional
 
 import requests
 import typer
 
 from video_tool import VideoProcessor
-from video_tool.cli import validate_ai_env_vars, ensure_groq_key, ensure_openai_key, video_app
-from video_tool.config import get_llm_config, get_credential, prompt_and_save_credential
+from video_tool.cli import ensure_openai_key, video_app
+from video_tool.cli.paths import resolve_output_path
+from video_tool.config import get_credential, get_llm_config, prompt_and_save_credential
+from video_tool.metadata import read_metadata, write_metadata
 from video_tool.ui import (
+    ask_choice,
     ask_confirm,
     ask_path,
     ask_text,
-    ask_choice,
     console,
     normalize_path,
     status_spinner,
@@ -29,9 +29,7 @@ from video_tool.ui import (
     step_start,
     step_warning,
 )
-from video_tool.video_processor.constants import SUPPORTED_VIDEO_SUFFIXES, SUPPORTED_AUDIO_SUFFIXES
-from video_tool.cli.paths import resolve_output_path
-from video_tool.metadata import read_metadata, write_metadata
+from video_tool.video_processor.constants import SUPPORTED_AUDIO_SUFFIXES, SUPPORTED_VIDEO_SUFFIXES
 
 SUPPORTED_VIDEO_LABEL = ", ".join(ext.lstrip(".").upper() for ext in SUPPORTED_VIDEO_SUFFIXES)
 SUPPORTED_AUDIO_LABEL = ", ".join(ext.lstrip(".").upper() for ext in SUPPORTED_AUDIO_SUFFIXES)
@@ -39,13 +37,13 @@ SUPPORTED_AUDIO_LABEL = ", ".join(ext.lstrip(".").upper() for ext in SUPPORTED_A
 
 @video_app.command("download")
 def download(
-    url: Optional[str] = typer.Option(
+    url: str | None = typer.Option(
         None,
         "--url",
         "-u",
         help="Video URL to download (quote URLs in zsh to avoid globbing)",
     ),
-    output_path: Optional[Path] = typer.Option(None, "--output-path", "-o", help="Output file path"),
+    output_path: Path | None = typer.Option(None, "--output-path", "-o", help="Output file path"),
 ) -> None:
     """Download video from URL (YouTube, etc.)."""
     if url is None:
@@ -81,8 +79,8 @@ def download(
 
 @video_app.command("silence-removal")
 def silence_removal(
-    input_path: Optional[Path] = typer.Option(None, "--input", "-i", help="Input video file"),
-    output_path: Optional[Path] = typer.Option(None, "--output-path", "-o", help="Output video file path"),
+    input_path: Path | None = typer.Option(None, "--input", "-i", help="Input video file"),
+    output_path: Path | None = typer.Option(None, "--output-path", "-o", help="Output video file path"),
     threshold: float = typer.Option(1.0, "--threshold", "-t", help="Min silence duration in seconds to remove"),
 ) -> None:
     """Remove silences from a video file."""
@@ -125,9 +123,11 @@ def silence_removal(
 
 @video_app.command("concat")
 def concat(
-    input_dir: Optional[Path] = typer.Option(None, "--input-dir", "-i", help="Input directory containing videos"),
-    output_path: Optional[Path] = typer.Option(None, "--output-path", "-o", help="Full output file path (.mp4)"),
-    fast_concat: Optional[bool] = typer.Option(None, "--fast-concat/--no-fast-concat", "-f", help="Use fast concatenation (skip reprocessing)"),
+    input_dir: Path | None = typer.Option(None, "--input-dir", "-i", help="Input directory containing videos"),
+    output_path: Path | None = typer.Option(None, "--output-path", "-o", help="Full output file path (.mp4)"),
+    fast_concat: bool | None = typer.Option(
+        None, "--fast-concat/--no-fast-concat", "-f", help="Use fast concatenation (skip reprocessing)"
+    ),
 ) -> None:
     """Concatenate videos into a single file."""
     if input_dir is None:
@@ -217,11 +217,15 @@ def _write_concat_metadata(processor: VideoProcessor, output_video_path: Path, f
 
 @video_app.command("timestamps")
 def timestamps(
-    mode: Optional[str] = typer.Option(None, "--mode", "-m", help="Generation mode: 'clips' or 'transcript'"),
-    input_path: Optional[Path] = typer.Option(None, "--input", "-i", help="Input directory (clips) or VTT file (transcript)"),
-    output_path: Optional[Path] = typer.Option(None, "--output-path", "-o", help="Output JSON file path"),
-    granularity: Optional[str] = typer.Option(None, "--granularity", "-g", help="Granularity: low/medium/high (transcript mode)"),
-    notes: Optional[str] = typer.Option(None, "--notes", "-n", help="Additional LLM instructions (transcript mode)"),
+    mode: str | None = typer.Option(None, "--mode", "-m", help="Generation mode: 'clips' or 'transcript'"),
+    input_path: Path | None = typer.Option(
+        None, "--input", "-i", help="Input directory (clips) or VTT file (transcript)"
+    ),
+    output_path: Path | None = typer.Option(None, "--output-path", "-o", help="Output JSON file path"),
+    granularity: str | None = typer.Option(
+        None, "--granularity", "-g", help="Granularity: low/medium/high (transcript mode)"
+    ),
+    notes: str | None = typer.Option(None, "--notes", "-n", help="Additional LLM instructions (transcript mode)"),
 ) -> None:
     """Generate video chapter timestamps."""
     # 1. Determine mode (interactive or flag)
@@ -278,7 +282,9 @@ def timestamps(
         if granularity:
             final_granularity = granularity.lower()
         else:
-            console.print("  [dim]low[/dim] = fewer chapters, [dim]medium[/dim] = balanced, [dim]high[/dim] = more chapters")
+            console.print(
+                "  [dim]low[/dim] = fewer chapters, [dim]medium[/dim] = balanced, [dim]high[/dim] = more chapters"
+            )
             final_granularity = ask_choice("Granularity level", ["low", "medium", "high"], default="medium")
 
         if final_granularity not in ("low", "medium", "high"):
@@ -324,8 +330,8 @@ def _update_timestamps_metadata(output_path: str, timestamps_info: dict, use_tra
 
 @video_app.command("extract-audio")
 def extract_audio(
-    input_path: Optional[Path] = typer.Option(None, "--input", "-i", help="Input video file"),
-    output_path: Optional[Path] = typer.Option(None, "--output", "-o", help="Output MP3 file path"),
+    input_path: Path | None = typer.Option(None, "--input", "-i", help="Input video file"),
+    output_path: Path | None = typer.Option(None, "--output", "-o", help="Output MP3 file path"),
 ) -> None:
     """Extract audio from a video file to MP3."""
     from moviepy.video.io.VideoFileClip import VideoFileClip
@@ -375,15 +381,15 @@ def extract_audio(
             raise
         except Exception as exc:
             step_error(f"Failed to extract audio: {exc}")
-            raise typer.Exit(1)
+            raise typer.Exit(1) from exc
 
     step_complete("Audio extracted", str(final_output_path))
 
 
 @video_app.command("enhance-audio")
 def enhance_audio_cmd(
-    input_path: Optional[Path] = typer.Option(None, "--input", "-i", help="Input video/audio file"),
-    output_path: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path"),
+    input_path: Path | None = typer.Option(None, "--input", "-i", help="Input video/audio file"),
+    output_path: Path | None = typer.Option(None, "--output", "-o", help="Output file path"),
     denoise_only: bool = typer.Option(False, "--denoise-only", "-d", help="Only denoise, skip full enhancement"),
 ) -> None:
     """Enhance audio quality using Resemble AI (via Replicate)."""
@@ -420,7 +426,9 @@ def enhance_audio_cmd(
     is_video = suffix in SUPPORTED_VIDEO_SUFFIXES
 
     if not is_audio and not is_video:
-        step_error(f"Unsupported format: {suffix}. Use video ({SUPPORTED_VIDEO_LABEL}) or audio ({SUPPORTED_AUDIO_LABEL})")
+        step_error(
+            f"Unsupported format: {suffix}. Use video ({SUPPORTED_VIDEO_LABEL}) or audio ({SUPPORTED_AUDIO_LABEL})"
+        )
         raise typer.Exit(1)
 
     # 4. Resolve output path (keeps the input extension)
@@ -483,10 +491,10 @@ def enhance_audio_cmd(
 
     except subprocess.CalledProcessError as e:
         step_error(f"FFmpeg error: {e.stderr.decode() if e.stderr else str(e)}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
     except Exception as e:
         step_error(f"Enhancement failed: {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
 
 def _enhance_audio_replicate(audio_path: Path, api_token: str, denoise_only: bool) -> str:
@@ -566,7 +574,7 @@ def _download_file(url: str, dest: Path) -> None:
             f.write(chunk)
 
 
-def _get_media_duration(path: Path) -> Optional[float]:
+def _get_media_duration(path: Path) -> float | None:
     """Get duration of media file in seconds using ffprobe."""
     try:
         result = subprocess.run(
@@ -604,9 +612,9 @@ def _replace_video_audio(video_path: Path, audio_path: Path, output_path: Path) 
 
 @video_app.command("replace-audio")
 def replace_audio(
-    video_path: Optional[Path] = typer.Option(None, "--video", "-v", help="Input video file"),
-    audio_path: Optional[Path] = typer.Option(None, "--audio", "-a", help="New audio file"),
-    output_path: Optional[Path] = typer.Option(None, "--output", "-o", help="Output video path"),
+    video_path: Path | None = typer.Option(None, "--video", "-v", help="Input video file"),
+    audio_path: Path | None = typer.Option(None, "--audio", "-a", help="New audio file"),
+    output_path: Path | None = typer.Option(None, "--output", "-o", help="Output video path"),
 ) -> None:
     """Replace audio track in a video with a new audio file."""
     # 1. Get video path
@@ -666,7 +674,9 @@ def replace_audio(
     if video_duration is not None and audio_duration is not None:
         diff = abs(video_duration - audio_duration)
         if diff > 1.0:
-            step_warning(f"Duration mismatch: video={video_duration:.1f}s, audio={audio_duration:.1f}s (diff={diff:.1f}s)")
+            step_warning(
+                f"Duration mismatch: video={video_duration:.1f}s, audio={audio_duration:.1f}s (diff={diff:.1f}s)"
+            )
 
     # 7. Replace audio
     step_start("Replacing audio", {
@@ -681,7 +691,7 @@ def replace_audio(
         step_complete("Audio replaced", str(final_output_path))
     except subprocess.CalledProcessError as e:
         step_error(f"FFmpeg error: {e.stderr.decode() if e.stderr else str(e)}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
 
 # --- Metadata helpers ---
@@ -695,7 +705,7 @@ def replace_audio(
 
 @video_app.command("info")
 def video_info(
-    input_path: Optional[Path] = typer.Option(None, "--input", "-i", help="Input video file"),
+    input_path: Path | None = typer.Option(None, "--input", "-i", help="Input video file"),
 ) -> None:
     """Get detailed video metadata (duration, resolution, codec, etc.)."""
     # 1. Get input path
@@ -741,23 +751,23 @@ def video_info(
             console.print(f"  Bitrate: {info['bit_rate'] // 1000} kbps")
 
         # Also output as JSON for machine parsing
-        console.print(f"\n[dim]JSON:[/dim]")
+        console.print("\n[dim]JSON:[/dim]")
         console.print(json.dumps(info, indent=2))
 
     except subprocess.CalledProcessError as e:
         step_error(f"Failed to get video info: {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
     except Exception as e:
         step_error(f"Error: {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
 
 @video_app.command("trim")
 def video_trim(
-    input_path: Optional[Path] = typer.Option(None, "--input", "-i", help="Input video file"),
-    output_path: Optional[Path] = typer.Option(None, "--output", "-o", help="Output video file path"),
-    start: Optional[str] = typer.Option(None, "--start", "-s", help="Start timestamp (HH:MM:SS, MM:SS, or seconds)"),
-    end: Optional[str] = typer.Option(None, "--end", "-e", help="End timestamp (HH:MM:SS, MM:SS, or seconds)"),
+    input_path: Path | None = typer.Option(None, "--input", "-i", help="Input video file"),
+    output_path: Path | None = typer.Option(None, "--output", "-o", help="Output video file path"),
+    start: str | None = typer.Option(None, "--start", "-s", help="Start timestamp (HH:MM:SS, MM:SS, or seconds)"),
+    end: str | None = typer.Option(None, "--end", "-e", help="End timestamp (HH:MM:SS, MM:SS, or seconds)"),
     gpu: bool = typer.Option(False, "--gpu", "-g", help="Use GPU acceleration"),
 ) -> None:
     """Trim video by cutting from start and/or end."""
@@ -825,15 +835,15 @@ def video_trim(
         step_complete("Video trimmed", result)
     except Exception as e:
         step_error(f"Failed to trim video: {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
 
 @video_app.command("extract-segment")
 def video_extract_segment(
-    input_path: Optional[Path] = typer.Option(None, "--input", "-i", help="Input video file"),
-    output_path: Optional[Path] = typer.Option(None, "--output", "-o", help="Output video file path"),
-    start: Optional[str] = typer.Option(None, "--start", "-s", help="Start timestamp (HH:MM:SS, MM:SS, or seconds)"),
-    end: Optional[str] = typer.Option(None, "--end", "-e", help="End timestamp (HH:MM:SS, MM:SS, or seconds)"),
+    input_path: Path | None = typer.Option(None, "--input", "-i", help="Input video file"),
+    output_path: Path | None = typer.Option(None, "--output", "-o", help="Output video file path"),
+    start: str | None = typer.Option(None, "--start", "-s", help="Start timestamp (HH:MM:SS, MM:SS, or seconds)"),
+    end: str | None = typer.Option(None, "--end", "-e", help="End timestamp (HH:MM:SS, MM:SS, or seconds)"),
     gpu: bool = typer.Option(False, "--gpu", "-g", help="Use GPU acceleration"),
 ) -> None:
     """Extract a segment from video (keep only specified range)."""
@@ -896,15 +906,15 @@ def video_extract_segment(
         step_complete("Segment extracted", result)
     except Exception as e:
         step_error(f"Failed to extract segment: {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
 
 @video_app.command("cut")
 def video_cut(
-    input_path: Optional[Path] = typer.Option(None, "--input", "-i", help="Input video file"),
-    output_path: Optional[Path] = typer.Option(None, "--output", "-o", help="Output video file path"),
-    cut_from: Optional[str] = typer.Option(None, "--from", "-f", help="Start of segment to remove"),
-    cut_to: Optional[str] = typer.Option(None, "--to", "-t", help="End of segment to remove"),
+    input_path: Path | None = typer.Option(None, "--input", "-i", help="Input video file"),
+    output_path: Path | None = typer.Option(None, "--output", "-o", help="Output video file path"),
+    cut_from: str | None = typer.Option(None, "--from", "-f", help="Start of segment to remove"),
+    cut_to: str | None = typer.Option(None, "--to", "-t", help="End of segment to remove"),
     gpu: bool = typer.Option(False, "--gpu", "-g", help="Use GPU acceleration"),
 ) -> None:
     """Remove a segment from video (cut out middle portion)."""
@@ -967,15 +977,17 @@ def video_cut(
         step_complete("Video cut", result)
     except Exception as e:
         step_error(f"Failed to cut video: {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
 
 @video_app.command("speed")
 def video_speed(
-    input_path: Optional[Path] = typer.Option(None, "--input", "-i", help="Input video file"),
-    output_path: Optional[Path] = typer.Option(None, "--output", "-o", help="Output video file path"),
-    factor: Optional[float] = typer.Option(None, "--factor", "-f", help="Speed factor (0.25-4.0). 2.0=double, 0.5=half"),
-    preserve_pitch: bool = typer.Option(True, "--preserve-pitch/--no-preserve-pitch", "-p", help="Preserve audio pitch"),
+    input_path: Path | None = typer.Option(None, "--input", "-i", help="Input video file"),
+    output_path: Path | None = typer.Option(None, "--output", "-o", help="Output video file path"),
+    factor: float | None = typer.Option(None, "--factor", "-f", help="Speed factor (0.25-4.0). 2.0=double, 0.5=half"),
+    preserve_pitch: bool = typer.Option(
+        True, "--preserve-pitch/--no-preserve-pitch", "-p", help="Preserve audio pitch"
+    ),
     gpu: bool = typer.Option(False, "--gpu", "-g", help="Use GPU acceleration"),
 ) -> None:
     """Change video playback speed."""
@@ -1004,7 +1016,7 @@ def video_speed(
             factor = float(factor_str)
         except ValueError:
             step_error(f"Invalid factor: {factor_str}")
-            raise typer.Exit(1)
+            raise typer.Exit(1) from None
 
     if factor < 0.25 or factor > 4.0:
         step_error(f"Factor must be between 0.25 and 4.0, got {factor}")
@@ -1046,4 +1058,4 @@ def video_speed(
         step_complete("Video speed changed", result)
     except Exception as e:
         step_error(f"Failed to change video speed: {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e

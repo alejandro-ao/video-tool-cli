@@ -8,33 +8,33 @@ Command structure:
 
 from __future__ import annotations
 
-import os
 import sys
+from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
 
 import typer
 from typer.core import TyperGroup
 
-from video_tool.logging_config import configure_logging
-from video_tool.ui import console, step_error, step_complete, step_start, step_info
 from video_tool.config import (
-    load_config,
-    set_llm_config,
-    reset_config,
-    get_llm_config,
-    prompt_links_setup,
     CONFIG_PATH,
-    CREDENTIALS_PATH,
     CREDENTIAL_KEYS,
-    get_credential,
-    load_credentials,
-    save_credentials,
+    CREDENTIALS_PATH,
     clear_credentials,
+    get_credential,
+    get_llm_config,
+    load_config,
+    load_credentials,
     mask_credential,
     prompt_and_save_credential,
+    prompt_links_setup,
+    reset_config,
+    save_credentials,
     set_credential,
+    set_llm_config,
 )
+from video_tool.logging_config import configure_logging
+from video_tool.ui import console, step_complete, step_error, step_start
+
 
 class _ShortHelpGroup(TyperGroup):
     """Typer group that recognizes -h alongside --help."""
@@ -95,8 +95,6 @@ app.add_typer(generate_app, name="generate")
 app.add_typer(upload_app, name="upload")
 app.add_typer(config_app, name="config")
 
-from dataclasses import dataclass
-
 
 @dataclass(frozen=True)
 class _KeySpec:
@@ -106,7 +104,7 @@ class _KeySpec:
     label: str
     required: bool
     hide_input: bool = True
-    signup_url: Optional[str] = None
+    signup_url: str | None = None
 
 
 _REQUIRED_KEY_SPECS = [
@@ -203,8 +201,8 @@ def validate_ai_env_vars() -> bool:
 
 
 def validate_bunny_env_vars(
-    library_id: Optional[str] = None,
-    access_key: Optional[str] = None,
+    library_id: str | None = None,
+    access_key: str | None = None,
 ) -> bool:
     """Check that Bunny.net credentials are available (no prompting)."""
     missing = []
@@ -226,9 +224,9 @@ def validate_bunny_env_vars(
 @config_app.command("llm")
 def config_llm_command(
     show: bool = typer.Option(False, "--show", "-s", help="Show current config"),
-    command: Optional[str] = typer.Option(None, "--command", "-c", help="Command to configure (e.g., description, seo)"),
-    model: Optional[str] = typer.Option(None, "--model", "-m", help="Set model for command"),
-    base_url: Optional[str] = typer.Option(None, "--base-url", "-b", help="Set base URL for command"),
+    command: str | None = typer.Option(None, "--command", "-c", help="Command to configure (e.g., description, seo)"),
+    model: str | None = typer.Option(None, "--model", "-m", help="Set model for command"),
+    base_url: str | None = typer.Option(None, "--base-url", "-b", help="Set base URL for command"),
     links: bool = typer.Option(False, "--links", "-l", help="Manage persistent links"),
     reset: bool = typer.Option(False, "--reset", help="Reset config to defaults"),
 ) -> None:
@@ -237,7 +235,7 @@ def config_llm_command(
 
     if reset:
         reset_config()
-        console.print(f"[green]Config reset to defaults[/green]")
+        console.print("[green]Config reset to defaults[/green]")
         console.print(f"[dim]Config file: {CONFIG_PATH}[/dim]")
         return
 
@@ -278,7 +276,7 @@ def config_llm_command(
 def config_keys_command(
     show: bool = typer.Option(False, "--show", "-s", help="Show current API keys (masked)"),
     reset: bool = typer.Option(False, "--reset", help="Clear all stored credentials"),
-    set_creds: Optional[List[str]] = typer.Option(
+    set_creds: list[str] | None = typer.Option(
         None, "--set", help="Set credential non-interactively (KEY=VALUE)"
     ),
 ) -> None:
@@ -362,7 +360,7 @@ def config_keys_command(
 
 @config_app.command("youtube-auth")
 def config_youtube_auth(
-    client_secrets: Optional[str] = typer.Option(
+    client_secrets: str | None = typer.Option(
         None,
         "--client-secrets",
         "-c",
@@ -385,10 +383,9 @@ def config_youtube_auth(
     One-time setup: downloads refresh token after browser-based consent.
     Credentials are saved under ~/.config/video-tool/youtube/<profile>.json
     """
-    from pathlib import Path
     from video_tool.video_processor.youtube import (
-        YouTubeDeploymentMixin,
         CLIENT_SECRETS_PATH,
+        YouTubeDeploymentMixin,
     )
 
     # Prompt for client secrets if not provided
@@ -430,7 +427,7 @@ def config_youtube_auth(
 
 @config_app.command("youtube-status")
 def config_youtube_status(
-    profile: Optional[str] = typer.Option(
+    profile: str | None = typer.Option(
         None,
         "--profile",
         "-p",
@@ -439,14 +436,15 @@ def config_youtube_status(
 ) -> None:
     """Check YouTube API credentials status."""
     from video_tool.video_processor.youtube import (
-        YouTubeDeploymentMixin,
         CLIENT_SECRETS_PATH,
+        YouTubeDeploymentMixin,
     )
 
     status = YouTubeDeploymentMixin.get_youtube_credentials_status()
 
     console.print("\n[bold]YouTube Credentials Status[/bold]")
-    console.print(f"  Client secrets: {'[green]Found[/green]' if status['client_secrets_exists'] else '[red]Missing[/red]'}")
+    secrets_status = "[green]Found[/green]" if status["client_secrets_exists"] else "[red]Missing[/red]"
+    console.print(f"  Client secrets: {secrets_status}")
     console.print(f"    Path: {CLIENT_SECRETS_PATH}")
     console.print(f"  Credentials: {'[green]Found[/green]' if status['credentials_exist'] else '[red]Missing[/red]'}")
     console.print(f"  Active profile: {status['active_profile']}")
@@ -503,6 +501,7 @@ def config_x_auth() -> None:
     Get these from https://developer.x.com/en/portal/dashboard
     """
     import webbrowser
+
     from requests_oauthlib import OAuth1Session
 
     console.print("\n[bold]X (Twitter) OAuth Setup[/bold]")
@@ -592,14 +591,16 @@ def config_x_auth() -> None:
     except Exception as e:
         step_error(f"OAuth flow failed: {e}")
         console.print("[dim]Try entering Access Token and Secret manually instead.[/dim]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
 
-# Import command modules to register commands
-from video_tool.cli import video_commands  # noqa: E402, F401
-from video_tool.cli import generate_commands  # noqa: E402, F401
-from video_tool.cli import deploy_commands  # noqa: E402, F401
-from video_tool.cli import social_commands  # noqa: E402, F401
+# Import command modules to register commands (bottom of file: they import the apps above)
+from video_tool.cli import (  # noqa: E402
+    deploy_commands,  # noqa: F401
+    generate_commands,  # noqa: F401
+    social_commands,  # noqa: F401
+    video_commands,  # noqa: F401
+)
 
 
 def main() -> None:
