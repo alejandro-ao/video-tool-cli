@@ -1,13 +1,20 @@
 """Logging configuration for video-tool CLI.
 
-Suppresses loguru terminal output by default, routing all logs to file.
+Suppresses loguru terminal output by default, routing all logs to a file
+under the user config directory (never the caller's working directory).
 Optional verbose mode adds filtered stderr output.
 """
 
 from __future__ import annotations
 
 import sys
+
 from loguru import logger
+
+from video_tool.config import CONFIG_DIR
+
+LOG_DIR = CONFIG_DIR / "logs"
+LOG_PATH = LOG_DIR / "video_processor.log"
 
 _configured = False
 
@@ -27,8 +34,9 @@ def configure_logging(verbose: bool = False) -> None:
     logger.remove()
 
     # File handler for all logs
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
     logger.add(
-        "video_processor.log",
+        str(LOG_PATH),
         rotation="1 day",
         retention="1 week",
         level="DEBUG",
