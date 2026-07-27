@@ -42,7 +42,9 @@ def _find_supported_videos(directory: Path) -> list[Path]:
 @generate_app.command("transcript")
 def transcript(
     input_path: Path | None = typer.Option(None, "--input", "-i", help="Input video or audio file"),
-    output_path: Path | None = typer.Option(None, "--output-path", "-o", help="Output VTT file path"),
+    output_path: Path | None = typer.Option(
+        None, "--output-path", "-o", help="Output VTT path; relative paths use the current directory"
+    ),
     backend: str = typer.Option(
         "auto", "--backend", help="Backend: auto, groq, MLX, faster-whisper, Transformers, or NeMo"
     ),
@@ -152,7 +154,9 @@ def _update_transcript_metadata(transcript_path: str, result: object | None = No
 @generate_app.command("description")
 def description(
     input_path: Path | None = typer.Option(None, "--input", "-i", help="Input file (video/audio/vtt/md/txt)"),
-    output_path: Path | None = typer.Option(None, "--output-path", "-o", help="Full path for output description"),
+    output_path: Path | None = typer.Option(
+        None, "--output-path", "-o", help="Output description path; relative paths use the current directory"
+    ),
     timestamps: Path | None = typer.Option(None, "--timestamps", "-t", help="Path to timestamps JSON"),
     links: bool = typer.Option(False, "--links", "-l", help="Include persistent links from config"),
     code_link: str | None = typer.Option(None, "--code-link", help="Link to code repository"),
@@ -193,17 +197,15 @@ def description(
     # Always need OpenAI for LLM description generation
     if not ensure_openai_key():
         raise typer.Exit(1)
-    # Determine default output path
-    default_output_path = input_path.parent / "description.md"
-
-    # Ask for output path if not provided
-    if output_path is None:
-        output_str = ask_path(f"Output path (default: {default_output_path})", required=False)
-        if output_str:
-            output_path = Path(output_str)
-
-    final_output_path = str(Path(normalize_path(str(output_path)))) if output_path else str(default_output_path)
-    output_dir_path = Path(final_output_path).parent
+    final_output = resolve_output_path(
+        output_path,
+        input_path.parent,
+        default_name="description.md",
+        prompt=True,
+        prompt_text=f"Output path (default: {input_path.parent / 'description.md'})",
+    )
+    final_output_path = str(final_output)
+    output_dir_path = final_output.parent
 
     # Generate transcript if needed
     processor: VideoProcessor | None = None
@@ -311,7 +313,9 @@ def _update_description_metadata(output_dir: Path, transcript_file: Path | None,
 @generate_app.command("context-cards")
 def context_cards(
     input_path: Path | None = typer.Option(None, "--input", "-i", help="Input file (video/audio/vtt)"),
-    output_path: Path | None = typer.Option(None, "--output", "-o", help="Output file path"),
+    output_path: Path | None = typer.Option(
+        None, "--output", "-o", help="Output file path; relative paths use the current directory"
+    ),
 ) -> None:
     """Generate context cards from transcript or media file."""
     transcript_file: Path | None = None
@@ -343,17 +347,15 @@ def context_cards(
     # Always need OpenAI for LLM context card generation
     if not ensure_openai_key():
         raise typer.Exit(1)
-    # Determine default output path
-    default_output_path = input_path.parent / "context-cards.md"
-
-    # Resolve output path
-    if output_path is None:
-        output_str = ask_path(f"Output path (default: {default_output_path})", required=False)
-        if output_str:
-            output_path = Path(output_str)
-
-    final_output_path = str(Path(normalize_path(str(output_path)))) if output_path else str(default_output_path)
-    output_dir_path = Path(final_output_path).parent
+    final_output = resolve_output_path(
+        output_path,
+        input_path.parent,
+        default_name="context-cards.md",
+        prompt=True,
+        prompt_text=f"Output path (default: {input_path.parent / 'context-cards.md'})",
+    )
+    final_output_path = str(final_output)
+    output_dir_path = final_output.parent
 
     # Generate transcript if needed
     processor: VideoProcessor | None = None

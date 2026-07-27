@@ -12,7 +12,7 @@ from video_tool.ui import normalize_path
 
 def resolve_output_path(
     output_path: Path | None,
-    input_path: Path,
+    default_dir: Path,
     default_name: str,
     suffix: str | None = None,
     prompt: bool = False,
@@ -25,37 +25,34 @@ def resolve_output_path(
 
     Args:
         output_path: Explicit --output path from the user (may be None).
-        input_path: The input file/directory used to resolve relative paths.
+        default_dir: Directory for the default output when the user doesn't
+            supply one. This is normally the input file's parent directory.
         default_name: Default filename when the user doesn't supply one.
         suffix: Force the output to have this suffix (e.g. '.mp4', '.vtt').
             If None, the suffix from output_path or default_name is kept.
         prompt: If True and output_path is None, prompt interactively.
         prompt_text: Override prompt text.
     Returns:
-        A Path ready for use. It is absolute only when ``input_path`` is
-        absolute; relative inputs are anchored to ``input_path`` without calling
-        ``resolve()``.
+        A path ready for use. Explicit relative paths remain relative to the
+        current working directory; only default outputs are joined to
+        ``default_dir``.
 
     Side effects:
         Creates the parent directory of the resolved path if needed.
     """
     if output_path is not None:
         resolved = Path(normalize_path(str(output_path)))
-        if not resolved.is_absolute():
-            resolved = input_path / resolved
     elif prompt:
         from video_tool.ui import ask_path
 
         prompt_msg = prompt_text or f"Output path (defaults to {default_name})"
         output_path_str = ask_path(prompt_msg, required=False)
         if output_path_str:
-            resolved = Path(output_path_str)
-            if not resolved.is_absolute():
-                resolved = input_path / resolved
+            resolved = Path(normalize_path(output_path_str))
         else:
-            resolved = input_path / default_name
+            resolved = default_dir / default_name
     else:
-        resolved = input_path / default_name
+        resolved = default_dir / default_name
 
     if suffix and resolved.suffix.lower() != suffix:
         resolved = resolved.with_suffix(suffix)

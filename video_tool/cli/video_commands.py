@@ -43,7 +43,9 @@ def download(
         "-u",
         help="Video URL to download (quote URLs in zsh to avoid globbing)",
     ),
-    output_path: Path | None = typer.Option(None, "--output-path", "-o", help="Output file path"),
+    output_path: Path | None = typer.Option(
+        None, "--output-path", "-o", help="Output file path; relative paths use the current directory"
+    ),
 ) -> None:
     """Download video from URL (YouTube, etc.)."""
     if url is None:
@@ -80,7 +82,9 @@ def download(
 @video_app.command("silence-removal")
 def silence_removal(
     input_path: Path | None = typer.Option(None, "--input", "-i", help="Input video file"),
-    output_path: Path | None = typer.Option(None, "--output-path", "-o", help="Output video file path"),
+    output_path: Path | None = typer.Option(
+        None, "--output-path", "-o", help="Output video path; relative paths use the current directory"
+    ),
     threshold: float = typer.Option(1.0, "--threshold", "-t", help="Min silence duration in seconds to remove"),
 ) -> None:
     """Remove silences from a video file."""
@@ -120,7 +124,9 @@ def silence_removal(
 @video_app.command("concat")
 def concat(
     input_dir: Path | None = typer.Option(None, "--input-dir", "-i", help="Input directory containing videos"),
-    output_path: Path | None = typer.Option(None, "--output-path", "-o", help="Full output file path (.mp4)"),
+    output_path: Path | None = typer.Option(
+        None, "--output-path", "-o", help="Output MP4 path; relative paths use the current directory"
+    ),
     fast_concat: bool | None = typer.Option(
         None, "--fast-concat/--no-fast-concat", "-f", help="Use fast concatenation (skip reprocessing)"
     ),
@@ -136,7 +142,7 @@ def concat(
         step_error(f"Invalid input directory: {input_dir}")
         raise typer.Exit(1)
 
-    # Resolve output path (relative paths resolve to input_dir)
+    # Resolve explicit paths from the current directory; defaults use input_dir.
     from datetime import datetime
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -218,7 +224,9 @@ def timestamps(
     input_path: Path | None = typer.Option(
         None, "--input", "-i", help="Input directory (clips) or VTT file (transcript)"
     ),
-    output_path: Path | None = typer.Option(None, "--output-path", "-o", help="Output JSON file path"),
+    output_path: Path | None = typer.Option(
+        None, "--output-path", "-o", help="Output JSON path; relative paths use the current directory"
+    ),
     granularity: str | None = typer.Option(
         None, "--granularity", "-g", help="Granularity: low/medium/high (transcript mode)"
     ),
@@ -328,7 +336,9 @@ def _update_timestamps_metadata(output_path: str, timestamps_info: dict, use_tra
 @video_app.command("extract-audio")
 def extract_audio(
     input_path: Path | None = typer.Option(None, "--input", "-i", help="Input video file"),
-    output_path: Path | None = typer.Option(None, "--output", "-o", help="Output MP3 file path"),
+    output_path: Path | None = typer.Option(
+        None, "--output", "-o", help="Output MP3 path; relative paths use the current directory"
+    ),
 ) -> None:
     """Extract audio from a video file to MP3."""
     from moviepy.video.io.VideoFileClip import VideoFileClip
@@ -389,7 +399,9 @@ def extract_audio(
 @video_app.command("enhance-audio")
 def enhance_audio_cmd(
     input_path: Path | None = typer.Option(None, "--input", "-i", help="Input video/audio file"),
-    output_path: Path | None = typer.Option(None, "--output", "-o", help="Output file path"),
+    output_path: Path | None = typer.Option(
+        None, "--output", "-o", help="Output file path; relative paths use the current directory"
+    ),
     denoise_only: bool = typer.Option(False, "--denoise-only", "-d", help="Only denoise, skip full enhancement"),
 ) -> None:
     """Enhance audio quality using Resemble AI (via Replicate)."""
@@ -640,7 +652,9 @@ def _replace_video_audio(video_path: Path, audio_path: Path, output_path: Path) 
 def replace_audio(
     video_path: Path | None = typer.Option(None, "--video", "-v", help="Input video file"),
     audio_path: Path | None = typer.Option(None, "--audio", "-a", help="New audio file"),
-    output_path: Path | None = typer.Option(None, "--output", "-o", help="Output video path"),
+    output_path: Path | None = typer.Option(
+        None, "--output", "-o", help="Output video path; relative paths use the current directory"
+    ),
 ) -> None:
     """Replace audio track in a video with a new audio file."""
     # 1. Get video path
@@ -791,7 +805,9 @@ def video_info(
 @video_app.command("trim")
 def video_trim(
     input_path: Path | None = typer.Option(None, "--input", "-i", help="Input video file"),
-    output_path: Path | None = typer.Option(None, "--output", "-o", help="Output video file path"),
+    output_path: Path | None = typer.Option(
+        None, "--output", "-o", help="Output video path; relative paths use the current directory"
+    ),
     start: str | None = typer.Option(None, "--start", "-s", help="Start timestamp (HH:MM:SS, MM:SS, or seconds)"),
     end: str | None = typer.Option(None, "--end", "-e", help="End timestamp (HH:MM:SS, MM:SS, or seconds)"),
     gpu: bool = typer.Option(False, "--gpu", "-g", help="Use GPU acceleration"),
@@ -867,7 +883,9 @@ def video_trim(
 @video_app.command("extract-segment")
 def video_extract_segment(
     input_path: Path | None = typer.Option(None, "--input", "-i", help="Input video file"),
-    output_path: Path | None = typer.Option(None, "--output", "-o", help="Output video file path"),
+    output_path: Path | None = typer.Option(
+        None, "--output", "-o", help="Output video path; relative paths use the current directory"
+    ),
     start: str | None = typer.Option(None, "--start", "-s", help="Start timestamp (HH:MM:SS, MM:SS, or seconds)"),
     end: str | None = typer.Option(None, "--end", "-e", help="End timestamp (HH:MM:SS, MM:SS, or seconds)"),
     gpu: bool = typer.Option(False, "--gpu", "-g", help="Use GPU acceleration"),
@@ -938,7 +956,9 @@ def video_extract_segment(
 @video_app.command("cut")
 def video_cut(
     input_path: Path | None = typer.Option(None, "--input", "-i", help="Input video file"),
-    output_path: Path | None = typer.Option(None, "--output", "-o", help="Output video file path"),
+    output_path: Path | None = typer.Option(
+        None, "--output", "-o", help="Output video path; relative paths use the current directory"
+    ),
     cut_from: str | None = typer.Option(None, "--from", "-f", help="Start of segment to remove"),
     cut_to: str | None = typer.Option(None, "--to", "-t", help="End of segment to remove"),
     gpu: bool = typer.Option(False, "--gpu", "-g", help="Use GPU acceleration"),
@@ -1009,7 +1029,9 @@ def video_cut(
 @video_app.command("speed")
 def video_speed(
     input_path: Path | None = typer.Option(None, "--input", "-i", help="Input video file"),
-    output_path: Path | None = typer.Option(None, "--output", "-o", help="Output video file path"),
+    output_path: Path | None = typer.Option(
+        None, "--output", "-o", help="Output video path; relative paths use the current directory"
+    ),
     factor: float | None = typer.Option(None, "--factor", "-f", help="Speed factor (0.25-4.0). 2.0=double, 0.5=half"),
     preserve_pitch: bool = typer.Option(
         True, "--preserve-pitch/--no-preserve-pitch", "-p", help="Preserve audio pitch"

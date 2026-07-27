@@ -1,6 +1,7 @@
 """Tests for the generate command group."""
 
 import json
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -166,6 +167,34 @@ def test_generate_description_from_vtt_happy_path(tmp_path):
     kwargs = instance.generate_description.call_args.kwargs
     assert kwargs["transcript_path"] == str(transcript)
     assert kwargs["output_path"] == str(output)
+
+
+@pytest.mark.unit
+def test_generate_description_relative_output_uses_current_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    transcript = tmp_path / "media" / "transcript.vtt"
+    transcript.parent.mkdir()
+    transcript.write_text("WEBVTT\n\n00:00:00.000 --> 00:00:05.000\nHello")
+    working_dir = tmp_path / "working"
+    working_dir.mkdir()
+    monkeypatch.chdir(working_dir)
+
+    with (
+        patch("video_tool.cli.generate_commands.ensure_config"),
+        patch("video_tool.cli.generate_commands.ensure_openai_key", return_value=True),
+        patch("video_tool.cli.generate_commands.VideoProcessor") as mock_processor,
+    ):
+        instance = mock_processor.return_value
+        instance.generate_description.return_value = "output/description.md"
+        result = runner.invoke(
+            app,
+            ["generate", "description", "-i", str(transcript), "-o", "output/description.md"],
+        )
+
+    assert result.exit_code == 0, result.stdout
+    assert instance.generate_description.call_args.kwargs["output_path"] == "output/description.md"
+    assert (working_dir / "output").is_dir()
 
 
 @pytest.mark.unit
