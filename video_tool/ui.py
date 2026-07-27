@@ -100,8 +100,8 @@ def normalize_path(raw: str) -> str:
     """Normalize shell-style path input without changing relative-path semantics.
 
     This strips common shell quoting/escaping and expands ``~``. It intentionally
-    does not call ``resolve()`` so callers can decide what a relative path means
-    (for example, many output paths are relative to the input file/directory).
+    does not call ``resolve()`` so callers can preserve standard current-working-
+    directory semantics for relative paths.
     """
     trimmed = raw.strip()
     # Remove surrounding quotes if present

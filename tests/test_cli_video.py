@@ -46,23 +46,27 @@ def test_concat_happy_path_fast_mode(tmp_path: Path) -> None:
 
 
 @pytest.mark.unit
-def test_concat_standard_mode_and_relative_output(tmp_path: Path) -> None:
-    """Relative --output-path resolves inside the input directory."""
+def test_concat_standard_mode_and_relative_output(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Relative --output-path resolves from the current working directory."""
     clips = tmp_path / "clips"
     clips.mkdir()
+    working_dir = tmp_path / "working"
+    working_dir.mkdir()
+    monkeypatch.chdir(working_dir)
 
     with patch("video_tool.cli.video_commands.VideoProcessor") as mock_processor:
         instance = mock_processor.return_value
-        instance.concatenate_videos.return_value = str(clips / "out.mp4")
+        instance.concatenate_videos.return_value = "output/out.mp4"
         instance.get_video_metadata.return_value = (None, None, None)
 
         result = runner.invoke(
             app,
-            ["video", "concat", "-i", str(clips), "-o", "out.mp4", "--no-fast-concat"],
+            ["video", "concat", "-i", str(clips), "-o", "output/out.mp4", "--no-fast-concat"],
         )
 
     assert result.exit_code == 0, result.stdout
-    instance.concatenate_videos.assert_called_once_with(skip_reprocessing=False, output_path=str(clips / "out.mp4"))
+    instance.concatenate_videos.assert_called_once_with(skip_reprocessing=False, output_path="output/out.mp4")
+    assert (working_dir / "output").is_dir()
 
 
 @pytest.mark.unit

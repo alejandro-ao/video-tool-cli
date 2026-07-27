@@ -83,6 +83,20 @@ video-tool upload <command> ...      # Bunny.net / YouTube uploads
    video-tool generate description -i ./output/transcript.vtt -t ./output/timestamps.json -o ./output/description.md
    ```
 
+### Output paths
+
+Explicit relative output paths follow normal shell conventions and resolve from the current working directory. Absolute paths are used unchanged. When `-o` is omitted, processing commands keep their default output beside the input (or in the command's documented default directory).
+
+```bash
+# Writes $PWD/output/transcript.vtt, even when the input is elsewhere
+video-tool generate transcript -i /videos/final.mp4 -o ./output/transcript.vtt
+
+# With no -o, writes /videos/transcript.vtt
+video-tool generate transcript -i /videos/final.mp4
+```
+
+> **Behavior change:** older versions resolved explicit relative output paths from the input directory. Scripts relying on that behavior should pass an absolute output path or omit `-o` to retain input-relative defaults.
+
 ### Local transcription models
 
 The tool selects an installed backend automatically. Inspect recommendations and supported models with:

@@ -37,15 +37,18 @@ class TestResolveOutputPath:
         assert result == output
         assert result.parent.exists()
 
-    def test_explicit_relative_path_resolves_against_input(self, tmp_path: Path) -> None:
-        input_path = tmp_path / "project"
-        input_path.mkdir()
+    def test_explicit_relative_path_uses_current_directory(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        default_dir = tmp_path / "project"
+        default_dir.mkdir()
+        monkeypatch.chdir(tmp_path)
         relative_output = Path("subdir/video.mp4")
 
-        result = resolve_output_path(relative_output, input_path, "default.mp4")
+        result = resolve_output_path(relative_output, default_dir, "default.mp4")
 
-        assert result == input_path / "subdir" / "video.mp4"
-        assert result.parent.exists()
+        assert result == relative_output
+        assert (tmp_path / result.parent).exists()
 
     def test_none_output_uses_default_name(self, tmp_path: Path) -> None:
         input_path = tmp_path / "project"
@@ -130,14 +133,18 @@ class TestResolveOutputPath:
             )
             mock_ask.assert_called_once_with("Where should I save this?", required=False)
 
-    def test_prompt_mode_relative_path_resolved(self, tmp_path: Path) -> None:
-        input_path = tmp_path / "project"
-        input_path.mkdir()
+    def test_prompt_mode_relative_path_uses_current_directory(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        default_dir = tmp_path / "project"
+        default_dir.mkdir()
+        monkeypatch.chdir(tmp_path)
 
         with patch("video_tool.ui.ask_path", return_value="relative/video.mp4"):
-            result = resolve_output_path(None, input_path, "default.mp4", prompt=True)
+            result = resolve_output_path(None, default_dir, "default.mp4", prompt=True)
 
-        assert result == input_path / "relative" / "video.mp4"
+        assert result == Path("relative/video.mp4")
+        assert (tmp_path / result.parent).exists()
 
     def test_absolute_path_from_prompt_not_relativized(self, tmp_path: Path) -> None:
         input_path = tmp_path / "project"
